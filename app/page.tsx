@@ -267,6 +267,13 @@ export default function JiraTestGenerator() {
     </svg>
   )
 
+  const ClockIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12,6 12,12 16,14" />
+    </svg>
+  )
+
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
@@ -1311,6 +1318,331 @@ declare global {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeView === "tickets" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <FileIcon />
+                    All JIRA Tickets ({filteredTickets.length})
+                  </h2>
+                  <div className="text-sm text-slate-600">{selectedTickets.length} selected</div>
+                </div>
+
+                {/* Search and Filters */}
+                <div className="space-y-4 mb-6">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1">
+                      <div className="relative">
+                        <SearchIcon />
+                        <input
+                          type="text"
+                          placeholder="Search tickets..."
+                          className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                      >
+                        <option value="">All Status</option>
+                        <option value="QA">QA</option>
+                        <option value="Ready for QA">Ready for QA</option>
+                        <option value="In Review">In Review</option>
+                      </select>
+                      <select
+                        className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                      >
+                        <option value="">All Priority</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+                      <button
+                        onClick={resetFilters}
+                        className="px-3 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-1"
+                      >
+                        <RefreshIcon />
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tickets List */}
+                <div className="space-y-3">
+                  {filteredTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                        selectedTickets.includes(ticket.key)
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                      onClick={() => toggleTicketSelection(ticket.key)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">{ticket.key}</span>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                ticket.priority === "High"
+                                  ? "bg-slate-200 text-slate-800"
+                                  : ticket.priority === "Medium"
+                                    ? "bg-slate-100 text-slate-700"
+                                    : "bg-slate-50 text-slate-600"
+                              }`}
+                            >
+                              {ticket.priority}
+                            </span>
+                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                              {ticket.status}
+                            </span>
+                          </div>
+                          <h3 className="font-medium text-slate-900 mb-1">{ticket.summary}</h3>
+                          <p className="text-sm text-slate-600 mb-2">{ticket.description}</p>
+                          {ticket.acceptanceCriteria && (
+                            <div className="text-sm text-slate-600 mb-2">
+                              <strong>AC:</strong> {ticket.acceptanceCriteria}
+                            </div>
+                          )}
+                          <div className="text-xs text-slate-500">
+                            Assignee: {ticket.assignee} • Updated: {ticket.updated}
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={selectedTickets.includes(ticket.key)}
+                          onChange={() => toggleTicketSelection(ticket.key)}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === "analytics" && (
+            <div className="space-y-6">
+              {generatedTests.length === 0 ? (
+                <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
+                  <TestTubeIcon />
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">No Test Cases Generated Yet</h3>
+                  <p className="text-slate-600 mb-4">
+                    Generate test cases from JIRA tickets to view analytics and export options.
+                  </p>
+                  <button
+                    onClick={() => setActiveView("generator")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Go to Test Generator
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Analytics Overview */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg border border-slate-200 p-4">
+                      <div className="text-2xl font-bold text-blue-600">{generatedTests.length}</div>
+                      <div className="text-sm text-slate-600">Tickets Processed</div>
+                    </div>
+                    <div className="bg-white rounded-lg border border-slate-200 p-4">
+                      <div className="text-2xl font-bold text-green-600">
+                        {generatedTests.reduce((sum, result) => sum + result.testCases.length, 0)}
+                      </div>
+                      <div className="text-sm text-slate-600">Total Test Cases</div>
+                    </div>
+                    <div className="bg-white rounded-lg border border-slate-200 p-4">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {Math.round(
+                          generatedTests.reduce((sum, result) => sum + result.testCases.length, 0) /
+                            generatedTests.length,
+                        )}
+                      </div>
+                      <div className="text-sm text-slate-600">Avg Tests/Ticket</div>
+                    </div>
+                    <div className="bg-white rounded-lg border border-slate-200 p-4">
+                      <div className="text-2xl font-bold text-orange-600">85%</div>
+                      <div className="text-sm text-slate-600">Coverage Score</div>
+                    </div>
+                  </div>
+
+                  {/* Test Cases by Ticket */}
+                  <div className="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <TestTubeIcon />
+                      Generated Test Cases ({generatedTests.length} tickets)
+                    </h2>
+
+                    <div className="space-y-4">
+                      {generatedTests.map((result) => (
+                        <div key={result.ticket.key} className="border border-slate-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded mr-2">
+                                {result.ticket.key}
+                              </span>
+                              <span className="font-medium">{result.ticket.summary}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => regenerateTestCases(result.ticket.key)}
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                              >
+                                <RefreshIcon />
+                                Regenerate
+                              </button>
+                              <button
+                                onClick={() => exportTestCases(result)}
+                                className="text-green-600 hover:text-green-800 flex items-center gap-1 text-sm"
+                              >
+                                <DownloadIcon />
+                                Export
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="text-sm text-slate-600 mb-3">
+                            {result.testCases.length} test cases generated • {result.metadata.generatedAt}
+                          </div>
+
+                          <div className="space-y-2">
+                            {result.testCases.map((testCase) => (
+                              <div key={testCase.id} className="bg-slate-50 p-3 rounded">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-sm">{testCase.title}</span>
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded ${
+                                      testCase.priority === "High"
+                                        ? "bg-slate-200 text-slate-800"
+                                        : testCase.priority === "Medium"
+                                          ? "bg-slate-100 text-slate-700"
+                                          : "bg-slate-50 text-slate-600"
+                                    }`}
+                                  >
+                                    {testCase.priority}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-600 mb-2">
+                                  {testCase.steps.length} steps • {testCase.type}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  <strong>Steps:</strong> {testCase.steps.slice(0, 2).join(", ")}
+                                  {testCase.steps.length > 2 && "..."}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Export Options */}
+                  <div className="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <DownloadIcon />
+                      Export Test Suite
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CodeIcon />
+                          <span className="font-medium">Selenium (Java)</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">
+                          Export as ready-to-run Selenium WebDriver test suite
+                        </p>
+                        <button
+                          onClick={() => exportAllTests("selenium")}
+                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
+                        >
+                          <DownloadIcon />
+                          Export Selenium Suite
+                        </button>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CodeIcon />
+                          <span className="font-medium">Cypress (JavaScript)</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Cypress test suite</p>
+                        <button
+                          onClick={() => exportAllTests("cypress")}
+                          className="w-full bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-800 flex items-center justify-center gap-2"
+                        >
+                          <DownloadIcon />
+                          Export Cypress Suite
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeView === "history" && (
+            <div className="space-y-6">
+              {testHistory.length === 0 ? (
+                <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
+                  <ClockIcon />
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">No Generation History</h3>
+                  <p className="text-slate-600 mb-4">
+                    Your test generation history will appear here after you generate test cases.
+                  </p>
+                  <button
+                    onClick={() => setActiveView("generator")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Generate Test Cases
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg border border-slate-200 p-6">
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <ClockIcon />
+                    Generation History ({testHistory.length} sessions)
+                  </h2>
+
+                  <div className="space-y-4">
+                    {testHistory.map((session) => (
+                      <div key={session.id} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{session.timestamp}</span>
+                            <span className="text-sm text-slate-600">
+                              {session.ticketCount} tickets • {session.totalTests} test cases
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="text-blue-600 hover:text-blue-800 text-sm">View Details</button>
+                            <button className="text-green-600 hover:text-green-800 text-sm">Re-export</button>
+                          </div>
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          Configuration: {session.aiConfig.coverageLevel}% coverage,{" "}
+                          {session.aiConfig.testTypes.join(", ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
