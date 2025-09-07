@@ -751,7 +751,7 @@ declare global {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-blue-500 rounded"></div>
+                <div className="w-5 h-5 bg-slate-600 rounded"></div>
                 Test Generator
               </div>
             </button>
@@ -765,7 +765,7 @@ declare global {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-green-500 rounded"></div>
+                <div className="w-5 h-5 bg-slate-600 rounded"></div>
                 Tickets
               </div>
             </button>
@@ -779,7 +779,7 @@ declare global {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-purple-500 rounded"></div>
+                <div className="w-5 h-5 bg-slate-600 rounded"></div>
                 Analytics
               </div>
             </button>
@@ -793,7 +793,7 @@ declare global {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-orange-500 rounded"></div>
+                <div className="w-5 h-5 bg-slate-600 rounded"></div>
                 History
               </div>
             </button>
@@ -807,7 +807,7 @@ declare global {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-gray-500 rounded"></div>
+                <div className="w-5 h-5 bg-slate-600 rounded"></div>
                 Settings
               </div>
             </button>
@@ -981,10 +981,10 @@ declare global {
                             <span
                               className={`text-xs px-2 py-1 rounded-full ${
                                 ticket.priority === "High"
-                                  ? "bg-red-100 text-red-800"
+                                  ? "bg-slate-200 text-slate-800"
                                   : ticket.priority === "Medium"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-green-100 text-green-800"
+                                    ? "bg-slate-100 text-slate-700"
+                                    : "bg-slate-50 text-slate-600"
                               }`}
                             >
                               {ticket.priority}
@@ -1131,10 +1131,10 @@ declare global {
                                 <span
                                   className={`text-xs px-2 py-1 rounded ${
                                     testCase.priority === "High"
-                                      ? "bg-red-100 text-red-800"
+                                      ? "bg-slate-200 text-slate-800"
                                       : testCase.priority === "Medium"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-green-100 text-green-800"
+                                        ? "bg-slate-100 text-slate-700"
+                                        : "bg-slate-50 text-slate-600"
                                   }`}
                                 >
                                   {testCase.priority}
@@ -1169,7 +1169,7 @@ declare global {
                         </p>
                         <button
                           onClick={() => exportAllTests("selenium")}
-                          className="w-full bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 flex items-center justify-center gap-2"
+                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
                         >
                           <DownloadIcon />
                           Export Selenium Suite
@@ -1184,7 +1184,7 @@ declare global {
                         <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Cypress test suite</p>
                         <button
                           onClick={() => exportAllTests("cypress")}
-                          className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
+                          className="w-full bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-800 flex items-center justify-center gap-2"
                         >
                           <DownloadIcon />
                           Export Cypress Suite
