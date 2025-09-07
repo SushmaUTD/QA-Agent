@@ -735,79 +735,101 @@ declare global {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="w-64 bg-slate-900 text-white flex flex-col">
+      <div className="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
         <div className="p-6 border-b border-slate-700">
-          <h1 className="text-xl font-bold">JIRA Test AI</h1>
+          <h1 className="text-xl font-bold text-white">JIRA Test AI</h1>
         </div>
 
         <nav className="flex-1 p-4">
           <div className="space-y-2">
             <button
               onClick={() => setActiveView("generator")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
                 activeView === "generator"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                </svg>
                 Test Generator
               </div>
             </button>
 
             <button
               onClick={() => setActiveView("tickets")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
                 activeView === "tickets"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z"
+                    clipRule="evenodd"
+                  />
+                </svg>
                 Tickets
               </div>
             </button>
 
             <button
               onClick={() => setActiveView("analytics")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
                 activeView === "analytics"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                </svg>
                 Analytics
               </div>
             </button>
 
             <button
               onClick={() => setActiveView("history")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
                 activeView === "history"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
                 History
               </div>
             </button>
 
             <button
               onClick={() => setActiveView("settings")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
                 activeView === "settings"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
                 Settings
               </div>
             </button>
@@ -815,8 +837,8 @@ declare global {
         </nav>
       </div>
 
-      <div className="flex-1 flex flex-col">
-        <div className="bg-white border-b border-gray-200 p-6">
+      <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="bg-white border-b border-gray-200 p-6 shadow-sm">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
@@ -837,7 +859,7 @@ declare global {
           </div>
         </div>
 
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-auto">
           {activeView === "generator" && (
             <div className="space-y-6">
               {/* JIRA Connection Section */}
@@ -1230,7 +1252,7 @@ declare global {
                       <label className="block text-sm font-medium mb-2">Test Username/Email</label>
                       <input
                         type="text"
-                        placeholder="testuser@company.com"
+                        placeholder="https://your-app.com"
                         className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={appConfig.loginUsername}
                         onChange={(e) => setAppConfig({ ...appConfig, loginUsername: e.target.value })}
