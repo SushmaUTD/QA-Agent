@@ -113,6 +113,81 @@ interface AIConfig {
   coverage: string
 }
 
+interface CIPipelineRun {
+  id: string
+  testSuiteId: string
+  status: "pending" | "running" | "success" | "failed" | "cancelled"
+  startedAt: string
+  completedAt?: string
+  results?: {
+    total: number
+    passed: number
+    failed: number
+    skipped: number
+    duration: number
+    failedTests: Array<{
+      name: string
+      error: string
+      screenshot?: string
+    }>
+  }
+  logs: string[]
+  prNumber?: number
+  commitSha?: string
+}
+
+interface CIConfig {
+  provider: "github-actions" | "jenkins" | "gitlab-ci" | "custom"
+  webhookUrl: string
+  apiKey: string
+  environment: string
+  timeout: number
+  parallelJobs: number
+  notifications: {
+    slack?: string
+    email?: string[]
+    prComments: boolean
+  }
+}
+
+interface PRComment {
+  id: string
+  prNumber: number
+  author: string
+  body: string
+  createdAt: string
+  testResults?: {
+    total: number
+    passed: number
+    failed: number
+    duration: number
+    status: "success" | "failed"
+    failedTests: Array<{
+      name: string
+      error: string
+    }>
+  }
+}
+
+interface PRReport {
+  id: string
+  prNumber: number
+  prTitle: string
+  testSuiteId: string
+  status: "pending" | "success" | "failed"
+  createdAt: string
+  results: {
+    total: number
+    passed: number
+    failed: number
+    skipped: number
+    duration: number
+    coverage: number
+    missingTests: string[]
+  }
+  comments: PRComment[]
+}
+
 export default function JiraTestGenerator() {
   const [activeView, setActiveView] = useState("generator")
 
@@ -180,6 +255,25 @@ export default function JiraTestGenerator() {
       priority: string
     }>
   >([])
+
+  const [ciConfig, setCiConfig] = useState<CIConfig>({
+    provider: "github-actions",
+    webhookUrl: "",
+    apiKey: "",
+    environment: "staging",
+    timeout: 30,
+    parallelJobs: 2,
+    notifications: {
+      prComments: true,
+    },
+  })
+
+  const [pipelineRuns, setPipelineRuns] = useState<CIPipelineRun[]>([])
+  const [isExecutingTests, setIsExecutingTests] = useState(false)
+
+  const [prReports, setPrReports] = useState<PRReport[]>([])
+  const [prComments, setPrComments] = useState<PRComment[]>([])
+  const [isPostingComment, setIsPostingComment] = useState(false)
 
   const SearchIcon = () => (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,6 +623,64 @@ export default function JiraTestGenerator() {
     }
   }
 
+  const executeTestsInCI = async (testSuite: TestGenerationResult) => {
+    setIsExecutingTests(true)
+
+    try {
+      const response = await fetch("/api/execute-tests-ci", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          testSuite,
+          ciConfig,
+          appConfig,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const newRun: CIPipelineRun = {
+          id: result.runId,
+          testSuiteId: testSuite.metadata.ticketKey || `pr-${testSuite.metadata.prNumber}`,
+          status: "pending",
+          startedAt: new Date().toISOString(),
+          logs: ["Pipeline started..."],
+          prNumber: testSuite.metadata.prNumber,
+          commitSha: result.commitSha,
+        }
+
+        setPipelineRuns((prev) => [newRun, ...prev])
+
+        // Poll for updates
+        pollPipelineStatus(result.runId)
+      }
+    } catch (error) {
+      console.error("Failed to execute tests in CI:", error)
+    } finally {
+      setIsExecutingTests(false)
+    }
+  }
+
+  const pollPipelineStatus = async (runId: string) => {
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/pipeline-status/${runId}`)
+        const status = await response.json()
+
+        setPipelineRuns((prev) => prev.map((run) => (run.id === runId ? { ...run, ...status } : run)))
+
+        if (status.status === "running" || status.status === "pending") {
+          setTimeout(poll, 5000) // Poll every 5 seconds
+        }
+      } catch (error) {
+        console.error("Failed to poll pipeline status:", error)
+      }
+    }
+
+    poll()
+  }
+
   const generateTestCases = async () => {
     if (integrationMode === "jira" && selectedTickets.length === 0) {
       alert("Please select at least one ticket to generate test cases.")
@@ -677,6 +829,63 @@ export default function JiraTestGenerator() {
   }
 
   const [testResults, setTestResults] = useState<any>({})
+
+  const postResultsToPR = async (prNumber: number, testResults: any) => {
+    setIsPostingComment(true)
+
+    try {
+      const response = await fetch("/api/post-pr-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prNumber,
+          testResults,
+          githubConfig,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const newComment: PRComment = {
+          id: result.commentId,
+          prNumber,
+          author: "jira-test-ai[bot]",
+          body: result.commentBody,
+          createdAt: new Date().toISOString(),
+          testResults,
+        }
+
+        setPrComments((prev) => [newComment, ...prev])
+
+        // Update PR report
+        const newReport: PRReport = {
+          id: `report-${Date.now()}`,
+          prNumber,
+          prTitle: selectedPR?.title || `PR #${prNumber}`,
+          testSuiteId: testResults.suiteId,
+          status: testResults.status,
+          createdAt: new Date().toISOString(),
+          results: {
+            total: testResults.total,
+            passed: testResults.passed,
+            failed: testResults.failed,
+            skipped: testResults.skipped || 0,
+            duration: testResults.duration,
+            coverage: Math.round((testResults.passed / testResults.total) * 100),
+            missingTests: testResults.missingTests || [],
+          },
+          comments: [newComment],
+        }
+
+        setPrReports((prev) => [newReport, ...prev])
+      }
+    } catch (error) {
+      console.error("Failed to post PR comment:", error)
+    } finally {
+      setIsPostingComment(false)
+    }
+  }
 
   const exportAllTests = async (framework: string) => {
     if (generatedTests.length === 0) {
@@ -1144,6 +1353,27 @@ export default defineConfig({
                 Settings
               </div>
             </button>
+
+            <button
+              onClick={() => setActiveView("reports")}
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
+                activeView === "reports"
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path
+                    fillRule="evenodd"
+                    d="M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                PR Reports
+              </div>
+            </button>
           </div>
         </nav>
       </div>
@@ -1158,6 +1388,7 @@ export default defineConfig({
                 {activeView === "analytics" && "Analytics & Results"}
                 {activeView === "history" && "Generation History"}
                 {activeView === "settings" && "Application Settings"}
+                {activeView === "reports" && "PR Reports & Comments"}
               </h2>
               <p className="text-gray-600 mt-1">
                 {activeView === "generator" && "Generate AI-powered test cases from JIRA tickets"}
@@ -1165,6 +1396,7 @@ export default defineConfig({
                 {activeView === "analytics" && "View test case analytics and export options"}
                 {activeView === "history" && "View previous test generation sessions"}
                 {activeView === "settings" && "Configure application settings for test generation"}
+                {activeView === "reports" && "View PR test results, comments, and reporting dashboard"}
               </p>
             </div>
           </div>
@@ -1386,7 +1618,7 @@ export default defineConfig({
                         </button>
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                           View generated test cases in Analytics tab
-                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
                         </div>
                       </div>
                     </div>
@@ -1968,16 +2200,16 @@ export default defineConfig({
                       <div className="text-sm text-slate-600">Avg Tests/Ticket</div>
                     </div>
                     <div className="bg-white rounded-lg border border-slate-200 p-4">
-                      <div className="text-2xl font-bold text-orange-600">85%</div>
-                      <div className="text-sm text-slate-600">Coverage Score</div>
+                      <div className="text-2xl font-bold text-orange-600">{aiConfig.coverageLevel}%</div>
+                      <div className="text-sm text-slate-600">Coverage Level</div>
                     </div>
                   </div>
 
-                  {/* Test Cases by Ticket */}
+                  {/* Test Cases List */}
                   <div className="bg-white rounded-lg border border-slate-200 p-6">
                     <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <TestTubeIcon />
-                      Generated Test Cases ({generatedTests.length} tickets)
+                      <ListIcon />
+                      Test Cases
                     </h2>
 
                     <div className="space-y-4">
@@ -1986,36 +2218,14 @@ export default defineConfig({
                           key={result.ticket?.key || result.pullRequest?.number}
                           className="border border-slate-200 rounded-lg p-4"
                         >
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded mr-2">
-                                {result.ticket?.key || `#${result.pullRequest?.number}`}
-                              </span>
-                              <span className="font-medium">{result.ticket?.summary || result.pullRequest?.title}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => regenerateTestCases(result.ticket?.key || "")}
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
-                              >
-                                <RefreshIcon />
-                                Regenerate
-                              </button>
-                              <button
-                                onClick={() => exportTestCases(result)}
-                                className="text-green-600 hover:text-green-800 flex items-center gap-1 text-sm"
-                              >
-                                <DownloadIcon />
-                                Export
-                              </button>
-                            </div>
-                          </div>
+                          <h3 className="font-medium text-slate-900 mb-2">
+                            {result.ticket?.summary || result.pullRequest?.title}
+                            <span className="ml-2 font-mono text-sm text-slate-500">
+                              ({result.testCases.length} tests)
+                            </span>
+                          </h3>
 
-                          <div className="text-sm text-slate-600 mb-3">
-                            {result.testCases.length} test cases generated • {result.metadata.generatedAt}
-                          </div>
-
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {result.testCases.map((testCase) => (
                               <div key={testCase.id} className="bg-slate-50 p-3 rounded">
                                 <div className="flex items-center justify-between mb-1">
@@ -2032,74 +2242,14 @@ export default defineConfig({
                                     {testCase.priority}
                                   </span>
                                 </div>
-                                <div className="text-xs text-slate-600 mb-2">
+                                <div className="text-xs text-slate-600">
                                   {testCase.steps.length} steps • {testCase.type}
-                                </div>
-                                <div className="text-xs text-slate-500">
-                                  <strong>Steps:</strong> {testCase.steps.slice(0, 2).join(", ")}
-                                  {testCase.steps.length > 2 && "..."}
                                 </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Export Options */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-6">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <DownloadIcon />
-                      Export Test Suite
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="border border-slate-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CodeIcon />
-                          <span className="font-medium">Selenium (Java)</span>
-                        </div>
-                        <p className="text-sm text-slate-600 mb-3">
-                          Export as ready-to-run Selenium WebDriver test suite
-                        </p>
-                        <button
-                          onClick={() => exportAllTests("selenium")}
-                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
-                        >
-                          <DownloadIcon />
-                          Export Selenium Suite
-                        </button>
-                      </div>
-
-                      <div className="border border-slate-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CodeIcon />
-                          <span className="font-medium">Cypress (JavaScript)</span>
-                        </div>
-                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Cypress test suite</p>
-                        <button
-                          onClick={() => exportAllTests("cypress")}
-                          className="w-full bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-800 flex items-center justify-center gap-2"
-                        >
-                          <DownloadIcon />
-                          Export Cypress Suite
-                        </button>
-                      </div>
-
-                      <div className="border border-slate-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CodeIcon />
-                          <span className="font-medium">Playwright (TypeScript)</span>
-                        </div>
-                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Playwright test suite</p>
-                        <button
-                          onClick={() => exportAllTests("playwright")}
-                          className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
-                        >
-                          <DownloadIcon />
-                          Export Playwright Suite
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </>
@@ -2111,151 +2261,182 @@ export default defineConfig({
             <div className="space-y-6">
               {testHistory.length === 0 ? (
                 <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-                  <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">No Generation History</h3>
-                  <p className="text-slate-600 mb-4">
-                    Your test generation history will appear here after you generate test cases.
-                  </p>
+                  <HistoryIcon />
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">No Test Generation History</h3>
+                  <p className="text-slate-600 mb-4">Generate test cases to view your generation history.</p>
                   <button
                     onClick={() => setActiveView("generator")}
                     className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                   >
-                    Generate Test Cases
+                    Go to Test Generator
                   </button>
                 </div>
               ) : (
                 <div className="bg-white rounded-lg border border-slate-200 p-6">
                   <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <div className="w-5 h-5 bg-slate-100 rounded flex items-center justify-center">
-                      <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    Generation History ({testHistory.length} sessions)
+                    <HistoryIcon />
+                    Test Generation History
                   </h2>
 
-                  <div className="space-y-4">
-                    {testHistory.map((session) => (
-                      <div key={session.id} className="border border-slate-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{session.timestamp.toLocaleString()}</span>
-                            <span className="text-sm text-slate-600">
-                              {session.ticketCount} tickets • {session.totalTests} test cases
-                            </span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                const content = JSON.stringify(
-                                  {
-                                    session: {
-                                      id: session.id,
-                                      timestamp: session.timestamp,
-                                      ticketCount: session.ticketCount,
-                                      totalTests: session.totalTests,
-                                      aiConfig: session.aiConfig,
-                                    },
-                                    results: session.results,
-                                  },
-                                  null,
-                                  2,
-                                )
-                                const blob = new Blob([content], { type: "application/json" })
-                                const url = URL.createObjectURL(blob)
-                                const a = document.createElement("a")
-                                a.href = url
-                                a.download = `test-session-${session.id}.json`
-                                a.click()
-                                URL.revokeObjectURL(url)
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Download JSON
-                            </button>
-                            <button
-                              onClick={() => {
-                                const seleniumCode = generateSeleniumCode(session.results.flatMap((r) => r.testCases))
-                                const blob = new Blob([seleniumCode], { type: "text/plain" })
-                                const url = URL.createObjectURL(blob)
-                                const a = document.createElement("a")
-                                a.href = url
-                                a.download = `selenium-tests-${session.id}.java`
-                                a.click()
-                                URL.revokeObjectURL(url)
-                              }}
-                              className="text-green-600 hover:text-green-800 text-sm"
-                            >
-                              Download Selenium
-                            </button>
-                            <button
-                              onClick={() => {
-                                const cypressCode = generateCypressCode(session.results.flatMap((r) => r.testCases))
-                                const blob = new Blob([cypressCode], { type: "text/plain" })
-                                const url = URL.createObjectURL(blob)
-                                const a = document.createElement("a")
-                                a.href = url
-                                a.download = `cypress-tests-${session.id}.js`
-                                a.click()
-                                URL.revokeObjectURL(url)
-                              }}
-                              className="text-purple-600 hover:text-purple-800 text-sm"
-                            >
-                              Download Cypress
-                            </button>
-                          </div>
-                        </div>
-                        <div className="text-sm text-slate-600 mb-3">
-                          Configuration: {session.aiConfig.coverageLevel}% coverage,{" "}
-                          {session.aiConfig.testTypes.join(", ")}
-                        </div>
-                        <div className="space-y-2">
-                          {session.tickets.map((ticket, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded"
-                            >
-                              <span className="font-mono text-blue-600">{ticket.key}</span>
-                              <span className="text-slate-600 flex-1 mx-3 truncate">{ticket.summary}</span>
-                              <span className="text-slate-500">{ticket.testCount} tests</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Source
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Ticket/PR
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Summary
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tests Generated
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Timestamp
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Settings
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {testHistory.map((entry) => (
+                          <tr key={entry.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{entry.source}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{entry.ticketKey || `#${entry.prNumber}`}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{entry.ticketSummary}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{entry.testCount}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{entry.generatedAt}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                className="text-blue-600 hover:text-blue-800"
+                                onClick={() => alert(JSON.stringify(entry.settings, null, 2))}
+                              >
+                                View Settings
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
             </div>
           )}
+
+          {activeView === "reports" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <BarChartIcon />
+                  PR Test Reports
+                </h2>
+
+                {prReports.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-600">No PR reports available yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            PR #
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Title
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Results
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created At
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {prReports.map((report) => (
+                          <tr key={report.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">#{report.prNumber}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{report.prTitle}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{report.status}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                Passed: {report.results.passed}, Failed: {report.results.failed}, Total:{" "}
+                                {report.results.total}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{report.createdAt}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button className="text-blue-600 hover:text-blue-800">View Details</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FileIcon />
+                  PR Comments
+                </h2>
+
+                {prComments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-600">No PR comments posted yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {prComments.map((comment) => (
+                      <div key={comment.id} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-slate-900">
+                            PR #{comment.prNumber} - {comment.author}
+                          </div>
+                          <div className="text-xs text-slate-500">{comment.createdAt}</div>
+                        </div>
+                        <div className="text-sm text-slate-700">{comment.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
-  )
-}
-
-function ZapIcon() {
-  return (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-        clipRule="evenodd"
-      />
-    </svg>
   )
 }
