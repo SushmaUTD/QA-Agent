@@ -904,9 +904,6 @@ export default function JiraTestGenerator() {
       // Generate Cypress JavaScript code
       content = generateCypressCode(generatedTests)
       filename = "cypress_test_suite.cy.js"
-    } else if (framework === "playwright") {
-      content = generatePlaywrightCode(generatedTests)
-      filename = "playwright_test_suite.spec.ts"
     }
 
     const blob = new Blob([content], { type: "text/plain" })
@@ -1125,132 +1122,6 @@ declare global {
     }
   }
 }`
-  }
-
-  function generatePlaywrightCode(tests: TestGenerationResult[]): string {
-    const allTests = tests.flatMap((result) => result.testCases)
-
-    return `import { test, expect, Page } from '@playwright/test';
-
-/**
- * Generated Playwright Test Suite
- * Generated on: ${new Date().toISOString()}
- * Application URL: ${appConfig.applicationUrl}
- * Environment: ${appConfig.environment}
- */
-
-const BASE_URL = '${appConfig.applicationUrl}';
-const TEST_USERNAME = '${appConfig.loginUsername}';
-const TEST_PASSWORD = '${appConfig.loginPassword}';
-
-// Global setup for authentication
-test.beforeEach(async ({ page }) => {
-  await page.goto(BASE_URL);
-  await performLogin(page);
-});
-
-async function performLogin(page: Page) {
-  try {
-    // Check if login is required
-    const usernameField = page.locator('input[type="email"], input[name="username"], input[id="username"]').first();
-    const isLoginRequired = await usernameField.isVisible({ timeout: 3000 }).catch(() => false);
-    
-    if (isLoginRequired) {
-      await usernameField.fill(TEST_USERNAME);
-      await page.locator('input[type="password"], input[name="password"], input[id="password"]').first().fill(TEST_PASSWORD);
-      await page.locator('button:has-text("Login"), button:has-text("Sign In")').first().click();
-      
-      // Wait for navigation after login
-      await page.waitForURL('**/dashboard**', { timeout: 10000 }).catch(() => {
-        console.log('Dashboard URL not detected, continuing with test');
-      });
-    }
-  } catch (error) {
-    console.log('Login not required or different login flow');
-  }
-}
-
-${allTests
-  .map(
-    (test, index) => `
-test('${test.title} (${test.priority} Priority)', async ({ page }) => {
-  // Test Type: ${test.type}
-  
-  // Preconditions
-${test.preconditions.map((pre) => `  // ${pre}`).join("\n")}
-  
-${test.steps
-  .map((step, stepIndex) => {
-    const action = step.toLowerCase()
-    if (action.includes("click")) {
-      const element = step.match(/click (?:on )?(.+)/i)?.[1] || "element"
-      return `  // Step ${stepIndex + 1}: ${step}
-  await page.locator('text="${element}"').first().click();`
-    } else if (action.includes("enter") || action.includes("input") || action.includes("type")) {
-      const match = step.match(/(?:enter|input|type) "(.+)"/i)
-      const value = match?.[1] || "test value"
-      return `  // Step ${stepIndex + 1}: ${step}
-  await page.locator('input[type="text"], input[type="email"]').first().fill('${value}');`
-    } else if (action.includes("verify") || action.includes("check") || action.includes("assert")) {
-      const element = step.match(/(?:verify|check|assert) (.+)/i)?.[1] || "element"
-      return `  // Step ${stepIndex + 1}: ${step}
-  await expect(page.locator('text="${element}"')).toBeVisible();`
-    } else if (action.includes("navigate") || action.includes("go to")) {
-      const url = step.match(/(?:navigate to|go to) (.+)/i)?.[1] || "/page"
-      return `  // Step ${stepIndex + 1}: ${step}
-  await page.goto(BASE_URL + '${url}');`
-    } else if (action.includes("wait")) {
-      return `  // Step ${stepIndex + 1}: ${step}
-  await page.waitForTimeout(2000);`
-    } else {
-      return `  // Step ${stepIndex + 1}: ${step}
-  // TODO: Implement specific action for: ${step}`
-    }
-  })
-  .join("\n")}
-  
-  // Expected Result: ${test.expectedResults}
-  // TODO: Add specific assertions for expected results
-  
-  // Take screenshot for visual verification
-  await page.screenshot({ path: 'test-results/test-${index + 1}-${test.title.replace(/[^a-zA-Z0-9]/g, "")}.png' });
-});`,
-  )
-  .join("\n")}
-
-// Configuration for Playwright
-// Add this to your playwright.config.ts:
-/*
-import { defineConfig, devices } from '@playwright/test';
-
-export default defineConfig({
-  testDir: './tests',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
-  use: {
-    baseURL: '${appConfig.applicationUrl}',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-  },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-  ],
-});
-*/`
   }
 
   return (
@@ -1923,25 +1794,27 @@ export default defineConfig({
                         <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Cypress test suite</p>
                         <button
                           onClick={() => exportAllTests("cypress")}
-                          className="w-full bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-800 flex items-center justify-center gap-2"
+                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
                         >
                           <DownloadIcon />
                           Export Cypress Suite
                         </button>
                       </div>
 
-                      <div className="border border-slate-200 rounded-lg p-4">
+                      <div className="border border-slate-200 rounded-lg p-4 opacity-50">
                         <div className="flex items-center gap-2 mb-2">
                           <CodeIcon />
-                          <span className="font-medium">Playwright (TypeScript)</span>
+                          <span className="font-medium">Playwright (Available in Download)</span>
                         </div>
-                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Playwright test suite</p>
+                        <p className="text-sm text-slate-600 mb-3">
+                          Playwright export available when you download the project locally
+                        </p>
                         <button
-                          onClick={() => exportAllTests("playwright")}
-                          className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
+                          disabled
+                          className="w-full bg-gray-400 text-white px-4 py-2 rounded-md cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           <DownloadIcon />
-                          Export Playwright Suite
+                          Available Locally Only
                         </button>
                       </div>
                     </div>
