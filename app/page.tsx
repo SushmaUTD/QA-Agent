@@ -444,6 +444,24 @@ export default function JiraTestGenerator() {
       }
 
       setGeneratedTests((prev) => [...prev, ...newResults])
+
+      if (newResults.length > 0) {
+        const totalTests = newResults.reduce((sum, result) => sum + result.testCases.length, 0)
+        const historyEntry = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          ticketCount: newResults.length,
+          totalTests,
+          tickets: newResults.map((r) => ({
+            key: r.ticket.key,
+            summary: r.ticket.summary,
+            testCount: r.testCases.length,
+          })),
+          aiConfig: { ...aiConfig },
+          results: newResults,
+        }
+        setTestHistory((prev) => [historyEntry, ...prev])
+      }
     } catch (error) {
       console.error("Failed to generate test cases:", error)
     } finally {
@@ -1600,7 +1618,16 @@ declare global {
             <div className="space-y-6">
               {testHistory.length === 0 ? (
                 <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-                  <ClockIcon />
+                  <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
                   <h3 className="text-lg font-medium text-slate-900 mb-2">No Generation History</h3>
                   <p className="text-slate-600 mb-4">
                     Your test generation history will appear here after you generate test cases.
@@ -1615,7 +1642,16 @@ declare global {
               ) : (
                 <div className="bg-white rounded-lg border border-slate-200 p-6">
                   <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <ClockIcon />
+                    <div className="w-5 h-5 bg-slate-100 rounded flex items-center justify-center">
+                      <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
                     Generation History ({testHistory.length} sessions)
                   </h2>
 
@@ -1624,19 +1660,87 @@ declare global {
                       <div key={session.id} className="border border-slate-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{session.timestamp}</span>
+                            <span className="font-medium">{session.timestamp.toLocaleString()}</span>
                             <span className="text-sm text-slate-600">
                               {session.ticketCount} tickets • {session.totalTests} test cases
                             </span>
                           </div>
                           <div className="flex gap-2">
-                            <button className="text-blue-600 hover:text-blue-800 text-sm">View Details</button>
-                            <button className="text-green-600 hover:text-green-800 text-sm">Re-export</button>
+                            <button
+                              onClick={() => {
+                                const content = JSON.stringify(
+                                  {
+                                    session: {
+                                      id: session.id,
+                                      timestamp: session.timestamp,
+                                      ticketCount: session.ticketCount,
+                                      totalTests: session.totalTests,
+                                      aiConfig: session.aiConfig,
+                                    },
+                                    results: session.results,
+                                  },
+                                  null,
+                                  2,
+                                )
+                                const blob = new Blob([content], { type: "application/json" })
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement("a")
+                                a.href = url
+                                a.download = `test-session-${session.id}.json`
+                                a.click()
+                                URL.revokeObjectURL(url)
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Download JSON
+                            </button>
+                            <button
+                              onClick={() => {
+                                const seleniumCode = generateSeleniumCode(session.results.flatMap((r) => r.testCases))
+                                const blob = new Blob([seleniumCode], { type: "text/plain" })
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement("a")
+                                a.href = url
+                                a.download = `selenium-tests-${session.id}.java`
+                                a.click()
+                                URL.revokeObjectURL(url)
+                              }}
+                              className="text-green-600 hover:text-green-800 text-sm"
+                            >
+                              Download Selenium
+                            </button>
+                            <button
+                              onClick={() => {
+                                const cypressCode = generateCypressCode(session.results.flatMap((r) => r.testCases))
+                                const blob = new Blob([cypressCode], { type: "text/plain" })
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement("a")
+                                a.href = url
+                                a.download = `cypress-tests-${session.id}.js`
+                                a.click()
+                                URL.revokeObjectURL(url)
+                              }}
+                              className="text-purple-600 hover:text-purple-800 text-sm"
+                            >
+                              Download Cypress
+                            </button>
                           </div>
                         </div>
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-slate-600 mb-3">
                           Configuration: {session.aiConfig.coverageLevel}% coverage,{" "}
                           {session.aiConfig.testTypes.join(", ")}
+                        </div>
+                        <div className="space-y-2">
+                          {session.tickets.map((ticket, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded"
+                            >
+                              <span className="font-mono text-blue-600">{ticket.key}</span>
+                              <span className="text-slate-600 flex-1 mx-3 truncate">{ticket.summary}</span>
+                              <span className="text-slate-500">{ticket.testCount} tests</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
