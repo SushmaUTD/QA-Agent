@@ -26,6 +26,45 @@ import { useState, useMemo } from "react"
 
 // import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 
+interface GitHubPullRequest {
+  id: string
+  number: number
+  title: string
+  description: string
+  status: string
+  author: string
+  reviewers: string[]
+  files: GitHubFile[]
+  commits: GitHubCommit[]
+  created: string
+  updated: string
+  branch: string
+  baseBranch: string
+}
+
+interface GitHubFile {
+  filename: string
+  status: "added" | "modified" | "removed"
+  additions: number
+  deletions: number
+  changes: number
+  patch?: string
+}
+
+interface GitHubCommit {
+  sha: string
+  message: string
+  author: string
+  date: string
+}
+
+interface GitHubConfig {
+  token: string
+  repository: string
+  organization: string
+  webhookUrl?: string
+}
+
 interface JiraTicket {
   id: string
   key: string
@@ -50,13 +89,16 @@ interface TestCase {
 }
 
 interface TestGenerationResult {
-  ticket: JiraTicket
+  ticket?: JiraTicket
+  pullRequest?: GitHubPullRequest // Added GitHub PR support to test results
   testCases: TestCase[]
   metadata: {
-    ticketKey: string
+    ticketKey?: string
+    prNumber?: number // Added PR number to metadata
     generatedAt: string
     settings: any
     totalTests: number
+    source: "jira" | "github" // Added source tracking
   }
 }
 
@@ -88,12 +130,26 @@ export default function JiraTestGenerator() {
     environment: "staging",
   })
 
+  const [githubConfig, setGithubConfig] = useState<GitHubConfig>({
+    token: "",
+    repository: "",
+    organization: "",
+    webhookUrl: "",
+  })
+
+  const [isGithubConnected, setIsGithubConnected] = useState(false)
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([])
+  const [selectedPR, setSelectedPR] = useState<GitHubPullRequest | null>(null)
+  const [isConnectingGithub, setIsConnectingGithub] = useState(false)
+
   const [isConnected, setIsConnected] = useState(false)
   const [tickets, setTickets] = useState<JiraTicket[]>([])
   const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null)
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+
+  const [integrationMode, setIntegrationMode] = useState<"jira" | "github">("jira")
 
   const [filters, setFilters] = useState({
     status: "all",
@@ -157,7 +213,7 @@ export default function JiraTestGenerator() {
   const SettingsIcon = () => (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82-.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   )
 
@@ -409,61 +465,162 @@ export default function JiraTestGenerator() {
     setIsConnecting(false)
   }
 
+  const connectToGithub = async () => {
+    setIsConnectingGithub(true)
+    try {
+      // Simulate GitHub API connection
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Mock GitHub PRs for demo
+      const mockPRs: GitHubPullRequest[] = [
+        {
+          id: "1",
+          number: 123,
+          title: "Add user authentication system",
+          description:
+            "This PR implements a complete user authentication system with login, registration, and password reset functionality.",
+          status: "open",
+          author: "john.doe",
+          reviewers: ["jane.smith", "mike.wilson"],
+          files: [
+            { filename: "src/auth/login.tsx", status: "added", additions: 45, deletions: 0, changes: 45 },
+            { filename: "src/auth/register.tsx", status: "added", additions: 38, deletions: 0, changes: 38 },
+            { filename: "src/utils/auth.ts", status: "modified", additions: 12, deletions: 3, changes: 15 },
+          ],
+          commits: [
+            { sha: "abc123", message: "Add login component", author: "john.doe", date: "2024-01-20" },
+            { sha: "def456", message: "Add registration form", author: "john.doe", date: "2024-01-21" },
+          ],
+          created: "2024-01-20",
+          updated: "2024-01-21",
+          branch: "feature/auth-system",
+          baseBranch: "main",
+        },
+        {
+          id: "2",
+          number: 124,
+          title: "Implement shopping cart functionality",
+          description: "Added shopping cart with add/remove items, quantity updates, and persistent storage.",
+          status: "open",
+          author: "jane.smith",
+          reviewers: ["john.doe"],
+          files: [
+            { filename: "src/components/Cart.tsx", status: "added", additions: 67, deletions: 0, changes: 67 },
+            { filename: "src/hooks/useCart.ts", status: "added", additions: 34, deletions: 0, changes: 34 },
+            { filename: "src/pages/checkout.tsx", status: "modified", additions: 23, deletions: 8, changes: 31 },
+          ],
+          commits: [
+            { sha: "ghi789", message: "Add cart component", author: "jane.smith", date: "2024-01-22" },
+            { sha: "jkl012", message: "Add cart persistence", author: "jane.smith", date: "2024-01-23" },
+          ],
+          created: "2024-01-22",
+          updated: "2024-01-23",
+          branch: "feature/shopping-cart",
+          baseBranch: "main",
+        },
+      ]
+
+      setPullRequests(mockPRs)
+      setIsGithubConnected(true)
+    } catch (error) {
+      console.error("Failed to connect to GitHub:", error)
+    } finally {
+      setIsConnectingGithub(false)
+    }
+  }
+
   const generateTestCases = async () => {
-    if (selectedTickets.length === 0) return
+    if (integrationMode === "jira" && selectedTickets.length === 0) {
+      alert("Please select at least one ticket to generate test cases.")
+      return
+    }
+
+    if (integrationMode === "github" && !selectedPR) {
+      alert("Please select a pull request to generate test cases.")
+      return
+    }
 
     setIsGenerating(true)
-    const newResults: TestGenerationResult[] = []
 
     try {
-      for (const ticketKey of selectedTickets) {
-        const ticket = mockTickets.find((t) => t.key === ticketKey)
-        if (!ticket) continue
+      const results: TestGenerationResult[] = []
 
-        const response = await fetch("/api/generate-tests", {
+      if (integrationMode === "jira") {
+        // Existing JIRA test generation logic
+        for (const ticketId of selectedTickets) {
+          const ticket = mockTickets.find((t) => t.id === ticketId)
+          if (!ticket) continue
+
+          const response = await fetch("/api/generate-tests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ticket,
+              settings: aiConfig,
+              appConfig,
+            }),
+          })
+
+          const data = await response.json()
+          results.push({
+            ticket,
+            testCases: data.testCases,
+            metadata: {
+              ticketKey: ticket.key,
+              generatedAt: new Date().toISOString(),
+              settings: aiConfig,
+              totalTests: data.testCases.length,
+              source: "jira",
+            },
+          })
+        }
+      } else if (integrationMode === "github" && selectedPR) {
+        // New GitHub PR test generation
+        const response = await fetch("/api/generate-tests-github", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ticket,
-            settings: {
-              coverageLevel: aiConfig.coverageLevel,
-              testTypes: aiConfig.testTypes,
-              framework: aiConfig.framework,
-            },
+            pullRequest: selectedPR,
+            settings: aiConfig,
+            appConfig,
           }),
         })
 
         const data = await response.json()
-        if (data.success) {
-          newResults.push({
-            ticket,
-            testCases: data.testCases,
-            metadata: data.metadata,
-          })
-        }
+        results.push({
+          pullRequest: selectedPR,
+          testCases: data.testCases,
+          metadata: {
+            prNumber: selectedPR.number,
+            generatedAt: new Date().toISOString(),
+            settings: aiConfig,
+            totalTests: data.testCases.length,
+            source: "github",
+          },
+        })
       }
 
-      setGeneratedTests((prev) => [...prev, ...newResults])
+      setGeneratedTests(results)
 
-      if (newResults.length > 0) {
-        const totalTests = newResults.reduce((sum, result) => sum + result.testCases.length, 0)
-        const historyEntry = {
-          id: Date.now().toString(),
-          timestamp: new Date(),
-          ticketCount: newResults.length,
-          totalTests,
-          tickets: newResults.map((r) => ({
-            key: r.ticket.key,
-            summary: r.ticket.summary,
-            testCount: r.testCases.length,
-          })),
-          aiConfig: { ...aiConfig },
-          results: newResults,
-        }
-        setTestHistory((prev) => [historyEntry, ...prev])
+      const historyEntry = {
+        id: Date.now().toString(),
+        ticketKey:
+          integrationMode === "jira"
+            ? selectedTickets.map((id) => mockTickets.find((t) => t.id === id)?.key).join(", ")
+            : undefined,
+        prNumber: integrationMode === "github" ? selectedPR?.number : undefined,
+        ticketSummary: integrationMode === "jira" ? `${selectedTickets.length} JIRA tickets` : selectedPR?.title || "",
+        testCount: results.reduce((sum, r) => sum + r.testCases.length, 0),
+        generatedAt: new Date().toISOString(),
+        settings: aiConfig,
+        results,
+        source: integrationMode,
       }
+
+      setTestHistory((prev) => [historyEntry, ...prev])
     } catch (error) {
-      console.error("Failed to generate test cases:", error)
+      console.error("Test generation error:", error)
+      alert("Failed to generate test cases. Please try again.")
     } finally {
       setIsGenerating(false)
     }
@@ -538,6 +695,9 @@ export default function JiraTestGenerator() {
       // Generate Cypress JavaScript code
       content = generateCypressCode(generatedTests)
       filename = "cypress_test_suite.cy.js"
+    } else if (framework === "playwright") {
+      content = generatePlaywrightCode(generatedTests)
+      filename = "playwright_test_suite.spec.ts"
     }
 
     const blob = new Blob([content], { type: "text/plain" })
@@ -758,6 +918,132 @@ declare global {
 }`
   }
 
+  function generatePlaywrightCode(tests: TestGenerationResult[]): string {
+    const allTests = tests.flatMap((result) => result.testCases)
+
+    return `import { test, expect, Page } from '@playwright/test';
+
+/**
+ * Generated Playwright Test Suite
+ * Generated on: ${new Date().toISOString()}
+ * Application URL: ${appConfig.applicationUrl}
+ * Environment: ${appConfig.environment}
+ */
+
+const BASE_URL = '${appConfig.applicationUrl}';
+const TEST_USERNAME = '${appConfig.loginUsername}';
+const TEST_PASSWORD = '${appConfig.loginPassword}';
+
+// Global setup for authentication
+test.beforeEach(async ({ page }) => {
+  await page.goto(BASE_URL);
+  await performLogin(page);
+});
+
+async function performLogin(page: Page) {
+  try {
+    // Check if login is required
+    const usernameField = page.locator('input[type="email"], input[name="username"], input[id="username"]').first();
+    const isLoginRequired = await usernameField.isVisible({ timeout: 3000 }).catch(() => false);
+    
+    if (isLoginRequired) {
+      await usernameField.fill(TEST_USERNAME);
+      await page.locator('input[type="password"], input[name="password"], input[id="password"]').first().fill(TEST_PASSWORD);
+      await page.locator('button:has-text("Login"), button:has-text("Sign In")').first().click();
+      
+      // Wait for navigation after login
+      await page.waitForURL('**/dashboard**', { timeout: 10000 }).catch(() => {
+        console.log('Dashboard URL not detected, continuing with test');
+      });
+    }
+  } catch (error) {
+    console.log('Login not required or different login flow');
+  }
+}
+
+${allTests
+  .map(
+    (test, index) => `
+test('${test.title} (${test.priority} Priority)', async ({ page }) => {
+  // Test Type: ${test.type}
+  
+  // Preconditions
+${test.preconditions.map((pre) => `  // ${pre}`).join("\n")}
+  
+${test.steps
+  .map((step, stepIndex) => {
+    const action = step.toLowerCase()
+    if (action.includes("click")) {
+      const element = step.match(/click (?:on )?(.+)/i)?.[1] || "element"
+      return `  // Step ${stepIndex + 1}: ${step}
+  await page.locator('text="${element}"').first().click();`
+    } else if (action.includes("enter") || action.includes("input") || action.includes("type")) {
+      const match = step.match(/(?:enter|input|type) "(.+)"/i)
+      const value = match?.[1] || "test value"
+      return `  // Step ${stepIndex + 1}: ${step}
+  await page.locator('input[type="text"], input[type="email"]').first().fill('${value}');`
+    } else if (action.includes("verify") || action.includes("check") || action.includes("assert")) {
+      const element = step.match(/(?:verify|check|assert) (.+)/i)?.[1] || "element"
+      return `  // Step ${stepIndex + 1}: ${step}
+  await expect(page.locator('text="${element}"')).toBeVisible();`
+    } else if (action.includes("navigate") || action.includes("go to")) {
+      const url = step.match(/(?:navigate to|go to) (.+)/i)?.[1] || "/page"
+      return `  // Step ${stepIndex + 1}: ${step}
+  await page.goto(BASE_URL + '${url}');`
+    } else if (action.includes("wait")) {
+      return `  // Step ${stepIndex + 1}: ${step}
+  await page.waitForTimeout(2000);`
+    } else {
+      return `  // Step ${stepIndex + 1}: ${step}
+  // TODO: Implement specific action for: ${step}`
+    }
+  })
+  .join("\n")}
+  
+  // Expected Result: ${test.expectedResults}
+  // TODO: Add specific assertions for expected results
+  
+  // Take screenshot for visual verification
+  await page.screenshot({ path: 'test-results/test-${index + 1}-${test.title.replace(/[^a-zA-Z0-9]/g, "")}.png' });
+});`,
+  )
+  .join("\n")}
+
+// Configuration for Playwright
+// Add this to your playwright.config.ts:
+/*
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: '${appConfig.applicationUrl}',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
+});
+*/`
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <div className="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
@@ -887,196 +1173,367 @@ declare global {
         <div className="flex-1 p-6 overflow-auto">
           {activeView === "generator" && (
             <div className="space-y-6">
-              {/* JIRA Connection Section */}
               <div className="bg-white rounded-lg border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <ZapIcon />
-                  JIRA Connection
-                </h2>
-
-                {!isConnected ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">JIRA URL</label>
-                        <input
-                          type="url"
-                          placeholder="https://your-company.atlassian.net"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={jiraConfig.url}
-                          onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Project Key</label>
-                        <input
-                          type="text"
-                          placeholder="PROJ"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={jiraConfig.project}
-                          onChange={(e) => setJiraConfig({ ...jiraConfig, project: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Email</label>
-                        <input
-                          type="email"
-                          placeholder="your.email@company.com"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={jiraConfig.email}
-                          onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">API Token</label>
-                        <input
-                          type="password"
-                          placeholder="Your JIRA API token"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={jiraConfig.apiToken}
-                          onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleJiraConnect}
-                      disabled={isConnecting}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {isConnecting ? <RefreshIcon /> : <ZapIcon />}
-                      {isConnecting ? "Connecting..." : "Connect to JIRA"}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckIcon />
-                    <span>Connected to JIRA successfully</span>
-                  </div>
-                )}
+                <h2 className="text-lg font-semibold mb-4">Integration Source</h2>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setIntegrationMode("jira")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      integrationMode === "jira"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    JIRA Tickets
+                  </button>
+                  <button
+                    onClick={() => setIntegrationMode("github")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      integrationMode === "github"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    GitHub Pull Requests
+                  </button>
+                </div>
               </div>
 
-              {/* Ticket Selection Section */}
-              <div className="bg-white rounded-lg border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <FileIcon />
-                  QA Tickets ({filteredTickets.length})
-                </h2>
+              {integrationMode === "jira" && (
+                <>
+                  {/* Existing JIRA Connection Section */}
+                  <div className="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <ZapIcon />
+                      JIRA Connection
+                    </h2>
 
-                {/* Search and Filters */}
-                <div className="space-y-4 mb-6">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1">
-                      <div className="relative">
-                        <SearchIcon />
-                        <input
-                          type="text"
-                          placeholder="Search tickets..."
-                          className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <select
-                        className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                      >
-                        <option value="">All Status</option>
-                        <option value="QA">QA</option>
-                        <option value="Ready for QA">Ready for QA</option>
-                        <option value="In Review">In Review</option>
-                      </select>
-                      <select
-                        className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value)}
-                      >
-                        <option value="">All Priority</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
-                      <button
-                        onClick={resetFilters}
-                        className="px-3 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-1"
-                      >
-                        <RefreshIcon />
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tickets List */}
-                <div className="space-y-3">
-                  {filteredTickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                        selectedTickets.includes(ticket.key)
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                      onClick={() => toggleTicketSelection(ticket.key)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">{ticket.key}</span>
-                            <span
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                ticket.priority === "High"
-                                  ? "bg-slate-200 text-slate-800"
-                                  : ticket.priority === "Medium"
-                                    ? "bg-slate-100 text-slate-700"
-                                    : "bg-slate-50 text-slate-600"
-                              }`}
-                            >
-                              {ticket.priority}
-                            </span>
-                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-                              {ticket.status}
-                            </span>
+                    {!isConnected ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2">JIRA URL</label>
+                            <input
+                              type="url"
+                              placeholder="https://your-company.atlassian.net"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={jiraConfig.url}
+                              onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
+                            />
                           </div>
-                          <h3 className="font-medium text-slate-900 mb-1">{ticket.summary}</h3>
-                          <p className="text-sm text-slate-600 mb-2">{ticket.description}</p>
-                          <div className="text-xs text-slate-500">
-                            Assignee: {ticket.assignee} • Updated: {ticket.updated}
+                          <div>
+                            <label className="block text-sm font-medium mb-2">Project Key</label>
+                            <input
+                              type="text"
+                              placeholder="PROJ"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={jiraConfig.project}
+                              onChange={(e) => setJiraConfig({ ...jiraConfig, project: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">Email</label>
+                            <input
+                              type="email"
+                              placeholder="your.email@company.com"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={jiraConfig.email}
+                              onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">API Token</label>
+                            <input
+                              type="password"
+                              placeholder="Your JIRA API token"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={jiraConfig.apiToken}
+                              onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
+                            />
                           </div>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={selectedTickets.includes(ticket.key)}
-                          onChange={() => toggleTicketSelection(ticket.key)}
-                          className="mt-1"
-                        />
+                        <button
+                          onClick={handleJiraConnect}
+                          disabled={isConnecting}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isConnecting ? <RefreshIcon /> : <ZapIcon />}
+                          {isConnecting ? "Connecting..." : "Connect to JIRA"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckIcon />
+                        <span>Connected to JIRA successfully</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ticket Selection Section */}
+                  <div className="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <FileIcon />
+                      QA Tickets ({filteredTickets.length})
+                    </h2>
+
+                    {/* Search and Filters */}
+                    <div className="space-y-4 mb-6">
+                      <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1">
+                          <div className="relative">
+                            <SearchIcon />
+                            <input
+                              type="text"
+                              placeholder="Search tickets..."
+                              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <select
+                            className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                          >
+                            <option value="">All Status</option>
+                            <option value="QA">QA</option>
+                            <option value="Ready for QA">Ready for QA</option>
+                            <option value="In Review">In Review</option>
+                          </select>
+                          <select
+                            className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                          >
+                            <option value="">All Priority</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                          </select>
+                          <button
+                            onClick={resetFilters}
+                            className="px-3 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-1"
+                          >
+                            <RefreshIcon />
+                            Reset
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* Generate Button */}
-                <div className="mt-6 flex justify-between items-center">
-                  <span className="text-sm text-slate-600">{selectedTickets.length} ticket(s) selected</span>
-                  <div className="relative">
-                    <button
-                      onClick={generateTestCases}
-                      disabled={selectedTickets.length === 0 || isGenerating}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                      title="View generated test cases in Analytics tab"
-                    >
-                      {isGenerating ? <RefreshIcon /> : <BrainIcon />}
-                      {isGenerating ? "Generating..." : "Generate Test Cases"}
-                    </button>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-                      View generated test cases in Analytics tab
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                    {/* Tickets List */}
+                    <div className="space-y-3">
+                      {filteredTickets.map((ticket) => (
+                        <div
+                          key={ticket.id}
+                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                            selectedTickets.includes(ticket.key)
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                          onClick={() => toggleTicketSelection(ticket.key)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">{ticket.key}</span>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    ticket.priority === "High"
+                                      ? "bg-slate-200 text-slate-800"
+                                      : ticket.priority === "Medium"
+                                        ? "bg-slate-100 text-slate-700"
+                                        : "bg-slate-50 text-slate-600"
+                                  }`}
+                                >
+                                  {ticket.priority}
+                                </span>
+                                <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                                  {ticket.status}
+                                </span>
+                              </div>
+                              <h3 className="font-medium text-slate-900 mb-1">{ticket.summary}</h3>
+                              <p className="text-sm text-slate-600 mb-2">{ticket.description}</p>
+                              <div className="text-xs text-slate-500">
+                                Assignee: {ticket.assignee} • Updated: {ticket.updated}
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={selectedTickets.includes(ticket.key)}
+                              onChange={() => toggleTicketSelection(ticket.key)}
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Generate Button */}
+                    <div className="mt-6 flex justify-between items-center">
+                      <span className="text-sm text-slate-600">{selectedTickets.length} ticket(s) selected</span>
+                      <div className="relative">
+                        <button
+                          onClick={generateTestCases}
+                          disabled={selectedTickets.length === 0 || isGenerating}
+                          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                          title="View generated test cases in Analytics tab"
+                        >
+                          {isGenerating ? <RefreshIcon /> : <BrainIcon />}
+                          {isGenerating ? "Generating..." : "Generate Test Cases"}
+                        </button>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                          View generated test cases in Analytics tab
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
+
+              {integrationMode === "github" && (
+                <>
+                  <div className="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      GitHub Connection
+                    </h2>
+
+                    {!isGithubConnected ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">GitHub Token</label>
+                            <input
+                              type="password"
+                              value={githubConfig.token}
+                              onChange={(e) => setGithubConfig((prev) => ({ ...prev, token: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="ghp_xxxxxxxxxxxx"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Organization</label>
+                            <input
+                              type="text"
+                              value={githubConfig.organization}
+                              onChange={(e) => setGithubConfig((prev) => ({ ...prev, organization: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="your-org"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Repository</label>
+                            <input
+                              type="text"
+                              value={githubConfig.repository}
+                              onChange={(e) => setGithubConfig((prev) => ({ ...prev, repository: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="your-repo"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Webhook URL (Optional)
+                            </label>
+                            <input
+                              type="url"
+                              value={githubConfig.webhookUrl}
+                              onChange={(e) => setGithubConfig((prev) => ({ ...prev, webhookUrl: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="https://your-ci.com/webhook"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={connectToGithub}
+                          disabled={
+                            isConnectingGithub ||
+                            !githubConfig.token ||
+                            !githubConfig.organization ||
+                            !githubConfig.repository
+                          }
+                          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {isConnectingGithub ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              Connecting...
+                            </>
+                          ) : (
+                            "Connect to GitHub"
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-green-800 font-medium">
+                            Connected to {githubConfig.organization}/{githubConfig.repository}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setIsGithubConnected(false)}
+                          className="text-green-600 hover:text-green-800 text-sm"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isGithubConnected && (
+                    <div className="bg-white rounded-lg border border-slate-200 p-6">
+                      <h2 className="text-lg font-semibold mb-4">Select Pull Request</h2>
+                      <div className="space-y-3">
+                        {pullRequests.map((pr) => (
+                          <div
+                            key={pr.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              selectedPR?.id === pr.id
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => setSelectedPR(pr)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h3 className="font-medium text-gray-900">
+                                  #{pr.number}: {pr.title}
+                                </h3>
+                                <p className="text-sm text-gray-600 mt-1">{pr.description}</p>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                  <span>By {pr.author}</span>
+                                  <span>{pr.files.length} files changed</span>
+                                  <span>{pr.commits.length} commits</span>
+                                  <span>Updated {pr.updated}</span>
+                                </div>
+                              </div>
+                              <span
+                                className={`px-2 py-1 text-xs rounded-full ${
+                                  pr.status === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {pr.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* AI Configuration */}
               <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -1140,17 +1597,20 @@ declare global {
 
                   <div className="space-y-4">
                     {generatedTests.map((result) => (
-                      <div key={result.ticket.key} className="border border-slate-200 rounded-lg p-4">
+                      <div
+                        key={result.ticket?.key || result.pullRequest?.number}
+                        className="border border-slate-200 rounded-lg p-4"
+                      >
                         <div className="flex items-center justify-between mb-3">
                           <div>
                             <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded mr-2">
-                              {result.ticket.key}
+                              {result.ticket?.key || `#${result.pullRequest?.number}`}
                             </span>
-                            <span className="font-medium">{result.ticket.summary}</span>
+                            <span className="font-medium">{result.ticket?.summary || result.pullRequest?.title}</span>
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => regenerateTestCases(result.ticket.key)}
+                              onClick={() => regenerateTestCases(result.ticket?.key || "")}
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
                             >
                               <RefreshIcon />
@@ -1205,7 +1665,7 @@ declare global {
                   {/* Export All Section */}
                   <div className="mt-6 pt-4 border-t border-slate-200">
                     <h3 className="font-medium mb-3">Export Test Suite</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="border border-slate-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <CodeIcon />
@@ -1235,6 +1695,21 @@ declare global {
                         >
                           <DownloadIcon />
                           Export Cypress Suite
+                        </button>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CodeIcon />
+                          <span className="font-medium">Playwright (TypeScript)</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Playwright test suite</p>
+                        <button
+                          onClick={() => exportAllTests("playwright")}
+                          className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
+                        >
+                          <DownloadIcon />
+                          Export Playwright Suite
                         </button>
                       </div>
                     </div>
@@ -1507,17 +1982,20 @@ declare global {
 
                     <div className="space-y-4">
                       {generatedTests.map((result) => (
-                        <div key={result.ticket.key} className="border border-slate-200 rounded-lg p-4">
+                        <div
+                          key={result.ticket?.key || result.pullRequest?.number}
+                          className="border border-slate-200 rounded-lg p-4"
+                        >
                           <div className="flex items-center justify-between mb-3">
                             <div>
                               <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded mr-2">
-                                {result.ticket.key}
+                                {result.ticket?.key || `#${result.pullRequest?.number}`}
                               </span>
-                              <span className="font-medium">{result.ticket.summary}</span>
+                              <span className="font-medium">{result.ticket?.summary || result.pullRequest?.title}</span>
                             </div>
                             <div className="flex gap-2">
                               <button
-                                onClick={() => regenerateTestCases(result.ticket.key)}
+                                onClick={() => regenerateTestCases(result.ticket?.key || "")}
                                 className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
                               >
                                 <RefreshIcon />
@@ -1575,7 +2053,7 @@ declare global {
                       <DownloadIcon />
                       Export Test Suite
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="border border-slate-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <CodeIcon />
@@ -1605,6 +2083,21 @@ declare global {
                         >
                           <DownloadIcon />
                           Export Cypress Suite
+                        </button>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CodeIcon />
+                          <span className="font-medium">Playwright (TypeScript)</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">Export as ready-to-run Playwright test suite</p>
+                        <button
+                          onClick={() => exportAllTests("playwright")}
+                          className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
+                        >
+                          <DownloadIcon />
+                          Export Playwright Suite
                         </button>
                       </div>
                     </div>
@@ -1752,5 +2245,17 @@ declare global {
         </div>
       </div>
     </div>
+  )
+}
+
+function ZapIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+      <path
+        fillRule="evenodd"
+        d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+        clipRule="evenodd"
+      />
+    </svg>
   )
 }
