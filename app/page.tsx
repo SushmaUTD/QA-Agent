@@ -790,7 +790,6 @@ export default function JiraTestGenerator() {
 - Email notification preferences management
 - Account deletion with data export option
 - Privacy settings and data management
-- Profile validation and error handling
 
 **Technical Implementation:**
 - File upload with drag-and-drop interface
@@ -1095,7 +1094,7 @@ export default function JiraTestGenerator() {
     }
   }
 
-  const exportTestCases = async (result: TestGenerationResult) => {
+  const exportTestCasesOld = async (result: TestGenerationResult) => {
     const testData = {
       ticket: result.ticket,
       pullRequest: result.pullRequest,
@@ -1418,6 +1417,97 @@ declare global {
 }`
   }
 
+  const [jiraConnected, setJiraConnected] = useState(false)
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [selectedPRs, setSelectedPRs] = useState<number[]>([])
+
+  const downloadHistorySession = async (session: any, format: string) => {
+    let content = ""
+    let filename = ""
+
+    if (format === "json") {
+      content = JSON.stringify(session, null, 2)
+      filename = `test_history_session_${session.id}.json`
+    } else if (format === "selenium") {
+      // Generate Selenium WebDriver Java code
+      content = generateSeleniumCode(session.results)
+      filename = `test_history_session_${session.id}_selenium.java`
+    } else if (format === "cypress") {
+      // Generate Cypress JavaScript code
+      content = generateCypressCode(session.results)
+      filename = `test_history_session_${session.id}_cypress.cy.js`
+    }
+
+    const blob = new Blob([content], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const exportTestCases = async (result: TestGenerationResult, framework?: string) => {
+    if (framework === "json" || !framework) {
+      const testData = {
+        ticket: result.ticket,
+        pullRequest: result.pullRequest,
+        testCases: result.testCases,
+        generatedAt: new Date().toISOString(),
+        framework: "generic",
+        source: result.metadata.source,
+      }
+
+      const blob = new Blob([JSON.stringify(testData, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+
+      const filename = result.ticket
+        ? `${result.ticket.key}_test_cases.json`
+        : `PR_${result.pullRequest?.number}_test_cases.json`
+
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } else if (framework === "selenium") {
+      const testData = [result]
+      const content = generateSeleniumCode(testData)
+      const blob = new Blob([content], { type: "text/plain" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const filename = result.ticket
+        ? `${result.ticket.key}_test_cases.java`
+        : `PR_${result.pullRequest?.number}_test_cases.java`
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } else if (framework === "cypress") {
+      const testData = [result]
+      const content = generateCypressCode(testData)
+      const blob = new Blob([content], { type: "text/plain" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const filename = result.ticket
+        ? `${result.ticket.key}_test_cases.cy.js`
+        : `PR_${result.pullRequest?.number}_test_cases.cy.js`
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <div className="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
@@ -1511,6 +1601,743 @@ declare global {
             </button>
           </div>
         </nav>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <h2 className="text-2xl font-bold text-gray-900">
+            {activeView === "generator" && "Test Generator"}
+            {activeView === "tickets" && "JIRA Tickets"}
+            {activeView === "analytics" && "Test Analytics"}
+            {activeView === "history" && "Generation History"}
+            {activeView === "settings" && "Application Settings"}
+          </h2>
+        </div>
+
+        <div className="flex-1 p-6 overflow-auto">
+          {activeView === "generator" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Integration Source</h3>
+                <div className="flex space-x-4 mb-6">
+                  <button
+                    onClick={() => setIntegrationMode("jira")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      integrationMode === "jira"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    JIRA Tickets
+                  </button>
+                  <button
+                    onClick={() => setIntegrationMode("github")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      integrationMode === "github"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    GitHub Pull Requests
+                  </button>
+                </div>
+
+                {integrationMode === "jira" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
+                        <input
+                          type="url"
+                          value={jiraConfig.url}
+                          onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
+                          placeholder="https://your-domain.atlassian.net"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input
+                          type="email"
+                          value={jiraConfig.email}
+                          onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
+                          placeholder="your-email@company.com"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
+                        <input
+                          type="text"
+                          value={jiraConfig.projectKey}
+                          onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
+                          placeholder="PROJ"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
+                        <input
+                          type="password"
+                          value={jiraConfig.apiToken}
+                          onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
+                          placeholder="Your JIRA API token"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setJiraConnected(true)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Connect to JIRA
+                    </button>
+                  </div>
+                )}
+
+                {integrationMode === "github" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">GitHub Token</label>
+                        <input
+                          type="password"
+                          value={githubConfig.token}
+                          onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
+                          placeholder="ghp_xxxxxxxxxxxx"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Organization</label>
+                        <input
+                          type="text"
+                          value={githubConfig.organization}
+                          onChange={(e) => setGithubConfig({ ...githubConfig, organization: e.target.value })}
+                          placeholder="goldman-sachs"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Repository</label>
+                        <input
+                          type="text"
+                          value={githubConfig.repository}
+                          onChange={(e) => setGithubConfig({ ...githubConfig, repository: e.target.value })}
+                          placeholder="trading-platform"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
+                        <input
+                          type="url"
+                          value={githubConfig.webhookUrl}
+                          onChange={(e) => setGithubConfig({ ...githubConfig, webhookUrl: e.target.value })}
+                          placeholder="https://api.company.com/webhook"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setGithubConnected(true)}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Connect to GitHub
+                      </button>
+                      <button
+                        onClick={() => {
+                          setGithubConfig({
+                            token: "ghp_demo_token_for_goldman_sachs",
+                            organization: "goldman-sachs",
+                            repository: "trading-platform-demo",
+                            webhookUrl: "https://api.gs.com/webhook/github",
+                          })
+                          setGithubConnected(true)
+                        }}
+                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        Use Sample Data
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {integrationMode === "jira" && jiraConnected && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">QA Tickets</h3>
+                  <div className="space-y-3">
+                    {tickets.map((ticket) => (
+                      <div
+                        key={ticket.key}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedTickets.includes(ticket.key)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTickets([...selectedTickets, ticket.key])
+                              } else {
+                                setSelectedTickets(selectedTickets.filter((k) => k !== ticket.key))
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900">{ticket.key}</div>
+                            <div className="text-sm text-gray-600">{ticket.summary}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              ticket.status === "QA"
+                                ? "bg-blue-100 text-blue-800"
+                                : ticket.status === "Ready for QA"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {ticket.status}
+                          </span>
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              ticket.priority === "High"
+                                ? "bg-red-100 text-red-800"
+                                : ticket.priority === "Medium"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {ticket.priority}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedTickets.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={generateTestCases}
+                        disabled={isGenerating}
+                        title="View generated test cases in Analytics tab"
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors relative"
+                      >
+                        {isGenerating ? "Generating..." : "Generate Test Cases"}
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                          View generated test cases in Analytics tab
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {integrationMode === "github" && githubConnected && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Pull Requests</h3>
+                  <div className="space-y-3">
+                    {pullRequests.map((pr) => (
+                      <div
+                        key={pr.number}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedPRs.includes(pr.number)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPRs([...selectedPRs, pr.number])
+                              } else {
+                                setSelectedPRs(selectedPRs.filter((n) => n !== pr.number))
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900">#{pr.number}</div>
+                            <div className="text-sm text-gray-600">{pr.title}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              pr.status === "open"
+                                ? "bg-green-100 text-green-800"
+                                : pr.status === "merged"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {pr.status}
+                          </span>
+                          <span className="text-xs text-gray-500">{pr.changedFiles} files</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedPRs.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={generateTestCases}
+                        disabled={isGenerating}
+                        title="View generated test cases in Analytics tab"
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors relative"
+                      >
+                        {isGenerating ? "Generating..." : "Generate Test Cases"}
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                          View generated test cases in Analytics tab
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Configuration</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
+                    <div className="flex flex-wrap gap-3">
+                      {["Functional", "UI", "Edge Case", "Performance", "Security"].map((type) => (
+                        <label key={type} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={aiConfig.testTypes.includes(type)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAiConfig({
+                                  ...aiConfig,
+                                  testTypes: [...aiConfig.testTypes, type],
+                                })
+                              } else {
+                                setAiConfig({
+                                  ...aiConfig,
+                                  testTypes: aiConfig.testTypes.filter((t) => t !== type),
+                                })
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-2"
+                          />
+                          <span className="text-sm text-gray-700">{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Coverage Level: {aiConfig.coverageLevel}%
+                    </label>
+                    <input
+                      type="range"
+                      min="25"
+                      max="100"
+                      step="25"
+                      value={aiConfig.coverageLevel}
+                      onChange={(e) => setAiConfig({ ...aiConfig, coverageLevel: Number.parseInt(e.target.value) })}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Basic</span>
+                      <span>Standard</span>
+                      <span>Comprehensive</span>
+                      <span>Exhaustive</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {generatedTests.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Test Cases</h3>
+                  <div className="space-y-4">
+                    {generatedTests.map((result, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-medium text-gray-900">
+                              {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() =>
+                                regenerateTestCases(
+                                  result.source === "jira"
+                                    ? result.ticket?.key || ""
+                                    : result.pr?.number?.toString() || "",
+                                  result.source,
+                                )
+                              }
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Regenerate
+                            </button>
+                            <button
+                              onClick={() => exportTestCasesOld(result)}
+                              className="text-green-600 hover:text-green-800 text-sm"
+                            >
+                              Export
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {result.testCases.map((testCase, tcIndex) => (
+                            <div key={tcIndex} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
+                              <div className="text-xs text-gray-600 mt-1">{testCase.description}</div>
+                              <div className="flex gap-2 mt-2">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    testCase.priority === "High"
+                                      ? "bg-red-100 text-red-800"
+                                      : testCase.priority === "Medium"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-green-100 text-green-800"
+                                  }`}
+                                >
+                                  {testCase.priority}
+                                </span>
+                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                  {testCase.type}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeView === "tickets" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">All JIRA Tickets</h3>
+                <div className="space-y-3">
+                  {tickets.map((ticket) => (
+                    <div key={ticket.key} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium text-gray-900">{ticket.key}</div>
+                          <div className="text-sm text-gray-600 mt-1">{ticket.summary}</div>
+                          <div className="text-xs text-gray-500 mt-2">{ticket.description}</div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              ticket.status === "QA"
+                                ? "bg-blue-100 text-blue-800"
+                                : ticket.status === "Ready for QA"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {ticket.status}
+                          </span>
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              ticket.priority === "High"
+                                ? "bg-red-100 text-red-800"
+                                : ticket.priority === "Medium"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {ticket.priority}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === "analytics" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Test Cases</h3>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {generatedTests.reduce((sum, result) => sum + result.testCases.length, 0)}
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Coverage Score</h3>
+                  <div className="text-3xl font-bold text-green-600">
+                    {generatedTests.length > 0
+                      ? Math.round(
+                          generatedTests.reduce((sum, result) => sum + (result.aiConfig?.coverageLevel || 75), 0) /
+                            generatedTests.length,
+                        )
+                      : 0}
+                    %
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Items Processed</h3>
+                  <div className="text-3xl font-bold text-purple-600">{generatedTests.length}</div>
+                </div>
+              </div>
+
+              {generatedTests.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Test Suites</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Selenium (Java)</h4>
+                      <p className="text-sm text-gray-600 mb-3">Export as Selenium WebDriver test suite</p>
+                      <button
+                        onClick={() => exportAllTests("selenium")}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                      >
+                        Export Selenium Suite
+                      </button>
+                    </div>
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Cypress (JavaScript)</h4>
+                      <p className="text-sm text-gray-600 mb-3">Export as Cypress test suite</p>
+                      <button
+                        onClick={() => exportAllTests("cypress")}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Export Cypress Suite
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {generatedTests.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Test Cases</h3>
+                  <div className="space-y-4">
+                    {generatedTests.map((result, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-medium text-gray-900">
+                              {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">{result.testCases.length} test cases generated</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() =>
+                                regenerateTestCases(
+                                  result.source === "jira"
+                                    ? result.ticket?.key || ""
+                                    : result.pr?.number?.toString() || "",
+                                  result.source,
+                                )
+                              }
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Regenerate
+                            </button>
+                            <button
+                              onClick={() => exportTestCases(result)}
+                              className="text-green-600 hover:text-green-800 text-sm"
+                            >
+                              Export JSON
+                            </button>
+                            <button
+                              onClick={() => exportTestCases(result, "selenium")}
+                              className="text-orange-600 hover:text-orange-800 text-sm"
+                            >
+                              Export Selenium
+                            </button>
+                            <button
+                              onClick={() => exportTestCases(result, "cypress")}
+                              className="text-green-600 hover:text-green-800 text-sm"
+                            >
+                              Export Cypress
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {result.testCases.slice(0, 3).map((testCase, tcIndex) => (
+                            <div key={tcIndex} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
+                              <div className="text-xs text-gray-600 mt-1">{testCase.description}</div>
+                              <div className="flex gap-2 mt-2">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    testCase.priority === "High"
+                                      ? "bg-red-100 text-red-800"
+                                      : testCase.priority === "Medium"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-green-100 text-green-800"
+                                  }`}
+                                >
+                                  {testCase.priority}
+                                </span>
+                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                  {testCase.type}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                          {result.testCases.length > 3 && (
+                            <div className="text-xs text-gray-500 text-center py-2">
+                              ... and {result.testCases.length - 3} more test cases
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeView === "history" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Generation History</h3>
+                {testHistory.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No test generation history yet. Generate some test cases to see them here.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {testHistory.map((session, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="font-medium text-gray-900">Session {session.id}</div>
+                            <div className="text-sm text-gray-600">{new Date(session.timestamp).toLocaleString()}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {session.results.length} items,{" "}
+                              {session.results.reduce((sum, r) => sum + r.testCases.length, 0)} test cases
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => downloadHistorySession(session, "json")}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              JSON
+                            </button>
+                            <button
+                              onClick={() => downloadHistorySession(session, "selenium")}
+                              className="text-orange-600 hover:text-orange-800 text-sm"
+                            >
+                              Selenium
+                            </button>
+                            <button
+                              onClick={() => downloadHistorySession(session, "cypress")}
+                              className="text-green-600 hover:text-green-800 text-sm"
+                            >
+                              Cypress
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {session.results.map((result, rIndex) => (
+                            <div key={rIndex} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium text-sm text-gray-900">
+                                {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}:{" "}
+                                {result.testCases.length} test cases
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeView === "settings" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
+                      <input
+                        type="url"
+                        value={appConfig.applicationUrl}
+                        onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
+                        placeholder="https://your-app.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
+                      <select
+                        value={appConfig.environment}
+                        onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="staging">Staging</option>
+                        <option value="production">Production</option>
+                        <option value="development">Development</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Test Username</label>
+                      <input
+                        type="text"
+                        value={appConfig.testUsername}
+                        onChange={(e) => setAppConfig({ ...appConfig, testUsername: e.target.value })}
+                        placeholder="test@company.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Test Password</label>
+                      <input
+                        type="password"
+                        value={appConfig.testPassword}
+                        onChange={(e) => setAppConfig({ ...appConfig, testPassword: e.target.value })}
+                        placeholder="test-password"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
+                    <textarea
+                      value={appConfig.notes}
+                      onChange={(e) => setAppConfig({ ...appConfig, notes: e.target.value })}
+                      placeholder="Any additional configuration notes..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
