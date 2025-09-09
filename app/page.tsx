@@ -2091,6 +2091,7 @@ declare global {
             </div>
           )}
 
+          {/* Fix analytics tab to handle undefined testCases */}
           {activeView === "analytics" && (
             <div className="space-y-6">
               <div className="grid grid-cols-3 gap-6">
@@ -2098,7 +2099,7 @@ declare global {
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">Total Test Cases</div>
                     <div className="text-3xl font-bold text-gray-900 mt-2">
-                      {generatedTests.reduce((sum, result) => sum + result.testCases.length, 0)}
+                      {generatedTests.reduce((sum, result) => sum + (result.testCases?.length || 0), 0)}
                     </div>
                   </div>
                 </div>
@@ -2163,32 +2164,21 @@ declare global {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h4 className="font-medium text-gray-900">
-                              {result.metadata.source === "jira"
+                              {result.metadata?.source === "jira"
                                 ? result.ticket?.key
                                 : `PR #${result.pullRequest?.number}`}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              {result.metadata.source === "jira" ? result.ticket?.summary : result.pullRequest?.title}
+                              {result.metadata?.source === "jira" ? result.ticket?.summary : result.pullRequest?.title}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">{result.testCases.length} test cases generated</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {result.testCases?.length || 0} test cases generated
+                            </p>
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() =>
-                                regenerateTestCases(
-                                  result.metadata.source === "jira"
-                                    ? result.ticket?.key || ""
-                                    : result.pullRequest?.number?.toString() || "",
-                                  result.metadata.source,
-                                )
-                              }
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Regenerate
-                            </button>
-                            <button
                               onClick={() => exportTestCases(result, "json")}
-                              className="text-green-600 hover:text-green-800 text-sm"
+                              className="text-blue-600 hover:text-blue-800 text-sm"
                             >
                               Export JSON
                             </button>
@@ -2207,7 +2197,7 @@ declare global {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {result.testCases.slice(0, 3).map((testCase, tcIndex) => (
+                          {(result.testCases || []).slice(0, 3).map((testCase, tcIndex) => (
                             <div key={tcIndex} className="bg-gray-50 p-3 rounded">
                               <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
                               <div className="text-xs text-gray-600 mt-1">{testCase.expectedResults}</div>
@@ -2229,9 +2219,9 @@ declare global {
                               </div>
                             </div>
                           ))}
-                          {result.testCases.length > 3 && (
+                          {(result.testCases?.length || 0) > 3 && (
                             <div className="text-sm text-gray-500 text-center py-2">
-                              ... and {result.testCases.length - 3} more test cases
+                              ... and {(result.testCases?.length || 0) - 3} more test cases
                             </div>
                           )}
                         </div>
@@ -2258,7 +2248,7 @@ declare global {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h4 className="font-medium text-gray-900">Session {session.id}</h4>
-                            <p className="text-sm text-gray-600">{session.timestamp.toLocaleString()}</p>
+                            <p className="text-sm text-gray-600">{session.timestamp?.toLocaleString()}</p>
                             <p className="text-xs text-gray-500 mt-1">
                               {session.ticketKey} - {session.testsGenerated} test cases
                             </p>
@@ -2286,7 +2276,7 @@ declare global {
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">{session.ticketSummary}</p>
-                          <p className="text-xs text-gray-500">Test Types: {session.testTypes.join(", ")}</p>
+                          <p className="text-xs text-gray-500">Test Types: {(session.testTypes || []).join(", ")}</p>
                         </div>
                       </div>
                     ))}
