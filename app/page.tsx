@@ -565,51 +565,305 @@ export default function JiraTestGenerator() {
       // Simulate GitHub API connection
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Mock GitHub PRs for demo
       const mockPRs: GitHubPullRequest[] = [
         {
           id: "1",
           number: 123,
-          title: "Add user authentication system",
-          description:
-            "This PR implements a complete user authentication system with login, registration, and password reset functionality.",
+          title: "Implement User Login Authentication System",
+          description: `This PR implements a complete user authentication system corresponding to PROJ-123.
+
+**Features implemented:**
+- Secure user login with email and password validation
+- Invalid credentials error handling with appropriate messages
+- Account lockout mechanism after 3 failed login attempts
+- Password reset functionality with email verification
+- Session management and token-based authentication
+
+**Testing Notes:**
+- All acceptance criteria from PROJ-123 have been implemented
+- Ready for comprehensive QA testing
+- Includes unit tests for authentication logic`,
           status: "open",
           author: "john.doe",
           reviewers: ["jane.smith", "mike.wilson"],
           files: [
-            { filename: "src/auth/login.tsx", status: "added", additions: 45, deletions: 0, changes: 45 },
-            { filename: "src/auth/register.tsx", status: "added", additions: 38, deletions: 0, changes: 38 },
-            { filename: "src/utils/auth.ts", status: "modified", additions: 12, deletions: 3, changes: 15 },
+            {
+              filename: "src/components/auth/LoginForm.tsx",
+              status: "added",
+              additions: 89,
+              deletions: 0,
+              changes: 89,
+            },
+            {
+              filename: "src/components/auth/PasswordReset.tsx",
+              status: "added",
+              additions: 67,
+              deletions: 0,
+              changes: 67,
+            },
+            { filename: "src/hooks/useAuth.ts", status: "added", additions: 134, deletions: 0, changes: 134 },
+            { filename: "src/utils/validation.ts", status: "modified", additions: 45, deletions: 12, changes: 57 },
+            { filename: "src/api/auth.ts", status: "added", additions: 78, deletions: 0, changes: 78 },
+            { filename: "src/middleware/auth.ts", status: "added", additions: 56, deletions: 0, changes: 56 },
           ],
           commits: [
-            { sha: "abc123", message: "Add login component", author: "john.doe", date: "2024-01-20" },
-            { sha: "def456", message: "Add registration form", author: "john.doe", date: "2024-01-21" },
+            {
+              sha: "abc123",
+              message: "Add login form component with validation",
+              author: "john.doe",
+              date: "2024-01-20",
+            },
+            {
+              sha: "def456",
+              message: "Implement password reset functionality",
+              author: "john.doe",
+              date: "2024-01-21",
+            },
+            { sha: "ghi789", message: "Add account lockout mechanism", author: "john.doe", date: "2024-01-21" },
+            {
+              sha: "jkl012",
+              message: "Add authentication middleware and session management",
+              author: "john.doe",
+              date: "2024-01-22",
+            },
           ],
           created: "2024-01-20",
-          updated: "2024-01-21",
-          branch: "feature/auth-system",
+          updated: "2024-01-22",
+          branch: "feature/user-authentication-proj-123",
           baseBranch: "main",
         },
         {
           id: "2",
           number: 124,
-          title: "Implement shopping cart functionality",
-          description: "Added shopping cart with add/remove items, quantity updates, and persistent storage.",
+          title: "Shopping Cart Functionality Implementation",
+          description: `Complete shopping cart implementation for PROJ-124.
+
+**Features implemented:**
+- Add items to cart from product pages
+- Update item quantities with real-time price calculation
+- Remove items from cart with confirmation
+- Cart persistence across user sessions using localStorage
+- Accurate total price calculation including taxes and discounts
+
+**Technical Details:**
+- Uses React Context for cart state management
+- Implements optimistic updates for better UX
+- Includes comprehensive error handling
+- Mobile-responsive cart interface`,
           status: "open",
           author: "jane.smith",
-          reviewers: ["john.doe"],
+          reviewers: ["john.doe", "sarah.johnson"],
           files: [
-            { filename: "src/components/Cart.tsx", status: "added", additions: 67, deletions: 0, changes: 67 },
-            { filename: "src/hooks/useCart.ts", status: "added", additions: 34, deletions: 0, changes: 34 },
-            { filename: "src/pages/checkout.tsx", status: "modified", additions: 23, deletions: 8, changes: 31 },
+            {
+              filename: "src/components/cart/ShoppingCart.tsx",
+              status: "added",
+              additions: 156,
+              deletions: 0,
+              changes: 156,
+            },
+            { filename: "src/components/cart/CartItem.tsx", status: "added", additions: 89, deletions: 0, changes: 89 },
+            { filename: "src/hooks/useCart.ts", status: "added", additions: 167, deletions: 0, changes: 167 },
+            { filename: "src/context/CartContext.tsx", status: "added", additions: 98, deletions: 0, changes: 98 },
+            { filename: "src/utils/cartCalculations.ts", status: "added", additions: 67, deletions: 0, changes: 67 },
+            { filename: "src/pages/checkout.tsx", status: "modified", additions: 45, deletions: 23, changes: 68 },
           ],
           commits: [
-            { sha: "ghi789", message: "Add cart component", author: "jane.smith", date: "2024-01-22" },
-            { sha: "jkl012", message: "Add cart persistence", author: "jane.smith", date: "2024-01-23" },
+            {
+              sha: "mno345",
+              message: "Add shopping cart component and context",
+              author: "jane.smith",
+              date: "2024-01-22",
+            },
+            {
+              sha: "pqr678",
+              message: "Implement cart persistence and calculations",
+              author: "jane.smith",
+              date: "2024-01-23",
+            },
+            {
+              sha: "stu901",
+              message: "Add cart item management and quantity updates",
+              author: "jane.smith",
+              date: "2024-01-24",
+            },
           ],
           created: "2024-01-22",
-          updated: "2024-01-23",
-          branch: "feature/shopping-cart",
+          updated: "2024-01-24",
+          branch: "feature/shopping-cart-proj-124",
+          baseBranch: "main",
+        },
+        {
+          id: "3",
+          number: 125,
+          title: "Stripe Payment Processing Integration - Ready for QA",
+          description: `Payment processing integration for PROJ-125 - **READY FOR QA TESTING**
+
+**Features implemented:**
+- Secure credit card payment processing via Stripe API
+- Comprehensive payment failure handling with user-friendly error messages
+- Automated confirmation emails after successful payments
+- Multi-currency support (USD, EUR, GBP, CAD)
+- PCI-compliant payment form with Stripe Elements
+- Webhook handling for payment status updates
+
+**QA Testing Notes:**
+- All acceptance criteria from PROJ-125 completed
+- Test credit card numbers available in Stripe test mode
+- Email templates configured for payment confirmations
+- Error scenarios thoroughly tested in development
+- Ready for comprehensive QA validation
+
+**Test Cards for QA:**
+- Success: 4242424242424242
+- Declined: 4000000000000002
+- Insufficient funds: 4000000000009995`,
+          status: "ready_for_review",
+          author: "mike.wilson",
+          reviewers: ["john.doe", "jane.smith", "sarah.johnson"],
+          files: [
+            {
+              filename: "src/components/payment/PaymentForm.tsx",
+              status: "added",
+              additions: 234,
+              deletions: 0,
+              changes: 234,
+            },
+            {
+              filename: "src/components/payment/PaymentSuccess.tsx",
+              status: "added",
+              additions: 78,
+              deletions: 0,
+              changes: 78,
+            },
+            { filename: "src/api/payment/stripe.ts", status: "added", additions: 189, deletions: 0, changes: 189 },
+            { filename: "src/api/payment/webhooks.ts", status: "added", additions: 145, deletions: 0, changes: 145 },
+            { filename: "src/utils/currency.ts", status: "added", additions: 67, deletions: 0, changes: 67 },
+            {
+              filename: "src/services/emailService.ts",
+              status: "modified",
+              additions: 89,
+              deletions: 12,
+              changes: 101,
+            },
+            { filename: "src/types/payment.ts", status: "added", additions: 45, deletions: 0, changes: 45 },
+          ],
+          commits: [
+            {
+              sha: "vwx234",
+              message: "Add Stripe payment form with Elements integration",
+              author: "mike.wilson",
+              date: "2024-01-25",
+            },
+            {
+              sha: "yza567",
+              message: "Implement payment processing and error handling",
+              author: "mike.wilson",
+              date: "2024-01-26",
+            },
+            {
+              sha: "bcd890",
+              message: "Add multi-currency support and webhooks",
+              author: "mike.wilson",
+              date: "2024-01-27",
+            },
+            {
+              sha: "efg123",
+              message: "Add confirmation emails and success flow",
+              author: "mike.wilson",
+              date: "2024-01-28",
+            },
+          ],
+          created: "2024-01-25",
+          updated: "2024-01-28",
+          branch: "feature/stripe-payment-proj-125",
+          baseBranch: "main",
+        },
+        {
+          id: "4",
+          number: 126,
+          title: "User Profile Management System",
+          description: `Complete user profile management implementation for PROJ-126.
+
+**Features implemented:**
+- Comprehensive profile editing interface
+- Profile picture upload with image optimization
+- Email notification preferences management
+- Account deletion with data export option
+- Privacy settings and data management
+- Profile validation and error handling
+
+**Technical Implementation:**
+- File upload with drag-and-drop interface
+- Image resizing and optimization
+- Secure data handling for sensitive information
+- GDPR-compliant account deletion process`,
+          status: "open",
+          author: "sarah.johnson",
+          reviewers: ["mike.wilson", "jane.smith"],
+          files: [
+            {
+              filename: "src/components/profile/ProfileEditor.tsx",
+              status: "added",
+              additions: 198,
+              deletions: 0,
+              changes: 198,
+            },
+            {
+              filename: "src/components/profile/ProfilePicture.tsx",
+              status: "added",
+              additions: 123,
+              deletions: 0,
+              changes: 123,
+            },
+            {
+              filename: "src/components/profile/NotificationSettings.tsx",
+              status: "added",
+              additions: 89,
+              deletions: 0,
+              changes: 89,
+            },
+            { filename: "src/hooks/useProfile.ts", status: "added", additions: 156, deletions: 0, changes: 156 },
+            { filename: "src/utils/imageUpload.ts", status: "added", additions: 78, deletions: 0, changes: 78 },
+            { filename: "src/api/profile.ts", status: "added", additions: 134, deletions: 0, changes: 134 },
+          ],
+          commits: [
+            { sha: "hij456", message: "Add profile editor component", author: "sarah.johnson", date: "2024-01-28" },
+            { sha: "klm789", message: "Implement profile picture upload", author: "sarah.johnson", date: "2024-01-29" },
+            { sha: "nop012", message: "Add notification preferences", author: "sarah.johnson", date: "2024-01-30" },
+          ],
+          created: "2024-01-28",
+          updated: "2024-01-30",
+          branch: "feature/profile-management-proj-126",
+          baseBranch: "main",
+        },
+        {
+          id: "5",
+          number: 127,
+          title: "API Rate Limiting and Security Enhancements",
+          description: `Security improvements and API rate limiting implementation.
+
+**Features implemented:**
+- JWT token refresh mechanism
+- API rate limiting with Redis
+- Request validation middleware
+- CORS configuration updates
+- Security headers implementation
+- Audit logging for sensitive operations`,
+          status: "draft",
+          author: "alex.chen",
+          reviewers: [],
+          files: [
+            { filename: "src/middleware/rateLimiting.ts", status: "added", additions: 89, deletions: 0, changes: 89 },
+            { filename: "src/middleware/security.ts", status: "added", additions: 67, deletions: 0, changes: 67 },
+            { filename: "src/utils/jwt.ts", status: "modified", additions: 34, deletions: 12, changes: 46 },
+          ],
+          commits: [
+            { sha: "qrs345", message: "Add rate limiting middleware", author: "alex.chen", date: "2024-01-30" },
+            { sha: "tuv678", message: "Implement security headers", author: "alex.chen", date: "2024-01-31" },
+          ],
+          created: "2024-01-30",
+          updated: "2024-01-31",
+          branch: "feature/security-enhancements",
           baseBranch: "main",
         },
       ]
