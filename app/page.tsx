@@ -188,7 +188,7 @@ interface PRReport {
   comments: PRComment[]
 }
 
-export default function JiraTestGenerator() {
+export default function JiraTestAI() {
   const [activeView, setActiveView] = useState("generator")
 
   const [jiraConfig, setJiraConfig] = useState({
@@ -218,7 +218,94 @@ export default function JiraTestGenerator() {
   const [isConnectingGithub, setIsConnectingGithub] = useState(false)
 
   const [isConnected, setIsConnected] = useState(false)
-  const [tickets, setTickets] = useState<JiraTicket[]>([])
+  const mockTickets: JiraTicket[] = useMemo(
+    () => [
+      {
+        id: "1",
+        key: "PROJ-123",
+        summary: "User Login Authentication",
+        description: "Implement secure user login with email and password validation",
+        status: "QA",
+        acceptanceCriteria: [
+          "User can login with valid email and password",
+          "Invalid credentials show appropriate error message",
+          "Account lockout after 3 failed attempts",
+          "Password reset functionality works",
+        ],
+        assignee: "john.doe@company.com",
+        priority: "High",
+        updated: "2024-01-20",
+      },
+      {
+        id: "2",
+        key: "PROJ-124",
+        summary: "Shopping Cart Functionality",
+        description: "Users should be able to add, remove, and modify items in shopping cart",
+        status: "QA",
+        acceptanceCriteria: [
+          "Add items to cart from product page",
+          "Update quantity of items in cart",
+          "Remove items from cart",
+          "Cart persists across sessions",
+          "Calculate total price correctly",
+        ],
+        assignee: "jane.smith@company.com",
+        priority: "Medium",
+        updated: "2024-01-22",
+      },
+      {
+        id: "3",
+        key: "PROJ-125",
+        summary: "Payment Processing Integration",
+        description: "Integrate Stripe payment processing for checkout flow",
+        status: "Ready for QA",
+        acceptanceCriteria: [
+          "Process credit card payments securely",
+          "Handle payment failures gracefully",
+          "Send confirmation emails after successful payment",
+          "Send confirmation emails after successful payment",
+          "Support multiple currencies",
+        ],
+        assignee: "mike.wilson@company.com",
+        priority: "High",
+        updated: "2024-01-25",
+      },
+      {
+        id: "4",
+        key: "PROJ-126",
+        summary: "User Profile Management",
+        description: "Allow users to update their profile information and preferences",
+        status: "QA",
+        acceptanceCriteria: [
+          "Users can edit personal information",
+          "Profile picture upload functionality",
+          "Email notification preferences",
+          "Account deletion option",
+        ],
+        assignee: "sarah.johnson@company.com",
+        priority: "Low",
+        updated: "2024-01-28",
+      },
+      {
+        id: "5",
+        key: "PROJ-127",
+        summary: "Search and Filter Products",
+        description: "Implement product search with advanced filtering options",
+        status: "In Review",
+        acceptanceCriteria: [
+          "Search products by name and description",
+          "Filter by category, price range, and ratings",
+          "Sort results by relevance, price, and popularity",
+          "Save search preferences",
+        ],
+        assignee: "john.doe@company.com",
+        priority: "Medium",
+        updated: "2024-01-30",
+      },
+    ],
+    [],
+  )
+  const [tickets, setTickets] = useState<JiraTicket[]>(mockTickets)
   const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null)
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -428,94 +515,6 @@ export default function JiraTestGenerator() {
   const [statusFilter, setStatusFilter] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
   const [selectedTickets, setSelectedTickets] = useState<string[]>([])
-
-  const mockTickets: JiraTicket[] = useMemo(
-    () => [
-      {
-        id: "1",
-        key: "PROJ-123",
-        summary: "User Login Authentication",
-        description: "Implement secure user login with email and password validation",
-        status: "QA",
-        acceptanceCriteria: [
-          "User can login with valid email and password",
-          "Invalid credentials show appropriate error message",
-          "Account lockout after 3 failed attempts",
-          "Password reset functionality works",
-        ],
-        assignee: "john.doe@company.com",
-        priority: "High",
-        updated: "2024-01-20",
-      },
-      {
-        id: "2",
-        key: "PROJ-124",
-        summary: "Shopping Cart Functionality",
-        description: "Users should be able to add, remove, and modify items in shopping cart",
-        status: "QA",
-        acceptanceCriteria: [
-          "Add items to cart from product page",
-          "Update quantity of items in cart",
-          "Remove items from cart",
-          "Cart persists across sessions",
-          "Calculate total price correctly",
-        ],
-        assignee: "jane.smith@company.com",
-        priority: "Medium",
-        updated: "2024-01-22",
-      },
-      {
-        id: "3",
-        key: "PROJ-125",
-        summary: "Payment Processing Integration",
-        description: "Integrate Stripe payment processing for checkout flow",
-        status: "Ready for QA",
-        acceptanceCriteria: [
-          "Process credit card payments securely",
-          "Handle payment failures gracefully",
-          "Send confirmation emails after successful payment",
-          "Send confirmation emails after successful payment",
-          "Support multiple currencies",
-        ],
-        assignee: "mike.wilson@company.com",
-        priority: "High",
-        updated: "2024-01-25",
-      },
-      {
-        id: "4",
-        key: "PROJ-126",
-        summary: "User Profile Management",
-        description: "Allow users to update their profile information and preferences",
-        status: "QA",
-        acceptanceCriteria: [
-          "Users can edit personal information",
-          "Profile picture upload functionality",
-          "Email notification preferences",
-          "Account deletion option",
-        ],
-        assignee: "sarah.johnson@company.com",
-        priority: "Low",
-        updated: "2024-01-28",
-      },
-      {
-        id: "5",
-        key: "PROJ-127",
-        summary: "Search and Filter Products",
-        description: "Implement product search with advanced filtering options",
-        status: "In Review",
-        acceptanceCriteria: [
-          "Search products by name and description",
-          "Filter by category, price range, and ratings",
-          "Sort results by relevance, price, and popularity",
-          "Save search preferences",
-        ],
-        assignee: "john.doe@company.com",
-        priority: "Medium",
-        updated: "2024-01-30",
-      },
-    ],
-    [],
-  )
 
   const filteredTickets = useMemo(() => {
     let result = [...mockTickets]
@@ -787,7 +786,9 @@ export default function JiraTestGenerator() {
 **Features implemented:**
 - Comprehensive profile editing interface
 - Profile picture upload with image optimization
-- Email notification preferences management
+-
+- Comprehensive profile editing interface
+- Profile picture upload with image optimization- Email notification preferences management
 - Account deletion with data export option
 - Privacy settings and data management
 
@@ -951,7 +952,6 @@ export default function JiraTestGenerator() {
       const results: TestGenerationResult[] = []
 
       if (integrationMode === "jira") {
-        // Existing JIRA test generation logic
         for (const ticketId of selectedTickets) {
           const ticket = mockTickets.find((t) => t.id === ticketId)
           if (!ticket) continue
@@ -1012,12 +1012,12 @@ export default function JiraTestGenerator() {
         ticketKey:
           integrationMode === "jira"
             ? selectedTickets.map((id) => mockTickets.find((t) => t.id === id)?.key).join(", ")
-            : undefined,
-        prNumber: integrationMode === "github" ? selectedPR?.number : undefined,
+            : `PR #${selectedPR?.number}`,
         ticketSummary: integrationMode === "jira" ? `${selectedTickets.length} JIRA tickets` : selectedPR?.title || "",
-        testCount: results.reduce((sum, r) => sum + r.testCases.length, 0),
-        generatedAt: new Date().toISOString(),
-        settings: aiConfig,
+        testsGenerated: results.reduce((sum, r) => sum + r.testCases.length, 0),
+        timestamp: new Date(),
+        testTypes: aiConfig.testTypes,
+        priority: "High",
         results,
         source: integrationMode,
       }
@@ -1771,51 +1771,31 @@ declare global {
                   <div className="space-y-3">
                     {tickets.map((ticket) => (
                       <div
-                        key={ticket.key}
+                        key={ticket.id}
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex items-center space-x-3">
                           <input
                             type="checkbox"
-                            checked={selectedTickets.includes(ticket.key)}
+                            checked={selectedTickets.includes(ticket.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedTickets([...selectedTickets, ticket.key])
+                                setSelectedTickets([...selectedTickets, ticket.id])
                               } else {
-                                setSelectedTickets(selectedTickets.filter((k) => k !== ticket.key))
+                                setSelectedTickets(selectedTickets.filter((id) => id !== ticket.id))
                               }
                             }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
                           <div>
                             <div className="font-medium text-gray-900">{ticket.key}</div>
                             <div className="text-sm text-gray-600">{ticket.summary}</div>
+                            <div className="text-xs text-gray-500">
+                              Status: {ticket.status} | Priority: {ticket.priority} | Assignee: {ticket.assignee}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              ticket.status === "QA"
-                                ? "bg-blue-100 text-blue-800"
-                                : ticket.status === "Ready for QA"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {ticket.status}
-                          </span>
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              ticket.priority === "High"
-                                ? "bg-red-100 text-red-800"
-                                : ticket.priority === "Medium"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {ticket.priority}
-                          </span>
-                        </div>
+                        <div className="text-sm text-gray-500">{ticket.updated}</div>
                       </div>
                     ))}
                   </div>
@@ -1826,12 +1806,9 @@ declare global {
                         onClick={generateTestCases}
                         disabled={isGenerating}
                         title="View generated test cases in Analytics tab"
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors relative"
+                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                       >
-                        {isGenerating ? "Generating..." : "Generate Test Cases"}
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                          View generated test cases in Analytics tab
-                        </div>
+                        {isGenerating ? "Generating Test Cases..." : "Generate Test Cases"}
                       </button>
                     </div>
                   )}
@@ -2226,10 +2203,9 @@ declare global {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="font-medium text-gray-900">Session {session.id}</div>
-                            <div className="text-sm text-gray-600">{new Date(session.timestamp).toLocaleString()}</div>
+                            <div className="text-sm text-gray-600">{session.timestamp.toLocaleString()}</div>
                             <div className="text-xs text-gray-500 mt-1">
-                              {session.results.length} items,{" "}
-                              {session.results.reduce((sum, r) => sum + r.testCases.length, 0)} test cases
+                              {session.ticketKey} - {session.testsGenerated} test cases
                             </div>
                           </div>
                           <div className="flex gap-2">
@@ -2253,18 +2229,9 @@ declare global {
                             </button>
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          {session.results.map((result, rIndex) => (
-                            <div key={rIndex} className="bg-gray-50 p-3 rounded">
-                              <div className="font-medium text-sm text-gray-900">
-                                {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}:{" "}
-                                {result.testCases.length} test cases
-                              </div>
-                              <div className="text-xs text-gray-600">
-                                {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
-                              </div>
-                            </div>
-                          ))}
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-sm text-gray-900">{session.ticketSummary}</div>
+                          <div className="text-xs text-gray-600 mt-1">Test Types: {session.testTypes.join(", ")}</div>
                         </div>
                       </div>
                     ))}
