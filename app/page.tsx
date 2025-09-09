@@ -1824,6 +1824,7 @@ declare global {
             </div>
           )}
 
+          {/* Settings View */}
           {activeView === "settings" && (
             <div className="space-y-6">
               {/* Application Configuration section */}

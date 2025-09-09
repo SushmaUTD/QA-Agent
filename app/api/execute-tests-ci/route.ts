@@ -65,20 +65,19 @@ jobs:
       with:
         node-version: '18'
         
-    - name: Install Playwright
+    - name: Install Cypress
       run: |
-        npm install -D @playwright/test
-        npx playwright install
+        npm install -D cypress
         
     - name: Create test files
       run: |
-        mkdir -p tests/generated
-        cat > tests/generated/test-suite.spec.ts << 'EOF'
-${generatePlaywrightTestCode(testSuite, appConfig)}
+        mkdir -p cypress/e2e/generated
+        cat > cypress/e2e/generated/test-suite.cy.js << 'EOF'
+${generateCypressTestCode(testSuite, appConfig)}
 EOF
         
     - name: Run tests
-      run: npx playwright test tests/generated/
+      run: npx cypress run --spec "cypress/e2e/generated/*.cy.js"
       env:
         APP_URL: ${appConfig.applicationUrl}
         TEST_USERNAME: ${appConfig.loginUsername}
@@ -89,7 +88,7 @@ EOF
       if: always()
       with:
         name: test-results-${runId}
-        path: test-results/
+        path: cypress/screenshots/
         
     - name: Comment on PR
       if: always() && github.event.pull_request
@@ -97,7 +96,7 @@ EOF
       with:
         script: |
           const fs = require('fs');
-          const results = JSON.parse(fs.readFileSync('test-results/results.json', 'utf8'));
+          const results = JSON.parse(fs.readFileSync('cypress/results/results.json', 'utf8'));
           
           const comment = \`## 🤖 Automated Test Results
           
@@ -124,29 +123,27 @@ EOF
   return workflowContent
 }
 
-function generatePlaywrightTestCode(testSuite: any, appConfig: any) {
+function generateCypressTestCode(testSuite: any, appConfig: any) {
   const testCases = testSuite.testCases || []
 
   return `
-import { test, expect } from '@playwright/test';
-
-test.describe('${testSuite.metadata.ticketKey || "PR Tests"}', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('${appConfig.applicationUrl}');
+describe('${testSuite.metadata.ticketKey || "PR Tests"}', () => {
+  beforeEach(() => {
+    cy.visit('${appConfig.applicationUrl}');
     
     // Login if credentials provided
     if ('${appConfig.loginUsername}' && '${appConfig.loginPassword}') {
-      await page.fill('[data-testid="username"], [name="email"], [type="email"]', '${appConfig.loginUsername}');
-      await page.fill('[data-testid="password"], [name="password"], [type="password"]', '${appConfig.loginPassword}');
-      await page.click('[data-testid="login"], [type="submit"], button:has-text("Login")');
-      await page.waitForLoadState('networkidle');
+      cy.get('[data-testid="username"], [name="email"], [type="email"]').type('${appConfig.loginUsername}');
+      cy.get('[data-testid="password"], [name="password"], [type="password"]').type('${appConfig.loginPassword}');
+      cy.get('[data-testid="login"], [type="submit"], button:contains("Login")').click();
+      cy.wait(2000);
     }
   });
 
 ${testCases
   .map(
     (testCase: any, index: number) => `
-  test('${testCase.title}', async ({ page }) => {
+  it('${testCase.title}', () => {
     // Test: ${testCase.title}
     // Priority: ${testCase.priority}
     
@@ -162,15 +159,15 @@ ${testCases
       ?.map(
         (step: string, stepIndex: number) => `
     // Step ${stepIndex + 1}: ${step}
-    await page.waitForTimeout(1000);
-    await page.screenshot({ path: 'test-results/step-${index}-${stepIndex}.png' });
+    cy.wait(1000);
+    cy.screenshot('step-${index}-${stepIndex}');
     `,
       )
       .join("")}
     
     // Expected Result: ${testCase.expectedResults}
-    await expect(page).toHaveTitle(/.*/);
-    await page.screenshot({ path: 'test-results/final-${index}.png' });
+    cy.title().should('exist');
+    cy.screenshot('final-${index}');
   });
 `,
   )
