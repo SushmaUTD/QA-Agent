@@ -1449,11 +1449,8 @@ declare global {
             >
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                    clipRule="evenodd"
-                  />
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12,6 12,12 16,14" />
                 </svg>
                 History
               </div>
@@ -1767,6 +1764,31 @@ declare global {
 
                     {!isGithubConnected ? (
                       <div className="space-y-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-medium text-blue-900">Demo Mode</h3>
+                              <p className="text-xs text-blue-700 mt-1">
+                                Connect to sample GitHub repository with pre-loaded PRs
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setGithubConfig({
+                                  token: "ghp_sample_token_for_demo",
+                                  repository: "qa-automation-demo",
+                                  organization: "goldman-sachs-demo",
+                                  webhookUrl: "https://ci.goldman-sachs-demo.com/webhook",
+                                })
+                                connectToGithub()
+                              }}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                            >
+                              Use Sample Data
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">GitHub Token</label>
@@ -2267,7 +2289,7 @@ declare global {
                           <p className="text-sm text-slate-600 mb-2">{ticket.description}</p>
                           {ticket.acceptanceCriteria && (
                             <div className="text-sm text-slate-600 mb-2">
-                              <strong>AC:</strong> {ticket.acceptanceCriteria}
+                              <strong>AC:</strong> {ticket.acceptanceCriteria.join(", ")}
                             </div>
                           )}
                           <div className="text-xs text-slate-500">
