@@ -1909,6 +1909,27 @@ declare global {
                           </div>
                         ))}
                       </div>
+
+                      <div className="mt-6 flex justify-between items-center">
+                        <span className="text-sm text-slate-600">
+                          {selectedPR ? `PR #${selectedPR.number} selected` : "No PR selected"}
+                        </span>
+                        <div className="relative">
+                          <button
+                            onClick={generateTestCases}
+                            disabled={!selectedPR || isGenerating}
+                            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                            title="View generated test cases in Analytics tab"
+                          >
+                            {isGenerating ? <RefreshIcon /> : <BrainIcon />}
+                            {isGenerating ? "Generating..." : "Generate Test Cases"}
+                          </button>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            View generated test cases in Analytics tab
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
