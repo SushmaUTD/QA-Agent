@@ -1704,7 +1704,7 @@ declare global {
                           type="password"
                           value={githubConfig.token}
                           onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
-                          placeholder="ghp_xxxxxxxxxxxx"
+                          placeholder="ghp_your_github_token"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
@@ -1714,7 +1714,7 @@ declare global {
                           type="text"
                           value={githubConfig.organization}
                           onChange={(e) => setGithubConfig({ ...githubConfig, organization: e.target.value })}
-                          placeholder="goldman-sachs"
+                          placeholder="your-org"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
@@ -1724,7 +1724,7 @@ declare global {
                           type="text"
                           value={githubConfig.repository}
                           onChange={(e) => setGithubConfig({ ...githubConfig, repository: e.target.value })}
-                          placeholder="trading-platform"
+                          placeholder="your-repo"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
@@ -1734,17 +1734,18 @@ declare global {
                           type="url"
                           value={githubConfig.webhookUrl}
                           onChange={(e) => setGithubConfig({ ...githubConfig, webhookUrl: e.target.value })}
-                          placeholder="https://api.company.com/webhook"
+                          placeholder="https://your-app.com/webhook"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-4">
                       <button
-                        onClick={() => setGithubConnected(true)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={connectToGithub}
+                        disabled={isConnectingGithub}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                       >
-                        Connect to GitHub
+                        {isConnectingGithub ? "Connecting..." : "Connect to GitHub"}
                       </button>
                       <button
                         onClick={() => {
@@ -1768,8 +1769,55 @@ declare global {
               {integrationMode === "jira" && jiraConnected && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">QA Tickets</h3>
+
+                  <div className="mb-6 space-y-4">
+                    <div className="flex flex-wrap gap-4">
+                      <div className="flex-1 min-w-64">
+                        <input
+                          type="text"
+                          placeholder="Search tickets..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">All Status</option>
+                        <option value="QA">QA</option>
+                        <option value="Ready for QA">Ready for QA</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Done">Done</option>
+                      </select>
+                      <select
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">All Priority</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+                      {(searchTerm || statusFilter || priorityFilter) && (
+                        <button
+                          onClick={resetFilters}
+                          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Showing {filteredTickets.length} of {mockTickets.length} tickets
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
-                    {tickets.map((ticket) => (
+                    {filteredTickets.map((ticket) => (
                       <div
                         key={ticket.id}
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -1826,20 +1874,18 @@ declare global {
                       >
                         <div className="flex items-center space-x-3">
                           <input
-                            type="checkbox"
-                            checked={selectedPRs.includes(pr.number)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedPRs([...selectedPRs, pr.number])
-                              } else {
-                                setSelectedPRs(selectedPRs.filter((n) => n !== pr.number))
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            type="radio"
+                            name="selectedPR"
+                            checked={selectedPR?.number === pr.number}
+                            onChange={() => setSelectedPR(pr)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                           />
                           <div>
                             <div className="font-medium text-gray-900">#{pr.number}</div>
                             <div className="text-sm text-gray-600">{pr.title}</div>
+                            <div className="text-xs text-gray-500">
+                              Status: {pr.status} | Author: {pr.author} | Files: {pr.files.length}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -1849,29 +1895,26 @@ declare global {
                                 ? "bg-green-100 text-green-800"
                                 : pr.status === "merged"
                                   ? "bg-purple-100 text-purple-800"
-                                  : "bg-gray-100 text-gray-800"
+                                  : "bg-red-100 text-red-800"
                             }`}
                           >
                             {pr.status}
                           </span>
-                          <span className="text-xs text-gray-500">{pr.changedFiles} files</span>
+                          <div className="text-sm text-gray-500">{pr.updated}</div>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {selectedPRs.length > 0 && (
+                  {selectedPR && (
                     <div className="mt-6 pt-4 border-t border-gray-200">
                       <button
                         onClick={generateTestCases}
                         disabled={isGenerating}
                         title="View generated test cases in Analytics tab"
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors relative"
+                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                       >
-                        {isGenerating ? "Generating..." : "Generate Test Cases"}
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                          View generated test cases in Analytics tab
-                        </div>
+                        {isGenerating ? "Generating Test Cases..." : "Generate Test Cases"}
                       </button>
                     </div>
                   )}
@@ -2007,36 +2050,38 @@ declare global {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">All JIRA Tickets</h3>
                 <div className="space-y-3">
                   {tickets.map((ticket) => (
-                    <div key={ticket.key} className="p-4 border border-gray-200 rounded-lg">
+                    <div key={ticket.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-medium text-gray-900">{ticket.key}</div>
                           <div className="text-sm text-gray-600 mt-1">{ticket.summary}</div>
                           <div className="text-xs text-gray-500 mt-2">{ticket.description}</div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              ticket.status === "QA"
-                                ? "bg-blue-100 text-blue-800"
-                                : ticket.status === "Ready for QA"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {ticket.status}
-                          </span>
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              ticket.priority === "High"
-                                ? "bg-red-100 text-red-800"
-                                : ticket.priority === "Medium"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {ticket.priority}
-                          </span>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex gap-2">
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                ticket.status === "QA"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : ticket.status === "Ready for QA"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {ticket.status}
+                            </span>
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                ticket.priority === "High"
+                                  ? "bg-red-100 text-red-800"
+                                  : ticket.priority === "Medium"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-green-100 text-green-800"
+                              }`}
+                            >
+                              {ticket.priority}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2048,41 +2093,49 @@ declare global {
 
           {activeView === "analytics" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-6">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Test Cases</h3>
-                  <div className="text-3xl font-bold text-blue-600">
-                    {generatedTests.reduce((sum, result) => sum + result.testCases.length, 0)}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">Total Test Cases</div>
+                    <div className="text-3xl font-bold text-gray-900 mt-2">
+                      {generatedTests.reduce((sum, result) => sum + result.testCases.length, 0)}
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Coverage Score</h3>
-                  <div className="text-3xl font-bold text-green-600">
-                    {generatedTests.length > 0
-                      ? Math.round(
-                          generatedTests.reduce((sum, result) => sum + (result.aiConfig?.coverageLevel || 75), 0) /
-                            generatedTests.length,
-                        )
-                      : 0}
-                    %
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">Coverage Score</div>
+                    <div className="text-3xl font-bold text-gray-900 mt-2">
+                      {generatedTests.length > 0
+                        ? Math.round(
+                            generatedTests.reduce(
+                              (sum, result) => sum + (result.metadata?.settings?.coverageLevel || 75),
+                              0,
+                            ) / generatedTests.length,
+                          )
+                        : 0}
+                      %
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Items Processed</h3>
-                  <div className="text-3xl font-bold text-purple-600">{generatedTests.length}</div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">Items Processed</div>
+                    <div className="text-3xl font-bold text-gray-900 mt-2">{generatedTests.length}</div>
+                  </div>
                 </div>
               </div>
 
               {generatedTests.length > 0 && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Test Suites</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="border border-gray-200 rounded-lg p-4">
                       <h4 className="font-medium text-gray-900 mb-2">Selenium (Java)</h4>
                       <p className="text-sm text-gray-600 mb-3">Export as Selenium WebDriver test suite</p>
                       <button
                         onClick={() => exportAllTests("selenium")}
-                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Export Selenium Suite
                       </button>
@@ -2092,7 +2145,7 @@ declare global {
                       <p className="text-sm text-gray-600 mb-3">Export as Cypress test suite</p>
                       <button
                         onClick={() => exportAllTests("cypress")}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                        className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
                       >
                         Export Cypress Suite
                       </button>
@@ -2110,10 +2163,12 @@ declare global {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h4 className="font-medium text-gray-900">
-                              {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}
+                              {result.metadata.source === "jira"
+                                ? result.ticket?.key
+                                : `PR #${result.pullRequest?.number}`}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
+                              {result.metadata.source === "jira" ? result.ticket?.summary : result.pullRequest?.title}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">{result.testCases.length} test cases generated</p>
                           </div>
@@ -2121,10 +2176,10 @@ declare global {
                             <button
                               onClick={() =>
                                 regenerateTestCases(
-                                  result.source === "jira"
+                                  result.metadata.source === "jira"
                                     ? result.ticket?.key || ""
-                                    : result.pr?.number?.toString() || "",
-                                  result.source,
+                                    : result.pullRequest?.number?.toString() || "",
+                                  result.metadata.source,
                                 )
                               }
                               className="text-blue-600 hover:text-blue-800 text-sm"
@@ -2132,7 +2187,7 @@ declare global {
                               Regenerate
                             </button>
                             <button
-                              onClick={() => exportTestCases(result)}
+                              onClick={() => exportTestCases(result, "json")}
                               className="text-green-600 hover:text-green-800 text-sm"
                             >
                               Export JSON
@@ -2145,7 +2200,7 @@ declare global {
                             </button>
                             <button
                               onClick={() => exportTestCases(result, "cypress")}
-                              className="text-green-600 hover:text-green-800 text-sm"
+                              className="text-purple-600 hover:text-purple-800 text-sm"
                             >
                               Export Cypress
                             </button>
@@ -2155,7 +2210,7 @@ declare global {
                           {result.testCases.slice(0, 3).map((testCase, tcIndex) => (
                             <div key={tcIndex} className="bg-gray-50 p-3 rounded">
                               <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
-                              <div className="text-xs text-gray-600 mt-1">{testCase.description}</div>
+                              <div className="text-xs text-gray-600 mt-1">{testCase.expectedResults}</div>
                               <div className="flex gap-2 mt-2">
                                 <span
                                   className={`px-2 py-1 text-xs rounded ${
@@ -2175,7 +2230,7 @@ declare global {
                             </div>
                           ))}
                           {result.testCases.length > 3 && (
-                            <div className="text-xs text-gray-500 text-center py-2">
+                            <div className="text-sm text-gray-500 text-center py-2">
                               ... and {result.testCases.length - 3} more test cases
                             </div>
                           )}
@@ -2202,11 +2257,11 @@ declare global {
                       <div key={index} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="font-medium text-gray-900">Session {session.id}</div>
-                            <div className="text-sm text-gray-600">{session.timestamp.toLocaleString()}</div>
-                            <div className="text-xs text-gray-500 mt-1">
+                            <h4 className="font-medium text-gray-900">Session {session.id}</h4>
+                            <p className="text-sm text-gray-600">{session.timestamp.toLocaleString()}</p>
+                            <p className="text-xs text-gray-500 mt-1">
                               {session.ticketKey} - {session.testsGenerated} test cases
-                            </div>
+                            </p>
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -2223,15 +2278,15 @@ declare global {
                             </button>
                             <button
                               onClick={() => downloadHistorySession(session, "cypress")}
-                              className="text-green-600 hover:text-green-800 text-sm"
+                              className="text-purple-600 hover:text-purple-800 text-sm"
                             >
                               Cypress
                             </button>
                           </div>
                         </div>
-                        <div className="bg-gray-50 p-3 rounded">
-                          <div className="text-sm text-gray-900">{session.ticketSummary}</div>
-                          <div className="text-xs text-gray-600 mt-1">Test Types: {session.testTypes.join(", ")}</div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-600">{session.ticketSummary}</p>
+                          <p className="text-xs text-gray-500">Test Types: {session.testTypes.join(", ")}</p>
                         </div>
                       </div>
                     ))}
@@ -2253,7 +2308,6 @@ declare global {
                         type="url"
                         value={appConfig.applicationUrl}
                         onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                        placeholder="https://your-app.com"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -2273,9 +2327,8 @@ declare global {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Test Username</label>
                       <input
                         type="text"
-                        value={appConfig.testUsername}
-                        onChange={(e) => setAppConfig({ ...appConfig, testUsername: e.target.value })}
-                        placeholder="test@company.com"
+                        value={appConfig.loginUsername}
+                        onChange={(e) => setAppConfig({ ...appConfig, loginUsername: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -2283,9 +2336,8 @@ declare global {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Test Password</label>
                       <input
                         type="password"
-                        value={appConfig.testPassword}
-                        onChange={(e) => setAppConfig({ ...appConfig, testPassword: e.target.value })}
-                        placeholder="test-password"
+                        value={appConfig.loginPassword}
+                        onChange={(e) => setAppConfig({ ...appConfig, loginPassword: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -2293,10 +2345,8 @@ declare global {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
                     <textarea
-                      value={appConfig.notes}
-                      onChange={(e) => setAppConfig({ ...appConfig, notes: e.target.value })}
-                      placeholder="Any additional configuration notes..."
                       rows={3}
+                      placeholder="Any additional configuration notes..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
