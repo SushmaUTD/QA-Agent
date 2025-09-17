@@ -242,91 +242,6 @@ export default function JiraTestAI() {
         priority: "High",
         updated: "2024-01-15T10:30:00Z",
       },
-      {
-        id: "2",
-        key: "TRADE-002",
-        summary: "Implement Trading Instruments Search and Filter System",
-        description:
-          "Add comprehensive search and filtering capabilities to the trading instruments table for improved user experience and data management",
-        status: "In Progress",
-        acceptanceCriteria: [
-          "Search bar filters instruments by Symbol, Name, or Asset Class in real-time",
-          "Asset Class dropdown filters by Stock, ETF, Currency, Bond, Commodity, All Classes",
-          "Exchange dropdown filters by NYSE, NASDAQ, FOREX, All Exchanges",
-          "Sector dropdown filters by Technology, Financial, Healthcare, All Sectors",
-          "Multiple filters can be applied simultaneously",
-          "Search results update table content dynamically",
-          "Clear filters option resets all filters to default state",
-          "Filter state persists during user session",
-          "No results message displays when no instruments match filters",
-        ],
-        assignee: "mike.chen",
-        priority: "Medium",
-        updated: "2024-01-14T14:20:00Z",
-      },
-      {
-        id: "3",
-        key: "TRADE-003",
-        summary: "NYSE Market Status Integration and Real-time Updates",
-        description:
-          "Integrate NYSE market status API to display real-time market information and update trading instrument prices accordingly",
-        status: "To Do",
-        acceptanceCriteria: [
-          "Header displays current NYSE market status (Open/Closed/Pre-Market/After-Hours)",
-          "Market status updates automatically every 30 seconds",
-          "Trading instrument prices reflect real-time market data when market is open",
-          "Price changes show with appropriate color coding (green for gains, red for losses)",
-          "Market closure times display in user's local timezone",
-          "Fallback message displays if market data API is unavailable",
-          "Historical price data loads for after-hours viewing",
-        ],
-        assignee: "alex.rodriguez",
-        priority: "High",
-        updated: "2024-01-13T09:15:00Z",
-      },
-      {
-        id: "4",
-        key: "TRADE-004",
-        summary: "Trading Instruments CRUD Operations - Edit and Delete",
-        description:
-          "Implement edit and delete functionality for existing trading instruments with proper validation and confirmation dialogs",
-        status: "Ready for Development",
-        acceptanceCriteria: [
-          "Edit button opens pre-populated form with current instrument data",
-          "All fields except Symbol can be modified during edit operation",
-          "Delete button shows confirmation dialog before removing instrument",
-          "Confirmation dialog displays instrument details for verification",
-          "Successful edit updates table row immediately without page refresh",
-          "Successful delete removes instrument from table and updates counts",
-          "Edit operation validates data same as create operation",
-          "Cancel option in edit mode reverts changes and closes form",
-          "Audit trail logs all edit and delete operations with timestamps",
-        ],
-        assignee: "lisa.wang",
-        priority: "Medium",
-        updated: "2024-01-12T16:45:00Z",
-      },
-      {
-        id: "5",
-        key: "TRADE-005",
-        summary: "Dashboard Analytics Cards and Performance Metrics",
-        description:
-          "Enhance dashboard cards to display comprehensive trading metrics including market movers, volume analysis, and performance indicators",
-        status: "In Review",
-        acceptanceCriteria: [
-          "Total Instruments card shows accurate count of all trading instruments",
-          "Market Movers card displays top 3 gainers and losers with percentage changes",
-          "Total Volume card aggregates and displays daily trading volume",
-          "Average Change card calculates and shows portfolio performance metrics",
-          "All cards update in real-time when instrument data changes",
-          "Cards display loading states during data refresh",
-          "Error states show appropriate messages if data cannot be loaded",
-          "Cards are responsive and maintain layout on mobile devices",
-        ],
-        assignee: "david.kim",
-        priority: "Low",
-        updated: "2024-01-11T11:30:00Z",
-      },
     ],
     [],
   )
@@ -904,7 +819,10 @@ export default function JiraTestAI() {
     }
   }
 
+  const [applicationUrl, setApplicationUrl] = useState("https://v0-product-crud-app.vercel.app/")
+
   const executeLiveTest = async () => {
+    console.log("[v0] Starting live test execution")
     setIsLiveTesting(true)
     setLiveTestResults("")
 
@@ -913,7 +831,7 @@ export default function JiraTestAI() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          applicationUrl: "https://v0-product-crud-app.vercel.app/",
+          applicationUrl: applicationUrl,
           testCase: {
             title: "Add New Trading Instrument - Live Test",
             steps: [
@@ -931,8 +849,10 @@ export default function JiraTestAI() {
       })
 
       const data = await response.json()
+      console.log("[v0] Live test response:", data)
       setLiveTestResults(data.results || "Test completed successfully!")
     } catch (error) {
+      console.log("[v0] Live test error:", error)
       setLiveTestResults(`Test failed: ${error}`)
     } finally {
       setIsLiveTesting(false)
@@ -2387,57 +2307,41 @@ M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1
 
           {activeView === "settings" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Settings</h2>
+
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
+
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
+                      <label htmlFor="app-url" className="block text-sm font-medium text-gray-700 mb-2">
+                        Application URL for Live Testing
+                      </label>
                       <input
+                        id="app-url"
                         type="url"
-                        value={appConfig.applicationUrl}
-                        onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={applicationUrl}
+                        onChange={(e) => setApplicationUrl(e.target.value)}
+                        placeholder="https://your-app.vercel.app/"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
+                      <p className="mt-1 text-sm text-gray-500">
+                        This URL will be used when executing live tests against your application
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
-                      <select
-                        value={appConfig.environment}
-                        onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+
+                    <div className="pt-4">
+                      <button
+                        onClick={() => {
+                          // Save settings (in a real app, this would save to backend)
+                          alert("Settings saved successfully!")
+                        }}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                       >
-                        <option value="staging">Staging</option>
-                        <option value="production">Production</option>
-                        <option value="development">Development</option>
-                      </select>
+                        Save Settings
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Test Username</label>
-                      <input
-                        type="text"
-                        value={appConfig.loginUsername}
-                        onChange={(e) => setAppConfig({ ...appConfig, loginUsername: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Test Password</label>
-                      <input
-                        type="password"
-                        value={appConfig.loginPassword}
-                        onChange={(e) => setAppConfig({ ...appConfig, loginPassword: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Any additional configuration notes..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
                   </div>
                 </div>
               </div>
