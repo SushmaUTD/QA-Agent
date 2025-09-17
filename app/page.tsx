@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
-import { TestTube, Ticket, BarChart3, History, Settings, Github, CheckCircle2, Zap } from "lucide-react"
 
 export default function JiraTestAI() {
   const [activeTab, setActiveTab] = useState("jira")
@@ -25,11 +24,11 @@ export default function JiraTestAI() {
   const [coverageLevel, setCoverageLevel] = useState([75])
 
   const sidebarItems = [
-    { id: "test-generator", icon: TestTube, label: "Test Generator", active: true },
-    { id: "tickets", icon: Ticket, label: "Tickets" },
-    { id: "analytics", icon: BarChart3, label: "Analytics" },
-    { id: "history", icon: History, label: "History" },
-    { id: "settings", icon: Settings, label: "Settings" },
+    { id: "test-generator", icon: "🧪", label: "Test Generator", active: true },
+    { id: "tickets", icon: "🎫", label: "Tickets" },
+    { id: "analytics", icon: "📊", label: "Analytics" },
+    { id: "history", icon: "📜", label: "History" },
+    { id: "settings", icon: "⚙️", label: "Settings" },
   ]
 
   return (
@@ -41,21 +40,18 @@ export default function JiraTestAI() {
 
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <li key={item.id}>
-                  <button
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                      item.active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    {item.label}
-                  </button>
-                </li>
-              )
-            })}
+            {sidebarItems.map((item) => (
+              <li key={item.id}>
+                <button
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                    item.active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <span className="text-lg">{item.icon}</span>
+                  {item.label}
+                </button>
+              </li>
+            ))}
           </ul>
         </nav>
       </div>
@@ -73,16 +69,14 @@ export default function JiraTestAI() {
                   onClick={() => setActiveTab("jira")}
                   className="flex items-center gap-2"
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  JIRA Tickets
+                  ✓ JIRA Tickets
                 </Button>
                 <Button
                   variant={activeTab === "github" ? "default" : "outline"}
                   onClick={() => setActiveTab("github")}
                   className="flex items-center gap-2"
                 >
-                  <Github className="h-4 w-4" />
-                  GitHub Pull Requests
+                  🔗 GitHub Pull Requests
                 </Button>
               </div>
             </div>
@@ -133,10 +127,7 @@ export default function JiraTestAI() {
                     </div>
                   </div>
 
-                  <Button className="w-full">
-                    <Zap className="h-4 w-4 mr-2" />
-                    Connect to JIRA
-                  </Button>
+                  <Button className="w-full">⚡ Connect to JIRA</Button>
                 </CardContent>
               </Card>
 
@@ -178,6 +169,7 @@ export default function JiraTestAI() {
                       <span>Basic</span>
                       <span>Standard</span>
                       <span>Comprehensive</span>
+                      <span>Exhaustive</span>
                     </div>
                   </div>
                 </CardContent>
