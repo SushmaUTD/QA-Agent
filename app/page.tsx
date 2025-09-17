@@ -1,5 +1,7 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import type React from "react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -7,159 +9,205 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 
-interface TestCase {
+interface Product {
   id: string
-  title: string
-  priority: string
-  type: string
-  preconditions: string[]
-  steps: string[]
-  expectedResults: string
-  testData: string
+  name: string
+  description: string
+  price: number
+  category: string
+  status: "active" | "inactive" | "discontinued"
+  stock: number
+  createdAt: string
+  updatedAt: string
 }
 
-interface GenerationMetadata {
-  ticketKey: string
-  generatedAt: string
-  settings: any
-  totalTests: number
-  usingFallback: boolean
-  error?: string
-}
-
-export default function JIRATestGenerator() {
-  const [ticket, setTicket] = useState({
-    key: "",
-    summary: "",
+export default function ProductCRUD() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [formData, setFormData] = useState({
+    name: "",
     description: "",
-    acceptanceCriteria: "",
-    priority: "Medium",
-    type: "Story",
+    price: "",
+    category: "",
+    status: "active" as const,
+    stock: "",
   })
-
-  const [settings, setSettings] = useState({
-    coverageLevel: "Basic",
-    testTypes: ["Functional"],
-    framework: "Manual",
-  })
-
-  const [testCases, setTestCases] = useState<TestCase[]>([])
-  const [metadata, setMetadata] = useState<GenerationMetadata | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
 
-  const handleGenerate = async () => {
-    if (!ticket.summary.trim()) {
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch("/api/products")
+      const data = await response.json()
+      setProducts(data.products || [])
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch products",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.name || !formData.price) {
       toast({
         title: "Validation Error",
-        description: "Please provide at least a ticket summary",
+        description: "Name and price are required",
         variant: "destructive",
       })
       return
     }
 
-    setIsGenerating(true)
     try {
-      const response = await fetch("/api/generate-tests", {
-        method: "POST",
+      const url = editingProduct ? `/api/products/${editingProduct.id}` : "/api/products"
+      const method = editingProduct ? "PUT" : "POST"
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticket, settings }),
+        body: JSON.stringify({
+          ...formData,
+          price: Number.parseFloat(formData.price),
+          stock: Number.parseInt(formData.stock) || 0,
+        }),
       })
 
-      const data = await response.json()
-
-      if (data.success) {
-        setTestCases(data.testCases)
-        setMetadata(data.metadata)
+      if (response.ok) {
         toast({
           title: "Success",
-          description: `Generated ${data.testCases.length} test cases`,
+          description: `Product ${editingProduct ? "updated" : "created"} successfully`,
         })
+        fetchProducts()
+        resetForm()
+        setIsDialogOpen(false)
       } else {
-        throw new Error("Generation failed")
+        throw new Error("Failed to save product")
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to generate test cases",
+        description: "Failed to save product",
         variant: "destructive",
       })
-    } finally {
-      setIsGenerating(false)
     }
   }
 
-  const handleTestTypeChange = (type: string, checked: boolean) => {
-    if (checked) {
-      setSettings((prev) => ({
-        ...prev,
-        testTypes: [...prev.testTypes, type],
-      }))
-    } else {
-      setSettings((prev) => ({
-        ...prev,
-        testTypes: prev.testTypes.filter((t) => t !== type),
-      }))
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product)
+    setFormData({
+      name: product.name,
+      description: product.description,
+      price: product.price.toString(),
+      category: product.category,
+      status: product.status,
+      stock: product.stock.toString(),
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this product?")) return
+
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Product deleted successfully",
+        })
+        fetchProducts()
+      } else {
+        throw new Error("Failed to delete product")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete product",
+        variant: "destructive",
+      })
     }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      price: "",
+      category: "",
+      status: "active",
+      stock: "",
+    })
+    setEditingProduct(null)
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "default"
+      case "inactive":
+        return "secondary"
+      case "discontinued":
+        return "destructive"
+      default:
+        return "outline"
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl mb-4">Loading...</div>
+          <p className="text-muted-foreground">Fetching products...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6 max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">JIRA Test Case Generator</h1>
-          <p className="text-xl text-muted-foreground">
-            Generate comprehensive test cases from JIRA ticket information
-          </p>
-        </div>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Product Management</h1>
+            <p className="text-xl text-muted-foreground">Manage your product inventory with full CRUD operations</p>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Input Section */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Ticket Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="key">Ticket Key</Label>
-                    <Input
-                      id="key"
-                      placeholder="e.g., PROJ-123"
-                      value={ticket.key}
-                      onChange={(e) => setTicket((prev) => ({ ...prev, key: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority</Label>
-                    <Select
-                      value={ticket.priority}
-                      onValueChange={(value) => setTicket((prev) => ({ ...prev, priority: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Critical">Critical</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm} size="lg">
+                Add Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="summary">Summary *</Label>
+                  <Label htmlFor="name">Product Name *</Label>
                   <Input
-                    id="summary"
-                    placeholder="Brief description of the ticket"
-                    value={ticket.summary}
-                    onChange={(e) => setTicket((prev) => ({ ...prev, summary: e.target.value }))}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter product name"
+                    required
                   />
                 </div>
 
@@ -167,201 +215,138 @@ export default function JIRATestGenerator() {
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
-                    placeholder="Detailed description of the feature or bug"
-                    rows={4}
-                    value={ticket.description}
-                    onChange={(e) => setTicket((prev) => ({ ...prev, description: e.target.value }))}
+                    value={formData.description}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Product description"
+                    rows={3}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="criteria">Acceptance Criteria</Label>
-                  <Textarea
-                    id="criteria"
-                    placeholder="List the acceptance criteria for this ticket"
-                    rows={4}
-                    value={ticket.acceptanceCriteria}
-                    onChange={(e) => setTicket((prev) => ({ ...prev, acceptanceCriteria: e.target.value }))}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="price">Price *</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Test Generation Settings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Coverage Level</Label>
-                  <Select
-                    value={settings.coverageLevel}
-                    onValueChange={(value) => setSettings((prev) => ({ ...prev, coverageLevel: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Basic">Basic (5-7 tests)</SelectItem>
-                      <SelectItem value="Comprehensive">Comprehensive (10-15 tests)</SelectItem>
-                      <SelectItem value="Extensive">Extensive (15-20 tests)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Test Types</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["Functional", "UI", "Integration", "Performance", "Security", "Negative"].map((type) => (
-                      <div key={type} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={type}
-                          checked={settings.testTypes.includes(type)}
-                          onCheckedChange={(checked) => handleTestTypeChange(type, checked as boolean)}
-                        />
-                        <Label htmlFor={type} className="text-sm">
-                          {type}
-                        </Label>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    <Label htmlFor="stock">Stock</Label>
+                    <Input
+                      id="stock"
+                      type="number"
+                      value={formData.stock}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))}
+                      placeholder="0"
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Framework</Label>
+                  <Label htmlFor="category">Category</Label>
                   <Select
-                    value={settings.framework}
-                    onValueChange={(value) => setSettings((prev) => ({ ...prev, framework: value }))}
+                    value={formData.category}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Electronics">Electronics</SelectItem>
+                      <SelectItem value="Appliances">Appliances</SelectItem>
+                      <SelectItem value="Furniture">Furniture</SelectItem>
+                      <SelectItem value="Clothing">Clothing</SelectItem>
+                      <SelectItem value="Books">Books</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value: "active" | "inactive" | "discontinued") =>
+                      setFormData((prev) => ({ ...prev, status: value }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Manual">Manual Testing</SelectItem>
-                      <SelectItem value="Selenium">Selenium</SelectItem>
-                      <SelectItem value="Cypress">Cypress</SelectItem>
-                      <SelectItem value="Playwright">Playwright</SelectItem>
-                      <SelectItem value="Jest">Jest</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="discontinued">Discontinued</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || !ticket.summary.trim()}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isGenerating ? "Generating..." : "Generate Test Cases"}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex gap-2 pt-4">
+                  <Button type="submit" className="flex-1">
+                    {editingProduct ? "Update Product" : "Create Product"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-          {/* Results Section */}
-          <div className="space-y-6">
-            {metadata && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.length === 0 ? (
+            <div className="col-span-full">
               <Card>
-                <CardHeader>
-                  <CardTitle>Generation Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Ticket:</span> {metadata.ticketKey}
-                    </div>
-                    <div>
-                      <span className="font-medium">Total Tests:</span> {metadata.totalTests}
-                    </div>
-                    <div>
-                      <span className="font-medium">Generated:</span> {new Date(metadata.generatedAt).toLocaleString()}
-                    </div>
-                    <div>
-                      <span className="font-medium">Method:</span>
-                      <Badge variant={metadata.usingFallback ? "secondary" : "default"} className="ml-2">
-                        {metadata.usingFallback ? "Fallback" : "AI Generated"}
-                      </Badge>
-                    </div>
-                  </div>
-                  {metadata.error && <div className="mt-2 text-sm text-muted-foreground">Note: {metadata.error}</div>}
+                <CardContent className="text-center py-12">
+                  <div className="text-4xl mb-4">📦</div>
+                  <p className="text-lg mb-2">No products found</p>
+                  <p className="text-sm text-muted-foreground">Click "Add Product" to create your first product</p>
                 </CardContent>
               </Card>
-            )}
-
-            <div className="space-y-4">
-              {testCases.length === 0 ? (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <div className="text-4xl mb-4">🧪</div>
-                    <p className="text-lg mb-2">No test cases generated yet</p>
-                    <p className="text-sm text-muted-foreground">
-                      Fill in the ticket information and click "Generate Test Cases"
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                testCases.map((testCase, index) => (
-                  <Card key={testCase.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">{testCase.title}</CardTitle>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{testCase.id}</Badge>
-                            <Badge
-                              variant={
-                                testCase.priority === "High"
-                                  ? "destructive"
-                                  : testCase.priority === "Medium"
-                                    ? "default"
-                                    : "secondary"
-                              }
-                            >
-                              {testCase.priority}
-                            </Badge>
-                            <Badge variant="outline">{testCase.type}</Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {testCase.preconditions.length > 0 && (
-                        <div>
-                          <h4 className="font-medium mb-2">Preconditions:</h4>
-                          <ul className="list-disc list-inside text-sm space-y-1">
-                            {testCase.preconditions.map((condition, i) => (
-                              <li key={i}>{condition}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      <div>
-                        <h4 className="font-medium mb-2">Test Steps:</h4>
-                        <ol className="list-decimal list-inside text-sm space-y-1">
-                          {testCase.steps.map((step, i) => (
-                            <li key={i}>{step}</li>
-                          ))}
-                        </ol>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium mb-2">Expected Results:</h4>
-                        <p className="text-sm">{testCase.expectedResults}</p>
-                      </div>
-
-                      {testCase.testData && testCase.testData !== "N/A" && (
-                        <div>
-                          <h4 className="font-medium mb-2">Test Data:</h4>
-                          <p className="text-sm">{testCase.testData}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
             </div>
-          </div>
+          ) : (
+            products.map((product) => (
+              <Card key={product.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">{product.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getStatusColor(product.status)}>{product.status}</Badge>
+                        {product.category && <Badge variant="outline">{product.category}</Badge>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">${product.price}</div>
+                      <div className="text-sm text-muted-foreground">Stock: {product.stock}</div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {product.description && <p className="text-sm text-muted-foreground">{product.description}</p>}
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(product)} className="flex-1">
+                      Edit
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(product.id)} className="flex-1">
+                      Delete
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Created: {new Date(product.createdAt).toLocaleDateString()}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </div>
