@@ -1,17 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  category: string
-  inStock: boolean
-  createdAt: string
-}
-
 // In-memory storage for demo purposes
-const products: Product[] = [
+const products = [
   {
     id: "1",
     name: "Wireless Headphones",
@@ -19,7 +9,7 @@ const products: Product[] = [
     price: 199.99,
     category: "Electronics",
     inStock: true,
-    createdAt: new Date().toISOString(),
+    createdAt: "2024-09-17T10:00:00.000Z",
   },
   {
     id: "2",
@@ -28,7 +18,7 @@ const products: Product[] = [
     price: 299.99,
     category: "Electronics",
     inStock: true,
-    createdAt: new Date().toISOString(),
+    createdAt: "2024-09-17T10:00:00.000Z",
   },
   {
     id: "3",
@@ -37,7 +27,7 @@ const products: Product[] = [
     price: 89.99,
     category: "Appliances",
     inStock: false,
-    createdAt: new Date().toISOString(),
+    createdAt: "2024-09-17T10:00:00.000Z",
   },
   {
     id: "4",
@@ -46,7 +36,7 @@ const products: Product[] = [
     price: 45.99,
     category: "Furniture",
     inStock: true,
-    createdAt: new Date().toISOString(),
+    createdAt: "2024-09-17T10:00:00.000Z",
   },
   {
     id: "5",
@@ -55,7 +45,7 @@ const products: Product[] = [
     price: 79.99,
     category: "Electronics",
     inStock: true,
-    createdAt: new Date().toISOString(),
+    createdAt: "2024-09-17T10:00:00.000Z",
   },
 ]
 
@@ -72,8 +62,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and price are required" }, { status: 400 })
     }
 
-    const newProduct: Product = {
-      id: Date.now().toString(),
+    const newProduct = {
+      id: (products.length + 1).toString(),
       name,
       description: description || "",
       price: Number(price),
@@ -83,6 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     products.push(newProduct)
+
     return NextResponse.json(newProduct, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
