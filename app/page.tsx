@@ -22,9 +22,11 @@ import {
   AlertCircle,
   XCircle,
   Loader2,
+  Settings,
 } from "lucide-react"
 import type { Project } from "@/lib/data-store"
 import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 interface TestCase {
   id: string
@@ -156,6 +158,19 @@ export default function JiraTestGenerator() {
     const baseTests = {
       functional: [
         {
+          title: `Verify ${project.name} CRUD operations`,
+          description: `Test Create, Read, Update, Delete operations for ${project.name}`,
+          steps: [
+            "Navigate to the project management interface",
+            "Test creating a new project entry",
+            "Verify project data is displayed correctly",
+            "Test updating project information",
+            "Test deleting a project",
+            "Verify proper error handling for invalid operations",
+          ],
+          expectedResult: "All CRUD operations work correctly with proper validation and error handling",
+        },
+        {
           title: `Verify ${project.name} core functionality`,
           description: `Test the main features and workflows of ${project.name}`,
           steps: [
@@ -180,6 +195,18 @@ export default function JiraTestGenerator() {
       ],
       ui: [
         {
+          title: `${project.name} CRUD interface usability test`,
+          description: `Verify CRUD interface is user-friendly and intuitive`,
+          steps: [
+            "Test form validation and user feedback",
+            "Verify modal dialogs and confirmations work properly",
+            "Test table sorting and filtering functionality",
+            "Verify responsive design on different screen sizes",
+            "Test accessibility features (keyboard navigation, screen readers)",
+          ],
+          expectedResult: "CRUD interface is intuitive, accessible, and provides clear user feedback",
+        },
+        {
           title: `${project.name} UI responsiveness test`,
           description: `Verify UI adapts to different screen sizes`,
           steps: ["Open application on desktop", "Resize browser window", "Test on tablet view", "Test on mobile view"],
@@ -199,6 +226,19 @@ export default function JiraTestGenerator() {
       ],
       integration: [
         {
+          title: `${project.name} REST API integration test`,
+          description: `Verify REST API endpoints for CRUD operations`,
+          steps: [
+            "Test GET /api/projects endpoint",
+            "Test POST /api/projects endpoint with valid data",
+            "Test PUT /api/projects/[id] endpoint",
+            "Test DELETE /api/projects/[id] endpoint",
+            "Verify proper HTTP status codes and error responses",
+            "Test API rate limiting and security measures",
+          ],
+          expectedResult: "All REST API endpoints function correctly with proper error handling",
+        },
+        {
           title: `${project.name} API integration test`,
           description: `Verify external API integrations work correctly`,
           steps: [
@@ -211,6 +251,18 @@ export default function JiraTestGenerator() {
         },
       ],
       regression: [
+        {
+          title: `${project.name} CRUD workflow regression test`,
+          description: `Ensure CRUD operations don't break existing functionality`,
+          steps: [
+            "Test complete project lifecycle (create → read → update → delete)",
+            "Verify data persistence across browser sessions",
+            "Test concurrent user operations",
+            "Verify search and filtering still work after CRUD operations",
+            "Test edge cases and error scenarios",
+          ],
+          expectedResult: "CRUD operations don't interfere with existing functionality",
+        },
         {
           title: `${project.name} regression suite`,
           description: `Ensure existing functionality still works after changes`,
@@ -321,6 +373,12 @@ export default function JiraTestGenerator() {
             <h1 className="text-3xl font-bold text-foreground">JIRA Test Case Generator</h1>
             <p className="text-muted-foreground mt-2">Generate comprehensive test cases for your projects using AI</p>
           </div>
+          <Link href="/crud">
+            <Button variant="outline">
+              <Settings className="h-4 w-4 mr-2" />
+              Manage Projects
+            </Button>
+          </Link>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -471,6 +529,13 @@ export default function JiraTestGenerator() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Note:</strong> Test cases now include CRUD-specific scenarios for comprehensive testing of
+                      Create, Read, Update, and Delete operations, along with API endpoint testing and UI validation.
+                    </p>
                   </div>
 
                   <Button
