@@ -1,367 +1,284 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { ToastContainer } from "@/components/ui/toast"
 import {
+  Plus,
+  Edit,
+  Trash2,
   Search,
-  Filter,
-  Download,
-  Play,
-  BarChart3,
-  History,
-  Clock,
-  CheckCircle,
+  Package,
+  DollarSign,
+  TrendingUp,
   AlertCircle,
-  XCircle,
+  CheckCircle,
+  Clock,
   Loader2,
-  Settings,
 } from "lucide-react"
-import type { Project } from "@/lib/data-store"
 import { useToast } from "@/hooks/use-toast"
-import Link from "next/link"
 
-interface TestCase {
+interface Product {
   id: string
-  title: string
+  name: string
   description: string
-  steps: string[]
-  expectedResult: string
-  priority: "high" | "medium" | "low"
-  type: "functional" | "ui" | "integration" | "regression"
-  projectId: string
-  projectName: string
+  price: number
+  category: string
+  status: "active" | "inactive" | "discontinued"
+  stock: number
+  createdAt: string
+  updatedAt: string
 }
 
-interface TestSession {
-  id: string
-  projectIds: string[]
-  projectNames: string[]
-  testTypes: string[]
-  testCases: TestCase[]
-  generatedAt: string
-  totalTests: number
-}
+// Sample products data
+const initialProducts: Product[] = [
+  {
+    id: "1",
+    name: "Wireless Headphones",
+    description: "High-quality wireless headphones with noise cancellation",
+    price: 199.99,
+    category: "Electronics",
+    status: "active",
+    stock: 50,
+    createdAt: "2024-01-15T10:00:00Z",
+    updatedAt: "2024-01-15T10:00:00Z",
+  },
+  {
+    id: "2",
+    name: "Smart Watch",
+    description: "Fitness tracking smartwatch with heart rate monitor",
+    price: 299.99,
+    category: "Electronics",
+    status: "active",
+    stock: 25,
+    createdAt: "2024-01-16T11:00:00Z",
+    updatedAt: "2024-01-16T11:00:00Z",
+  },
+  {
+    id: "3",
+    name: "Coffee Maker",
+    description: "Programmable coffee maker with thermal carafe",
+    price: 89.99,
+    category: "Appliances",
+    status: "active",
+    stock: 15,
+    createdAt: "2024-01-17T09:00:00Z",
+    updatedAt: "2024-01-17T09:00:00Z",
+  },
+  {
+    id: "4",
+    name: "Desk Lamp",
+    description: "LED desk lamp with adjustable brightness",
+    price: 45.99,
+    category: "Furniture",
+    status: "inactive",
+    stock: 0,
+    createdAt: "2024-01-18T14:00:00Z",
+    updatedAt: "2024-01-18T14:00:00Z",
+  },
+  {
+    id: "5",
+    name: "Bluetooth Speaker",
+    description: "Portable Bluetooth speaker with waterproof design",
+    price: 79.99,
+    category: "Electronics",
+    status: "discontinued",
+    stock: 5,
+    createdAt: "2024-01-19T16:00:00Z",
+    updatedAt: "2024-01-19T16:00:00Z",
+  },
+]
 
-export default function JiraTestGenerator() {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
-  const [testTypes, setTestTypes] = useState<string[]>(["functional"])
-  const [loading, setLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
+export default function ProductCRUD() {
+  const [products, setProducts] = useState<Product[]>(initialProducts)
   const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [priorityFilter, setPriorityFilter] = useState<string>("all")
-  const [generatedTests, setGeneratedTests] = useState<TestCase[]>([])
-  const [testHistory, setTestHistory] = useState<TestSession[]>([])
-  const [activeTab, setActiveTab] = useState("projects")
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const { toasts, removeToast, success, error, warning } = useToast()
+  const { toasts, removeToast, success, error } = useToast()
 
-  useEffect(() => {
-    fetchProjects()
-    loadTestHistory()
-  }, [])
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+    status: "active" as Product["status"],
+    stock: "",
+  })
 
-  const fetchProjects = async () => {
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      price: "",
+      category: "",
+      status: "active",
+      stock: "",
+    })
+  }
+
+  const handleAddProduct = async () => {
+    if (!formData.name || !formData.description || !formData.price || !formData.category || !formData.stock) {
+      error("Validation Error", "Please fill in all required fields")
+      return
+    }
+
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await fetch("/api/projects")
-      const data = await response.json()
-      if (data.success) {
-        setProjects(data.data)
-        success("Projects loaded successfully")
-      } else {
-        error("Failed to load projects", data.error)
+      const newProduct: Product = {
+        id: Date.now().toString(),
+        name: formData.name,
+        description: formData.description,
+        price: Number.parseFloat(formData.price),
+        category: formData.category,
+        status: formData.status,
+        stock: Number.parseInt(formData.stock),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }
+
+      setProducts([...products, newProduct])
+      success("Product Added", `${newProduct.name} has been added successfully`)
+      setIsAddDialogOpen(false)
+      resetForm()
     } catch (err) {
-      error("Failed to load projects", "Please check your connection and try again")
+      error("Error", "Failed to add product")
     } finally {
       setLoading(false)
     }
   }
 
-  const loadTestHistory = () => {
-    const saved = localStorage.getItem("jira-test-history")
-    if (saved) {
-      setTestHistory(JSON.parse(saved))
-    }
-  }
-
-  const saveTestHistory = (sessions: TestSession[]) => {
-    localStorage.setItem("jira-test-history", JSON.stringify(sessions))
-    setTestHistory(sessions)
-  }
-
-  const generateTestCases = async () => {
-    if (selectedProjects.length === 0) {
-      warning("No projects selected", "Please select at least one project to generate test cases")
+  const handleEditProduct = async () => {
+    if (
+      !editingProduct ||
+      !formData.name ||
+      !formData.description ||
+      !formData.price ||
+      !formData.category ||
+      !formData.stock
+    ) {
+      error("Validation Error", "Please fill in all required fields")
       return
     }
 
-    if (testTypes.length === 0) {
-      warning("No test types selected", "Please select at least one test type")
-      return
-    }
-
+    setLoading(true)
     try {
-      setGenerating(true)
-      const selectedProjectData = projects.filter((p) => selectedProjects.includes(p.id))
-
-      // Simulate AI generation with realistic test cases
-      const testCases: TestCase[] = []
-
-      for (const project of selectedProjectData) {
-        for (const testType of testTypes) {
-          const casesForType = generateTestCasesForProject(project, testType as any)
-          testCases.push(...casesForType)
-        }
+      const updatedProduct: Product = {
+        ...editingProduct,
+        name: formData.name,
+        description: formData.description,
+        price: Number.parseFloat(formData.price),
+        category: formData.category,
+        status: formData.status,
+        stock: Number.parseInt(formData.stock),
+        updatedAt: new Date().toISOString(),
       }
 
-      const session: TestSession = {
-        id: Date.now().toString(),
-        projectIds: selectedProjects,
-        projectNames: selectedProjectData.map((p) => p.name),
-        testTypes,
-        testCases,
-        generatedAt: new Date().toISOString(),
-        totalTests: testCases.length,
-      }
-
-      setGeneratedTests(testCases)
-      const newHistory = [session, ...testHistory]
-      saveTestHistory(newHistory)
-
-      success(
-        `Generated ${testCases.length} test cases`,
-        `Test cases created for ${selectedProjectData.length} projects`,
-      )
-      setActiveTab("analytics")
+      setProducts(products.map((p) => (p.id === editingProduct.id ? updatedProduct : p)))
+      success("Product Updated", `${updatedProduct.name} has been updated successfully`)
+      setIsEditDialogOpen(false)
+      setEditingProduct(null)
+      resetForm()
     } catch (err) {
-      error("Failed to generate test cases", "Please try again")
+      error("Error", "Failed to update product")
     } finally {
-      setGenerating(false)
+      setLoading(false)
     }
   }
 
-  const generateTestCasesForProject = (
-    project: Project,
-    testType: "functional" | "ui" | "integration" | "regression",
-  ): TestCase[] => {
-    const baseTests = {
-      functional: [
-        {
-          title: `Verify ${project.name} CRUD operations`,
-          description: `Test Create, Read, Update, Delete operations for ${project.name}`,
-          steps: [
-            "Navigate to the project management interface",
-            "Test creating a new project entry",
-            "Verify project data is displayed correctly",
-            "Test updating project information",
-            "Test deleting a project",
-            "Verify proper error handling for invalid operations",
-          ],
-          expectedResult: "All CRUD operations work correctly with proper validation and error handling",
-        },
-        {
-          title: `Verify ${project.name} core functionality`,
-          description: `Test the main features and workflows of ${project.name}`,
-          steps: [
-            "Navigate to the project dashboard",
-            "Verify all main features are accessible",
-            "Test primary user workflows",
-            "Validate data processing",
-          ],
-          expectedResult: "All core functionality works as expected",
-        },
-        {
-          title: `Validate ${project.name} business rules`,
-          description: `Ensure business logic is correctly implemented`,
-          steps: [
-            "Test business rule validation",
-            "Verify edge cases",
-            "Check error handling",
-            "Validate data constraints",
-          ],
-          expectedResult: "Business rules are enforced correctly",
-        },
-      ],
-      ui: [
-        {
-          title: `${project.name} CRUD interface usability test`,
-          description: `Verify CRUD interface is user-friendly and intuitive`,
-          steps: [
-            "Test form validation and user feedback",
-            "Verify modal dialogs and confirmations work properly",
-            "Test table sorting and filtering functionality",
-            "Verify responsive design on different screen sizes",
-            "Test accessibility features (keyboard navigation, screen readers)",
-          ],
-          expectedResult: "CRUD interface is intuitive, accessible, and provides clear user feedback",
-        },
-        {
-          title: `${project.name} UI responsiveness test`,
-          description: `Verify UI adapts to different screen sizes`,
-          steps: ["Open application on desktop", "Resize browser window", "Test on tablet view", "Test on mobile view"],
-          expectedResult: "UI is responsive across all screen sizes",
-        },
-        {
-          title: `${project.name} accessibility compliance`,
-          description: `Ensure UI meets accessibility standards`,
-          steps: [
-            "Run accessibility scanner",
-            "Test keyboard navigation",
-            "Verify screen reader compatibility",
-            "Check color contrast ratios",
-          ],
-          expectedResult: "UI meets WCAG 2.1 AA standards",
-        },
-      ],
-      integration: [
-        {
-          title: `${project.name} REST API integration test`,
-          description: `Verify REST API endpoints for CRUD operations`,
-          steps: [
-            "Test GET /api/projects endpoint",
-            "Test POST /api/projects endpoint with valid data",
-            "Test PUT /api/projects/[id] endpoint",
-            "Test DELETE /api/projects/[id] endpoint",
-            "Verify proper HTTP status codes and error responses",
-            "Test API rate limiting and security measures",
-          ],
-          expectedResult: "All REST API endpoints function correctly with proper error handling",
-        },
-        {
-          title: `${project.name} API integration test`,
-          description: `Verify external API integrations work correctly`,
-          steps: [
-            "Test API connection",
-            "Verify data synchronization",
-            "Test error handling for API failures",
-            "Validate data transformation",
-          ],
-          expectedResult: "All API integrations function correctly",
-        },
-      ],
-      regression: [
-        {
-          title: `${project.name} CRUD workflow regression test`,
-          description: `Ensure CRUD operations don't break existing functionality`,
-          steps: [
-            "Test complete project lifecycle (create → read → update → delete)",
-            "Verify data persistence across browser sessions",
-            "Test concurrent user operations",
-            "Verify search and filtering still work after CRUD operations",
-            "Test edge cases and error scenarios",
-          ],
-          expectedResult: "CRUD operations don't interfere with existing functionality",
-        },
-        {
-          title: `${project.name} regression suite`,
-          description: `Ensure existing functionality still works after changes`,
-          steps: [
-            "Run full test suite",
-            "Verify critical user paths",
-            "Test previously fixed bugs",
-            "Validate performance benchmarks",
-          ],
-          expectedResult: "No regression in existing functionality",
-        },
-      ],
+  const handleDeleteProduct = async (product: Product) => {
+    setLoading(true)
+    try {
+      setProducts(products.filter((p) => p.id !== product.id))
+      success("Product Deleted", `${product.name} has been deleted successfully`)
+    } catch (err) {
+      error("Error", "Failed to delete product")
+    } finally {
+      setLoading(false)
     }
-
-    return baseTests[testType].map((test, index) => ({
-      id: `${project.id}-${testType}-${index}`,
-      title: test.title,
-      description: test.description,
-      steps: test.steps,
-      expectedResult: test.expectedResult,
-      priority: project.priority,
-      type: testType,
-      projectId: project.id,
-      projectName: project.name,
-    }))
   }
 
-  const downloadTestCases = (testCases: TestCase[], filename: string) => {
-    const csvContent = [
-      ["ID", "Title", "Description", "Steps", "Expected Result", "Priority", "Type", "Project"],
-      ...testCases.map((tc) => [
-        tc.id,
-        tc.title,
-        tc.description,
-        tc.steps.join("; "),
-        tc.expectedResult,
-        tc.priority,
-        tc.type,
-        tc.projectName,
-      ]),
-    ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n")
-
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product)
+    setFormData({
+      name: product.name,
+      description: product.description,
+      price: product.price.toString(),
+      category: product.category,
+      status: product.status,
+      stock: product.stock.toString(),
+    })
+    setIsEditDialogOpen(true)
   }
 
-  const filteredProjects = projects.filter((project) => {
+  const filteredProducts = products.filter((product) => {
     const matchesSearch =
-      project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || project.status === statusFilter
-    const matchesPriority = priorityFilter === "all" || project.priority === priorityFilter
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || product.category === categoryFilter
+    const matchesStatus = statusFilter === "all" || product.status === statusFilter
 
-    return matchesSearch && matchesStatus && matchesPriority
+    return matchesSearch && matchesCategory && matchesStatus
   })
 
-  const getStatusIcon = (status: Project["status"]) => {
+  const categories = Array.from(new Set(products.map((p) => p.category)))
+
+  const getStatusIcon = (status: Product["status"]) => {
     switch (status) {
       case "active":
-        return <Clock className="h-4 w-4" />
-      case "completed":
         return <CheckCircle className="h-4 w-4" />
-      case "on-hold":
+      case "inactive":
+        return <Clock className="h-4 w-4" />
+      case "discontinued":
         return <AlertCircle className="h-4 w-4" />
-      case "cancelled":
-        return <XCircle className="h-4 w-4" />
     }
   }
 
-  const getStatusColor = (status: Project["status"]) => {
+  const getStatusColor = (status: Product["status"]) => {
     switch (status) {
       case "active":
-        return "bg-primary text-primary-foreground"
-      case "completed":
-        return "bg-secondary text-secondary-foreground"
-      case "on-hold":
-        return "bg-muted text-muted-foreground"
-      case "cancelled":
-        return "bg-destructive text-destructive-foreground"
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+      case "inactive":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+      case "discontinued":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
     }
   }
 
-  const getPriorityColor = (priority: Project["priority"]) => {
-    switch (priority) {
-      case "high":
-        return "bg-destructive text-destructive-foreground"
-      case "medium":
-        return "bg-accent text-accent-foreground"
-      case "low":
-        return "bg-muted text-muted-foreground"
-    }
-  }
+  const totalProducts = products.length
+  const activeProducts = products.filter((p) => p.status === "active").length
+  const totalValue = products.reduce((sum, p) => sum + p.price * p.stock, 0)
+  const lowStockProducts = products.filter((p) => p.stock < 10).length
 
   return (
     <div className="min-h-screen bg-background">
@@ -370,334 +287,362 @@ export default function JiraTestGenerator() {
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">JIRA Test Case Generator</h1>
-            <p className="text-muted-foreground mt-2">Generate comprehensive test cases for your projects using AI</p>
+            <h1 className="text-3xl font-bold text-foreground">Product Management</h1>
+            <p className="text-muted-foreground mt-2">Manage your product inventory with full CRUD operations</p>
           </div>
-          <Link href="/crud">
-            <Button variant="outline">
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Projects
-            </Button>
-          </Link>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Product</DialogTitle>
+                <DialogDescription>Enter the details for the new product. All fields are required.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Product Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter product name"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Enter product description"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="price">Price ($)</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="stock">Stock</Label>
+                    <Input
+                      id="stock"
+                      type="number"
+                      value={formData.stock}
+                      onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    placeholder="Enter category"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value: Product["status"]) => setFormData({ ...formData, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="discontinued">Discontinued</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddProduct} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add Product
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="projects">Projects & Generation</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics & Results</TabsTrigger>
-            <TabsTrigger value="history">Test History</TabsTrigger>
-          </TabsList>
-
-          {/* Projects Tab */}
-          <TabsContent value="projects" className="space-y-6">
-            {/* Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Project Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        placeholder="Search projects..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="on-hold">On Hold</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Priorities</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Package className="h-8 w-8 text-blue-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Total Products</p>
+                  <p className="text-2xl font-bold">{totalProducts}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Active Products</p>
+                  <p className="text-2xl font-bold">{activeProducts}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <DollarSign className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Total Value</p>
+                  <p className="text-2xl font-bold">${totalValue.toFixed(2)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <TrendingUp className="h-8 w-8 text-orange-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Low Stock</p>
+                  <p className="text-2xl font-bold">{lowStockProducts}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            {/* Project Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Select Projects for Test Generation</CardTitle>
-                <CardDescription>
-                  Choose projects to generate test cases for ({selectedProjects.length} selected)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    <div className="text-muted-foreground">Loading projects...</div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredProjects.map((project) => (
-                      <div key={project.id} className="flex items-center space-x-3 p-4 border rounded-lg">
-                        <Checkbox
-                          id={project.id}
-                          checked={selectedProjects.includes(project.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedProjects([...selectedProjects, project.id])
-                            } else {
-                              setSelectedProjects(selectedProjects.filter((id) => id !== project.id))
-                            }
-                          }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium">{project.name}</h3>
-                            <Badge className={`${getStatusColor(project.status)} flex items-center gap-1`}>
-                              {getStatusIcon(project.status)}
-                              {project.status.replace("-", " ")}
-                            </Badge>
-                            <Badge className={getPriorityColor(project.priority)}>{project.priority}</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{project.description}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(project.startDate).toLocaleDateString()} -{" "}
-                            {project.endDate ? new Date(project.endDate).toLocaleDateString() : "Ongoing"}
-                          </p>
-                        </div>
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="discontinued">Discontinued</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Products Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Products ({filteredProducts.length})</CardTitle>
+            <CardDescription>
+              Manage your product inventory with create, read, update, and delete operations
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Stock</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{product.name}</div>
+                        <div className="text-sm text-muted-foreground">{product.description}</div>
                       </div>
-                    ))}
-                    {filteredProjects.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No projects found. Try adjusting your filters.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Test Configuration */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Test Configuration</CardTitle>
-                <CardDescription>Configure the types of test cases to generate</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Test Types</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { value: "functional", label: "Functional Tests" },
-                        { value: "ui", label: "UI Tests" },
-                        { value: "integration", label: "Integration Tests" },
-                        { value: "regression", label: "Regression Tests" },
-                      ].map((type) => (
-                        <div key={type.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={type.value}
-                            checked={testTypes.includes(type.value)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setTestTypes([...testTypes, type.value])
-                              } else {
-                                setTestTypes(testTypes.filter((t) => t !== type.value))
-                              }
-                            }}
-                          />
-                          <label htmlFor={type.value} className="text-sm">
-                            {type.label}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>Note:</strong> Test cases now include CRUD-specific scenarios for comprehensive testing of
-                      Create, Read, Update, and Delete operations, along with API endpoint testing and UI validation.
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={generateTestCases}
-                    disabled={generating || selectedProjects.length === 0}
-                    className="w-full"
-                  >
-                    {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <Play className="mr-2 h-4 w-4" />
-                    Generate Test Cases
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    Test Generation Results
-                  </CardTitle>
-                  <CardDescription>
-                    {generatedTests.length > 0
-                      ? `${generatedTests.length} test cases generated`
-                      : "No test cases generated yet"}
-                  </CardDescription>
-                </div>
-                {generatedTests.length > 0 && (
-                  <Button onClick={() => downloadTestCases(generatedTests, "test-cases.csv")}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download CSV
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent>
-                {generatedTests.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="text-2xl font-bold">{generatedTests.length}</div>
-                          <div className="text-sm text-muted-foreground">Total Test Cases</div>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="text-2xl font-bold">
-                            {new Set(generatedTests.map((t) => t.projectId)).size}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Projects Covered</div>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="text-2xl font-bold">{new Set(generatedTests.map((t) => t.type)).size}</div>
-                          <div className="text-sm text-muted-foreground">Test Types</div>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="text-2xl font-bold">
-                            {generatedTests.filter((t) => t.priority === "high").length}
-                          </div>
-                          <div className="text-sm text-muted-foreground">High Priority</div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Title</TableHead>
-                          <TableHead>Project</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Priority</TableHead>
-                          <TableHead>Steps</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {generatedTests.slice(0, 10).map((testCase) => (
-                          <TableRow key={testCase.id}>
-                            <TableCell className="font-medium">{testCase.title}</TableCell>
-                            <TableCell>{testCase.projectName}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{testCase.type}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getPriorityColor(testCase.priority)}>{testCase.priority}</Badge>
-                            </TableCell>
-                            <TableCell>{testCase.steps.length} steps</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    {generatedTests.length > 10 && (
-                      <p className="text-sm text-muted-foreground text-center">
-                        Showing 10 of {generatedTests.length} test cases. Download CSV for complete list.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No test cases generated yet. Go to Projects & Generation tab to create test cases.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* History Tab */}
-          <TabsContent value="history" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Test Generation History
-                </CardTitle>
-                <CardDescription>View and download previous test generation sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {testHistory.length > 0 ? (
-                  <div className="space-y-4">
-                    {testHistory.map((session) => (
-                      <Card key={session.id}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-medium">
-                                {session.projectNames.join(", ")} - {session.totalTests} test cases
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                Generated on {new Date(session.generatedAt).toLocaleString()}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Test types: {session.testTypes.join(", ")}
-                              </p>
-                            </div>
-                            <Button
-                              variant="outline"
-                              onClick={() => downloadTestCases(session.testCases, `test-cases-${session.id}.csv`)}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
+                    </TableCell>
+                    <TableCell>{product.category}</TableCell>
+                    <TableCell>${product.price.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <span className={product.stock < 10 ? "text-red-600 font-medium" : ""}>{product.stock}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`${getStatusColor(product.status)} flex items-center gap-1 w-fit`}>
+                        {getStatusIcon(product.status)}
+                        {product.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(product.updatedAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEditDialog(product)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No test generation history yet. Generate some test cases to see them here.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteProduct(product)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No products found. Try adjusting your filters or add a new product.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>Update the product details. All fields are required.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Product Name</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Enter product name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Enter product description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-price">Price ($)</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-stock">Stock</Label>
+                  <Input
+                    id="edit-stock"
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Input
+                  id="edit-category"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="Enter category"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: Product["status"]) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="discontinued">Discontinued</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleEditProduct} disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Product
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

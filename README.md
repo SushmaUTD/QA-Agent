@@ -1,30 +1,101 @@
-# JIRA ticket test cases
+# JIRA Test Generator with CRUD Application
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+This project contains two applications:
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/sushorange-4999s-projects/v0-jira-ticket-test-cases)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/O3mlTVy7RIQ)
+1. **JIRA Test Generator** (Main Application) - Port 3000
+2. **Product CRUD Application** (Separate Application) - Port 3001
 
-## Overview
+## Getting Started
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+### Running the JIRA Test Generator (Port 3000)
+\`\`\`bash
+npm run dev
+\`\`\`
 
-## Deployment
+### Running the CRUD Application (Port 3001)
+\`\`\`bash
+npm run dev:crud
+\`\`\`
 
-Your project is live at:
+### Running Both Applications
+You can run both applications simultaneously:
 
-**[https://vercel.com/sushorange-4999s-projects/v0-jira-ticket-test-cases](https://vercel.com/sushorange-4999s-projects/v0-jira-ticket-test-cases)**
+\`\`\`bash
+# Terminal 1 - JIRA Test Generator
+npm run dev
 
-## Build your app
+# Terminal 2 - CRUD Application  
+npm run dev:crud
+\`\`\`
 
-Continue building your app on:
+## Applications Overview
 
-**[https://v0.app/chat/projects/O3mlTVy7RIQ](https://v0.app/chat/projects/O3mlTVy7RIQ)**
+### JIRA Test Generator (localhost:3000)
+- Generate comprehensive test cases for projects
+- Support for functional, UI, integration, and regression tests
+- Test history and analytics
+- CSV export functionality
 
-## How It Works
+### Product CRUD Application (localhost:3001)
+- Full CRUD operations for product management
+- REST API endpoints:
+  - `GET /api/products` - List all products
+  - `POST /api/products` - Create new product
+  - `GET /api/products/[id]` - Get specific product
+  - `PUT /api/products/[id]` - Update product
+  - `DELETE /api/products/[id]` - Delete product
+- Product filtering and search
+- In-memory data storage (5 sample products included)
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## API Endpoints (CRUD Application)
+
+### Products API
+- **GET** `/api/products` - Retrieve all products
+- **POST** `/api/products` - Create a new product
+- **GET** `/api/products/[id]` - Get product by ID
+- **PUT** `/api/products/[id]` - Update product by ID
+- **DELETE** `/api/products/[id]` - Delete product by ID
+
+### Sample Product Structure
+\`\`\`json
+{
+  "id": "string",
+  "name": "string",
+  "description": "string", 
+  "price": "number",
+  "category": "string",
+  "status": "active" | "inactive" | "discontinued",
+  "stock": "number",
+  "createdAt": "string",
+  "updatedAt": "string"
+}
+\`\`\`
+
+## Testing with Playwright
+
+The JIRA Test Generator can be used to create test cases for the CRUD application. Run the test suite with:
+
+\`\`\`bash
+npm run test:e2e
+\`\`\`
+
+## Features
+
+### CRUD Application Features
+- ✅ Create new products
+- ✅ Read/List all products with filtering
+- ✅ Update existing products
+- ✅ Delete products with confirmation
+- ✅ Search and filter functionality
+- ✅ Product statistics dashboard
+- ✅ Responsive design
+- ✅ Form validation
+- ✅ Toast notifications
+
+### JIRA Test Generator Features
+- ✅ Project-based test generation
+- ✅ Multiple test types (functional, UI, integration, regression)
+- ✅ Test history tracking
+- ✅ CSV export
+- ✅ Analytics dashboard
+- ✅ CRUD-specific test scenarios
