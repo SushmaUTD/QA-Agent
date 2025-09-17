@@ -3,646 +3,310 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { ToastContainer } from "@/components/ui/toast"
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  Package,
-  DollarSign,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Loader2,
-} from "lucide-react"
+import { Copy, Download, RefreshCw, Zap } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-interface Product {
+interface TestCase {
   id: string
-  name: string
+  title: string
   description: string
-  price: number
-  category: string
-  status: "active" | "inactive" | "discontinued"
-  stock: number
-  createdAt: string
-  updatedAt: string
+  preconditions: string
+  steps: string[]
+  expectedResult: string
+  priority: "Low" | "Medium" | "High" | "Critical"
+  type: "Functional" | "Non-Functional" | "Integration" | "Regression" | "Smoke"
 }
 
-// Sample products data
-const initialProducts: Product[] = [
-  {
-    id: "1",
-    name: "Wireless Headphones",
-    description: "High-quality wireless headphones with noise cancellation",
-    price: 199.99,
-    category: "Electronics",
-    status: "active",
-    stock: 50,
-    createdAt: "2024-01-15T10:00:00Z",
-    updatedAt: "2024-01-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Smart Watch",
-    description: "Fitness tracking smartwatch with heart rate monitor",
-    price: 299.99,
-    category: "Electronics",
-    status: "active",
-    stock: 25,
-    createdAt: "2024-01-16T11:00:00Z",
-    updatedAt: "2024-01-16T11:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Coffee Maker",
-    description: "Programmable coffee maker with thermal carafe",
-    price: 89.99,
-    category: "Appliances",
-    status: "active",
-    stock: 15,
-    createdAt: "2024-01-17T09:00:00Z",
-    updatedAt: "2024-01-17T09:00:00Z",
-  },
-  {
-    id: "4",
-    name: "Desk Lamp",
-    description: "LED desk lamp with adjustable brightness",
-    price: 45.99,
-    category: "Furniture",
-    status: "inactive",
-    stock: 0,
-    createdAt: "2024-01-18T14:00:00Z",
-    updatedAt: "2024-01-18T14:00:00Z",
-  },
-  {
-    id: "5",
-    name: "Bluetooth Speaker",
-    description: "Portable Bluetooth speaker with waterproof design",
-    price: 79.99,
-    category: "Electronics",
-    status: "discontinued",
-    stock: 5,
-    createdAt: "2024-01-19T16:00:00Z",
-    updatedAt: "2024-01-19T16:00:00Z",
-  },
-]
+export default function JIRATestGenerator() {
+  const [userStory, setUserStory] = useState("")
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState("")
+  const [testCases, setTestCases] = useState<TestCase[]>([])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const { toast } = useToast()
 
-export default function ProductCRUD() {
-  const [products, setProducts] = useState<Product[]>(initialProducts)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const { toasts, removeToast, success, error } = useToast()
-
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: "",
-    category: "",
-    status: "active" as Product["status"],
-    stock: "",
-  })
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      description: "",
-      price: "",
-      category: "",
-      status: "active",
-      stock: "",
-    })
-  }
-
-  const handleAddProduct = async () => {
-    if (!formData.name || !formData.description || !formData.price || !formData.category || !formData.stock) {
-      error("Validation Error", "Please fill in all required fields")
+  const generateTestCases = async () => {
+    if (!userStory.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a user story to generate test cases.",
+        variant: "destructive",
+      })
       return
     }
 
-    setLoading(true)
-    try {
-      const newProduct: Product = {
-        id: Date.now().toString(),
-        name: formData.name,
-        description: formData.description,
-        price: Number.parseFloat(formData.price),
-        category: formData.category,
-        status: formData.status,
-        stock: Number.parseInt(formData.stock),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+    setIsGenerating(true)
 
-      setProducts([...products, newProduct])
-      success("Product Added", `${newProduct.name} has been added successfully`)
-      setIsAddDialogOpen(false)
-      resetForm()
-    } catch (err) {
-      error("Error", "Failed to add product")
-    } finally {
-      setLoading(false)
-    }
-  }
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 2000))
 
-  const handleEditProduct = async () => {
-    if (
-      !editingProduct ||
-      !formData.name ||
-      !formData.description ||
-      !formData.price ||
-      !formData.category ||
-      !formData.stock
-    ) {
-      error("Validation Error", "Please fill in all required fields")
-      return
-    }
+    // Generate mock test cases based on the user story
+    const mockTestCases: TestCase[] = [
+      {
+        id: "TC001",
+        title: "Verify successful login with valid credentials",
+        description: "Test that a user can successfully log in with valid username and password",
+        preconditions: "User account exists in the system",
+        steps: ["Navigate to login page", "Enter valid username", "Enter valid password", "Click Login button"],
+        expectedResult: "User is successfully logged in and redirected to dashboard",
+        priority: "High",
+        type: "Functional",
+      },
+      {
+        id: "TC002",
+        title: "Verify login failure with invalid credentials",
+        description: "Test that login fails appropriately with invalid credentials",
+        preconditions: "Login page is accessible",
+        steps: ["Navigate to login page", "Enter invalid username", "Enter invalid password", "Click Login button"],
+        expectedResult: "Error message is displayed and user remains on login page",
+        priority: "High",
+        type: "Functional",
+      },
+      {
+        id: "TC003",
+        title: "Verify password field masking",
+        description: "Test that password field properly masks input characters",
+        preconditions: "Login page is loaded",
+        steps: ["Navigate to login page", "Click on password field", "Type any characters"],
+        expectedResult: "Password characters are masked with dots or asterisks",
+        priority: "Medium",
+        type: "Functional",
+      },
+    ]
 
-    setLoading(true)
-    try {
-      const updatedProduct: Product = {
-        ...editingProduct,
-        name: formData.name,
-        description: formData.description,
-        price: Number.parseFloat(formData.price),
-        category: formData.category,
-        status: formData.status,
-        stock: Number.parseInt(formData.stock),
-        updatedAt: new Date().toISOString(),
-      }
+    setTestCases(mockTestCases)
+    setIsGenerating(false)
 
-      setProducts(products.map((p) => (p.id === editingProduct.id ? updatedProduct : p)))
-      success("Product Updated", `${updatedProduct.name} has been updated successfully`)
-      setIsEditDialogOpen(false)
-      setEditingProduct(null)
-      resetForm()
-    } catch (err) {
-      error("Error", "Failed to update product")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDeleteProduct = async (product: Product) => {
-    setLoading(true)
-    try {
-      setProducts(products.filter((p) => p.id !== product.id))
-      success("Product Deleted", `${product.name} has been deleted successfully`)
-    } catch (err) {
-      error("Error", "Failed to delete product")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const openEditDialog = (product: Product) => {
-    setEditingProduct(product)
-    setFormData({
-      name: product.name,
-      description: product.description,
-      price: product.price.toString(),
-      category: product.category,
-      status: product.status,
-      stock: product.stock.toString(),
+    toast({
+      title: "Test Cases Generated",
+      description: `Successfully generated ${mockTestCases.length} test cases.`,
     })
-    setIsEditDialogOpen(true)
   }
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || product.category === categoryFilter
-    const matchesStatus = statusFilter === "all" || product.status === statusFilter
-
-    return matchesSearch && matchesCategory && matchesStatus
-  })
-
-  const categories = Array.from(new Set(products.map((p) => p.category)))
-
-  const getStatusIcon = (status: Product["status"]) => {
-    switch (status) {
-      case "active":
-        return <CheckCircle className="h-4 w-4" />
-      case "inactive":
-        return <Clock className="h-4 w-4" />
-      case "discontinued":
-        return <AlertCircle className="h-4 w-4" />
-    }
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({
+      title: "Copied to Clipboard",
+      description: "Test case has been copied to your clipboard.",
+    })
   }
 
-  const getStatusColor = (status: Product["status"]) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-      case "inactive":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-      case "discontinued":
+  const exportTestCases = () => {
+    const csvContent = [
+      ["ID", "Title", "Description", "Preconditions", "Steps", "Expected Result", "Priority", "Type"],
+      ...testCases.map((tc) => [
+        tc.id,
+        tc.title,
+        tc.description,
+        tc.preconditions,
+        tc.steps.join("; "),
+        tc.expectedResult,
+        tc.priority,
+        tc.type,
+      ]),
+    ]
+      .map((row) => row.map((cell) => `"${cell}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "test-cases.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+
+    toast({
+      title: "Export Complete",
+      description: "Test cases have been exported to CSV file.",
+    })
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "Critical":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+      case "High":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+      case "Low":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
     }
   }
 
-  const totalProducts = products.length
-  const activeProducts = products.filter((p) => p.status === "active").length
-  const totalValue = products.reduce((sum, p) => sum + p.price * p.stock, 0)
-  const lowStockProducts = products.filter((p) => p.stock < 10).length
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "Functional":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+      case "Integration":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300"
+      case "Regression":
+        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300"
+      case "Smoke":
+        return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300"
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Product Management</h1>
-            <p className="text-muted-foreground mt-2">Manage your product inventory with full CRUD operations</p>
-          </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-                <DialogDescription>Enter the details for the new product. All fields are required.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Product Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter product name"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Enter product description"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="price">Price ($)</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="stock">Stock</Label>
-                    <Input
-                      id="stock"
-                      type="number"
-                      value={formData.stock}
-                      onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="Enter category"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value: Product["status"]) => setFormData({ ...formData, status: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="discontinued">Discontinued</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddProduct} disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Add Product
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-foreground mb-4">JIRA Test Case Generator</h1>
+          <p className="text-xl text-muted-foreground">
+            Transform your user stories into comprehensive test cases with AI assistance
+          </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Input Section */}
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Package className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                  <p className="text-2xl font-bold">{totalProducts}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Active Products</p>
-                  <p className="text-2xl font-bold">{activeProducts}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <DollarSign className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-                  <p className="text-2xl font-bold">${totalValue.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <TrendingUp className="h-8 w-8 text-orange-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Low Stock</p>
-                  <p className="text-2xl font-bold">{lowStockProducts}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="discontinued">Discontinued</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Products Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Products ({filteredProducts.length})</CardTitle>
-            <CardDescription>
-              Manage your product inventory with create, read, update, and delete operations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-muted-foreground">{product.description}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{product.category}</TableCell>
-                    <TableCell>${product.price.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <span className={product.stock < 10 ? "text-red-600 font-medium" : ""}>{product.stock}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`${getStatusColor(product.status)} flex items-center gap-1 w-fit`}>
-                        {getStatusIcon(product.status)}
-                        {product.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(product.updatedAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditDialog(product)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{product.name}"? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteProduct(product)}>Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {filteredProducts.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No products found. Try adjusting your filters or add a new product.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Edit Product</DialogTitle>
-              <DialogDescription>Update the product details. All fields are required.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">Product Name</Label>
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter product name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-description">Description</Label>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Input Requirements
+              </CardTitle>
+              <CardDescription>Provide your user story and acceptance criteria to generate test cases</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="user-story">User Story *</Label>
                 <Textarea
-                  id="edit-description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter product description"
+                  id="user-story"
+                  placeholder="As a [user type], I want [functionality] so that [benefit]..."
+                  value={userStory}
+                  onChange={(e) => setUserStory(e.target.value)}
+                  className="min-h-[120px]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-price">Price ($)</Label>
-                  <Input
-                    id="edit-price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-stock">Stock</Label>
-                  <Input
-                    id="edit-stock"
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-category">Category</Label>
-                <Input
-                  id="edit-category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  placeholder="Enter category"
+
+              <div className="space-y-2">
+                <Label htmlFor="acceptance-criteria">Acceptance Criteria (Optional)</Label>
+                <Textarea
+                  id="acceptance-criteria"
+                  placeholder="Given [context], When [action], Then [outcome]..."
+                  value={acceptanceCriteria}
+                  onChange={(e) => setAcceptanceCriteria(e.target.value)}
+                  className="min-h-[100px]"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value: Product["status"]) => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="discontinued">Discontinued</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <Button
+                onClick={generateTestCases}
+                disabled={isGenerating || !userStory.trim()}
+                className="w-full"
+                size="lg"
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Test Cases...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-4 w-4" />
+                    Generate Test Cases
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Results Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Generated Test Cases</CardTitle>
+                  <CardDescription>
+                    {testCases.length > 0
+                      ? `${testCases.length} test cases generated`
+                      : "Test cases will appear here after generation"}
+                  </CardDescription>
+                </div>
+                {testCases.length > 0 && (
+                  <Button onClick={exportTestCases} variant="outline" size="sm">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                )}
               </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEditProduct} disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update Product
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </CardHeader>
+            <CardContent>
+              {testCases.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Zap className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                  <p>No test cases generated yet.</p>
+                  <p className="text-sm">Fill in the user story and click generate to get started.</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                  {testCases.map((testCase, index) => (
+                    <Card key={testCase.id} className="border-l-4 border-l-blue-500">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{testCase.id}</Badge>
+                              <Badge className={getPriorityColor(testCase.priority)}>{testCase.priority}</Badge>
+                              <Badge className={getTypeColor(testCase.type)}>{testCase.type}</Badge>
+                            </div>
+                            <CardTitle className="text-lg">{testCase.title}</CardTitle>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              copyToClipboard(
+                                `${testCase.id}: ${testCase.title}\n\nDescription: ${testCase.description}\n\nPreconditions: ${testCase.preconditions}\n\nSteps:\n${testCase.steps.map((step, i) => `${i + 1}. ${step}`).join("\n")}\n\nExpected Result: ${testCase.expectedResult}`,
+                              )
+                            }
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-3">
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground mb-1">Description</h4>
+                          <p className="text-sm">{testCase.description}</p>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground mb-1">Preconditions</h4>
+                          <p className="text-sm">{testCase.preconditions}</p>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground mb-1">Test Steps</h4>
+                          <ol className="text-sm space-y-1">
+                            {testCase.steps.map((step, stepIndex) => (
+                              <li key={stepIndex} className="flex">
+                                <span className="mr-2 text-muted-foreground">{stepIndex + 1}.</span>
+                                <span>{step}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground mb-1">Expected Result</h4>
+                          <p className="text-sm">{testCase.expectedResult}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
