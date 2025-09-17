@@ -4,8 +4,8 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Product CRUD Application",
-  description: "Full-featured product management system with CRUD operations",
+  title: "JIRA Test Case Generator",
+  description: "Generate comprehensive test cases from JIRA ticket information using AI",
   generator: "v0.app",
 }
 
