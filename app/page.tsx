@@ -108,7 +108,6 @@ interface AIConfig {
   includeEdgeCases: boolean
   includeNegativeTests: boolean
   includePerformanceTests: boolean
-  includeSecurityTests: boolean
   framework: string
   coverage: string
 }
@@ -222,84 +221,108 @@ export default function JiraTestAI() {
     () => [
       {
         id: "1",
-        key: "PROJ-123",
-        summary: "User Login Authentication",
-        description: "Implement secure user login with email and password validation",
-        status: "QA",
+        key: "GS-101",
+        summary: "Add New Trading Instrument Functionality",
+        description:
+          "Implement the ability to add new trading instruments to the Goldman Sachs Global Markets platform with proper validation and real-time updates",
+        status: "Ready for QA",
         acceptanceCriteria: [
-          "User can login with valid email and password",
-          "Invalid credentials show appropriate error message",
-          "Account lockout after 3 failed attempts",
-          "Password reset functionality works",
+          "User can click 'Add Instrument' button to open the add instrument form",
+          "Form includes fields for Symbol, Name, Asset Class, Price, Market Cap",
+          "Form validates required fields (Symbol, Name, Asset Class, Price)",
+          "Symbol must be unique and follow proper format (e.g., AAPL, TSLA)",
+          "Price must be a valid positive number with up to 2 decimal places",
+          "Asset Class dropdown includes options: Stock, ETF, Currency, Bond, Commodity",
+          "New instrument appears in the trading instruments table immediately after creation",
+          "Table updates Total Instruments count in dashboard cards",
+          "Form resets after successful submission",
+          "Error messages display for validation failures",
         ],
-        assignee: "john.doe@company.com",
+        assignee: "trading.dev@gs.com",
         priority: "High",
         updated: "2024-01-20",
       },
       {
         id: "2",
-        key: "PROJ-124",
-        summary: "Shopping Cart Functionality",
-        description: "Users should be able to add, remove, and modify items in shopping cart",
-        status: "QA",
+        key: "GS-102",
+        summary: "Trading Instruments Table Management",
+        description:
+          "Enhance the trading instruments table with edit, delete, and real-time price updates for Goldman Sachs trading platform",
+        status: "In Progress",
         acceptanceCriteria: [
-          "Add items to cart from product page",
-          "Update quantity of items in cart",
-          "Remove items from cart",
-          "Cart persists across sessions",
-          "Calculate total price correctly",
+          "Display instruments in a responsive table with columns: Symbol, Name, Asset Class, Price, Change, Volume, Market Cap, Actions",
+          "Edit button opens inline editing or modal for instrument details",
+          "Delete button removes instrument with confirmation dialog",
+          "Price changes show with color coding (green for positive, red for negative)",
+          "Volume and Market Cap display with proper formatting (K, M, B suffixes)",
+          "Actions column provides Edit and Delete buttons for each row",
+          "Table supports sorting by any column",
+          "Real-time price updates every 30 seconds for active trading hours",
         ],
-        assignee: "jane.smith@company.com",
+        assignee: "ui.dev@gs.com",
         priority: "Medium",
         updated: "2024-01-22",
       },
       {
         id: "3",
-        key: "PROJ-125",
-        summary: "Payment Processing Integration",
-        description: "Integrate Stripe payment processing for checkout flow",
-        status: "Ready for QA",
+        key: "GS-103",
+        summary: "Market Data Dashboard Cards",
+        description: "Implement real-time dashboard cards showing market statistics and key performance indicators",
+        status: "QA",
         acceptanceCriteria: [
-          "Process credit card payments securely",
-          "Handle payment failures gracefully",
-          "Send confirmation emails after successful payment",
-          "Send confirmation emails after successful payment",
-          "Support multiple currencies",
+          "Total Instruments card shows accurate count of all instruments",
+          "Market Movers card displays top gaining/losing instruments",
+          "Total Volume card shows aggregated trading volume",
+          "Average Change card shows market trend percentage",
+          "All cards update in real-time with market data",
+          "Cards are responsive and display properly on mobile devices",
+          "Loading states shown while fetching data",
+          "Error states handled gracefully with retry options",
         ],
-        assignee: "mike.wilson@company.com",
-        priority: "High",
+        assignee: "data.dev@gs.com",
+        priority: "Medium",
         updated: "2024-01-25",
       },
       {
         id: "4",
-        key: "PROJ-126",
-        summary: "User Profile Management",
-        description: "Allow users to update their profile information and preferences",
-        status: "QA",
+        key: "GS-104",
+        summary: "Advanced Search and Filtering System",
+        description:
+          "Implement comprehensive search and filtering capabilities for trading instruments with real-time results",
+        status: "Ready for QA",
         acceptanceCriteria: [
-          "Users can edit personal information",
-          "Profile picture upload functionality",
-          "Email notification preferences",
-          "Account deletion option",
+          "Search bar filters instruments by Symbol or Name in real-time",
+          "Asset Class dropdown filters by: All Classes, Stock, ETF, Currency, Bond, Commodity",
+          "Exchange dropdown filters by trading exchange",
+          "Sector dropdown filters by business sector",
+          "Multiple filters can be applied simultaneously",
+          "Clear filters option resets all filters to default state",
+          "Search results highlight matching text",
+          "Filter state persists during user session",
+          "No results state displays helpful message",
         ],
-        assignee: "sarah.johnson@company.com",
+        assignee: "search.dev@gs.com",
         priority: "Low",
         updated: "2024-01-28",
       },
       {
         id: "5",
-        key: "PROJ-127",
-        summary: "Search and Filter Products",
-        description: "Implement product search with advanced filtering options",
+        key: "GS-105",
+        summary: "NYSE Market Status Integration",
+        description: "Display real-time NYSE market status and trading hours information in the application header",
         status: "In Review",
         acceptanceCriteria: [
-          "Search products by name and description",
-          "Filter by category, price range, and ratings",
-          "Sort results by relevance, price, and popularity",
-          "Save search preferences",
+          "Header displays current NYSE market status (Open/Closed/Pre-Market/After-Hours)",
+          "Market status updates automatically based on trading hours",
+          "Status indicator uses appropriate colors (green for open, red for closed)",
+          "Tooltip shows detailed market hours information",
+          "Handle market holidays and special trading days",
+          "Status persists across page refreshes",
+          "Fallback handling for API failures",
+          "Mobile responsive display of market status",
         ],
-        assignee: "john.doe@company.com",
-        priority: "Medium",
+        assignee: "integration.dev@gs.com",
+        priority: "High",
         updated: "2024-01-30",
       },
     ],
@@ -1563,7 +1586,10 @@ declare global {
             >
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                  <path
+                    d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5z
+M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"
+                  />
                 </svg>
                 Analytics
               </div>
