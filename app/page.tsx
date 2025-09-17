@@ -1988,6 +1988,15 @@ M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1
                 </div>
               </div>
 
+              {liveTestResults && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Live Test Results</h3>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">{liveTestResults}</pre>
+                  </div>
+                </div>
+              )}
+
               {generatedTests.length > 0 && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Test Cases</h3>
