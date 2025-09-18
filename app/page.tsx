@@ -552,8 +552,12 @@ export default function JiraTestAI() {
   }
 
   const handleJiraConnect = async () => {
+    console.log("[v0] JIRA Connect button clicked")
+    console.log("[v0] JIRA Config:", jiraConfig)
+
     setIsConnecting(true)
     try {
+      console.log("[v0] Making API call to /api/jira-tickets")
       const response = await fetch("/api/jira-tickets", {
         method: "POST",
         headers: {
@@ -562,21 +566,24 @@ export default function JiraTestAI() {
         body: JSON.stringify(jiraConfig),
       })
 
+      console.log("[v0] API Response status:", response.status)
       const data = await response.json()
+      console.log("[v0] API Response data:", data)
 
       if (data.success && data.tickets) {
         setTickets(data.tickets) // Use real tickets instead of mock data
         setIsConnected(true)
-        console.log(`Successfully loaded ${data.tickets.length} tickets from JIRA`)
+        console.log(`[v0] Successfully loaded ${data.tickets.length} tickets from JIRA`)
       } else {
-        console.error("Failed to connect to JIRA:", data.error)
+        console.error("[v0] Failed to connect to JIRA:", data.error)
         alert(`Failed to connect to JIRA: ${data.error}`)
       }
     } catch (error) {
-      console.error("Error connecting to JIRA:", error)
+      console.error("[v0] Error connecting to JIRA:", error)
       alert("Error connecting to JIRA. Please check your configuration.")
     } finally {
       setIsConnecting(false)
+      console.log("[v0] Connection attempt finished")
     }
   }
 
@@ -1585,7 +1592,7 @@ declare global {
             >
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2 1 0 01-1-1V4z" />
                 </svg>
                 Analytics
               </div>
@@ -1724,78 +1731,7 @@ declare global {
                   </div>
                 )}
 
-                {integrationMode === "github" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">GitHub Token</label>
-                        <input
-                          type="password"
-                          value={githubConfig.token}
-                          onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
-                          placeholder="ghp_your_github_token"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Organization</label>
-                        <input
-                          type="text"
-                          value={githubConfig.organization}
-                          onChange={(e) => setGithubConfig({ ...githubConfig, organization: e.target.value })}
-                          placeholder="your-org"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Repository</label>
-                        <input
-                          type="text"
-                          value={githubConfig.repository}
-                          onChange={(e) => setGithubConfig({ ...githubConfig, repository: e.target.value })}
-                          placeholder="your-repo"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
-                        <input
-                          type="url"
-                          value={githubConfig.webhookUrl}
-                          onChange={(e) => setGithubConfig({ ...githubConfig, webhookUrl: e.target.value })}
-                          placeholder="https://your-app.com/webhook"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-4">
-                      <button
-                        onClick={connectToGithub}
-                        disabled={isConnectingGithub}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isConnectingGithub ? "Connecting..." : "Connect to GitHub"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setGithubConfig({
-                            token: "ghp_demo_token_for_goldman_sachs",
-                            organization: "goldman-sachs",
-                            repository: "trading-platform-demo",
-                            webhookUrl: "https://api.gs.com/webhook/github",
-                          })
-                          setGithubConnected(true)
-                        }}
-                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-                      >
-                        Use Sample Data
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {integrationMode === "jira" && jiraConnected && (
+              {integrationMode === "jira" && isConnected && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">QA Tickets</h3>
 
@@ -2376,5 +2312,5 @@ declare global {
         </div>
       </div>
     </div>
-  )
+  )\
 }
