@@ -1391,11 +1391,11 @@ ${test.steps
 
 // Add this to cypress/support/commands.js
 declare global {
-  namespace Cypress {
-    interface Chainable {
-      performLogin(): Chainable<void>
+    namespace Cypress {
+        interface Chainable {
+            performLogin(): Chainable<void>
+        }
     }
-  }
 }`
   }
 
@@ -1490,6 +1490,67 @@ declare global {
     }
   }
 
+  const generateSeleniumCode = (testCases: TestCase[], targetUrl: string) => {
+    return `# Generated Selenium Test Cases
+# Target Application: ${targetUrl}
+# Generated on: ${new Date().toISOString()}
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
+import time
+import pytest
+
+class TestSuite:
+    def setup_method(self):
+        self.driver = webdriver.Chrome()
+        self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 10)
+    
+    def teardown_method(self):
+        self.driver.quit()
+
+${testCases.map((testCase, index) => `
+    def test_${testCase.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${index + 1}(self):
+        """${testCase.title}"""
+        self.driver.get("${targetUrl}")
+        
+        # Test steps based on: ${testCase.title}
+        ${testCase.steps.map(step => `        # ${step}`).join('\n')}
+        
+        # Add your specific element interactions here
+        # Example: self.wait.until(EC.element_to_be_clickable((By.ID, "add-instrument-btn"))).click()
+        
+        time.sleep(2)  # Wait for action to complete
+        
+        # Verify expected results: ${testCase.expectedResults}
+        assert True  # Replace with actual assertions
+`).join('\n')}
+
+if __name__ == "__main__":
+    pytest.main([__file__])
+`;
+  };
+
+  const downloadSeleniumCode = (code: string, filename: string) => {
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const executeSeleniumTests = async (testCases: TestCase[], targetUrl: string) => {
+    // This would typically call your backend API to execute the tests
+    alert(`Executing ${testCases.length} test cases against ${targetUrl}\n\nIn a real implementation, this would:\n1. Generate Selenium code\n2. Execute tests on your server\n3. Return results with screenshots\n4. Display pass/fail status`);
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <div className="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
@@ -1546,7 +1607,7 @@ declare global {
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path
-                    d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5z
+                    d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5z
 M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"
                   />
                 </svg>
@@ -1752,669 +1813,4 @@ M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1
               </div>
 
               {integrationMode === "jira" && jiraConnected && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">QA Tickets</h3>
-
-                  <div className="mb-6 space-y-4">
-                    <div className="flex flex-wrap gap-4">
-                      <div className="flex-1 min-w-64">
-                        <input
-                          type="text"
-                          placeholder="Search tickets..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">All Status</option>
-                        <option value="QA">QA</option>
-                        <option value="Ready for QA">Ready for QA</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Done">Done</option>
-                      </select>
-                      <select
-                        value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">All Priority</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
-                      {(searchTerm || statusFilter || priorityFilter) && (
-                        <button
-                          onClick={resetFilters}
-                          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
-                        >
-                          Reset
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Showing {filteredTickets.length} of {mockTickets.length} tickets
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {filteredTickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedTickets.includes(ticket.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedTickets([...selectedTickets, ticket.id])
-                              } else {
-                                setSelectedTickets(selectedTickets.filter((id) => id !== ticket.id))
-                              }
-                            }}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          />
-                          <div>
-                            <div className="font-medium text-gray-900">{ticket.key}</div>
-                            <div className="text-sm text-gray-600">{ticket.summary}</div>
-                            <div className="text-xs text-gray-500">
-                              Status: {ticket.status} | Priority: {ticket.priority} | Assignee: {ticket.assignee}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-500">{ticket.updated}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedTickets.length > 0 && (
-                    <div className="mt-6 pt-4 border-t border-gray-200">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={generateTestCases}
-                          disabled={
-                            isGenerating ||
-                            (integrationMode === "jira" && selectedTickets.length === 0) ||
-                            (integrationMode === "github" && !selectedPR)
-                          }
-                          className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isGenerating ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>⚡ Generate Test Cases</>
-                          )}
-                        </button>
-
-                        <button
-                          onClick={executeLiveTest}
-                          disabled={isLiveTesting || selectedTickets.length === 0}
-                          className="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                          title="Test live application"
-                        >
-                          {isLiveTesting ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Testing...
-                            </>
-                          ) : (
-                            <>🚀 Test Live</>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {integrationMode === "github" && githubConnected && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Pull Requests</h3>
-                  <div className="space-y-3">
-                    {pullRequests.map((pr) => (
-                      <div
-                        key={pr.number}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="radio"
-                            name="selectedPR"
-                            checked={selectedPR?.number === pr.number}
-                            onChange={() => setSelectedPR(pr)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                          />
-                          <div>
-                            <div className="font-medium text-gray-900">#{pr.number}</div>
-                            <div className="text-sm text-gray-600">{pr.title}</div>
-                            <div className="text-xs text-gray-500">
-                              Status: {pr.status} | Author: {pr.author} | Files: {pr.files.length}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              pr.status === "open"
-                                ? "bg-green-100 text-green-800"
-                                : pr.status === "merged"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {pr.status}
-                          </span>
-                          <div className="text-sm text-gray-500">{pr.updated}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedPR && (
-                    <div className="mt-6 pt-4 border-t border-gray-200">
-                      <button
-                        onClick={generateTestCases}
-                        disabled={isGenerating}
-                        title="View generated test cases in Analytics tab"
-                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                      >
-                        {isGenerating ? "Generating Test Cases..." : "Generate Test Cases"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Configuration</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
-                    <div className="flex flex-wrap gap-3">
-                      {["Functional", "UI", "Edge Case", "Performance", "Security"].map((type) => (
-                        <label key={type} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={aiConfig.testTypes.includes(type)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAiConfig({
-                                  ...aiConfig,
-                                  testTypes: [...aiConfig.testTypes, type],
-                                })
-                              } else {
-                                setAiConfig({
-                                  ...aiConfig,
-                                  testTypes: aiConfig.testTypes.filter((t) => t !== type),
-                                })
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-2"
-                          />
-                          <span className="text-sm text-gray-700">{type}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Coverage Level: {aiConfig.coverageLevel}%
-                    </label>
-                    <input
-                      type="range"
-                      min="25"
-                      max="100"
-                      step="25"
-                      value={aiConfig.coverageLevel}
-                      onChange={(e) => setAiConfig({ ...aiConfig, coverageLevel: Number.parseInt(e.target.value) })}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Basic</span>
-                      <span>Standard</span>
-                      <span>Comprehensive</span>
-                      <span>Exhaustive</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {liveTestResults && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Live Test Results</h3>
-                    <button
-                      onClick={() => {
-                        // Download the automation package
-                        const automationFiles = {
-                          "package.json": JSON.stringify(
-                            {
-                              name: "jira-test-automation",
-                              version: "1.0.0",
-                              scripts: {
-                                test: "node test-runner.js",
-                                setup: "npm install && node setup.js",
-                              },
-                              dependencies: {
-                                puppeteer: "^21.0.0",
-                              },
-                            },
-                            null,
-                            2,
-                          ),
-                          "README.md": `# Real Browser Automation\n\n## Quick Start\n1. Download this folder\n2. Run: npm run setup\n3. Run: npm test\n\nThis will actually test your live application at:\n${applicationUrl || "https://v0-product-crud-app.vercel.app/"}`,
-                        }
-
-                        // Create and download zip would go here
-                        alert(
-                          "Download the automation folder from the v0 project files. See the automation/ directory for real browser testing.",
-                        )
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      📦 Download Real Automation
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-gray-50 rounded-lg mb-4">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">{liveTestResults}</pre>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-medium text-blue-900 mb-2">🚀 Want Real Browser Testing?</h4>
-                    <p className="text-sm text-blue-800 mb-3">
-                      The above results are simulated. For actual browser automation that will really add MSFT to your
-                      live application:
-                    </p>
-                    <ol className="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
-                      <li>Click "📦 Download Real Automation" above</li>
-                      <li>Extract the automation/ folder to your computer</li>
-                      <li>
-                        Open terminal in that folder and run:{" "}
-                        <code className="bg-blue-100 px-1 rounded">npm run setup</code>
-                      </li>
-                      <li>
-                        Run the test: <code className="bg-blue-100 px-1 rounded">npm test</code>
-                      </li>
-                      <li>Watch Chrome browser automatically test your live app!</li>
-                    </ol>
-                    <p className="text-xs text-blue-600 mt-2">
-                      ✅ This will actually add instruments to your live application and take screenshots of each step.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {generatedTests.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Test Cases</h3>
-                  <div className="space-y-4">
-                    {generatedTests.map((result, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              {result.source === "jira" ? result.ticket?.key : `PR #${result.pr?.number}`}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {result.source === "jira" ? result.ticket?.summary : result.pr?.title}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                regenerateTestCases(
-                                  result.source === "jira"
-                                    ? result.ticket?.key || ""
-                                    : result.pr?.number?.toString() || "",
-                                  result.source,
-                                )
-                              }
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Regenerate
-                            </button>
-                            <button
-                              onClick={() => exportTestCasesOld(result)}
-                              className="text-green-600 hover:text-green-800 text-sm"
-                            >
-                              Export
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {result.testCases.map((testCase, tcIndex) => (
-                            <div key={tcIndex} className="bg-gray-50 p-3 rounded">
-                              <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
-                              <div className="text-xs text-gray-600 mt-1">{testCase.description}</div>
-                              <div className="flex gap-2 mt-2">
-                                <span
-                                  className={`px-2 py-1 text-xs rounded ${
-                                    testCase.priority === "High"
-                                      ? "bg-red-100 text-red-800"
-                                      : testCase.priority === "Medium"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-green-100 text-green-800"
-                                  }`}
-                                >
-                                  {testCase.priority}
-                                </span>
-                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                  {testCase.type}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeView === "tickets" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">All JIRA Tickets</h3>
-                <div className="space-y-3">
-                  {tickets.map((ticket) => (
-                    <div key={ticket.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium text-gray-900">{ticket.key}</div>
-                          <div className="text-sm text-gray-600 mt-1">{ticket.summary}</div>
-                          <div className="text-xs text-gray-500 mt-2">{ticket.description}</div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex gap-2">
-                            <span
-                              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                ticket.status === "QA"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : ticket.status === "Ready for QA"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {ticket.status}
-                            </span>
-                            <span
-                              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                ticket.priority === "High"
-                                  ? "bg-red-100 text-red-800"
-                                  : ticket.priority === "Medium"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-green-100 text-green-800"
-                              }`}
-                            >
-                              {ticket.priority}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Fix analytics tab to handle undefined testCases */}
-          {activeView === "analytics" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">Total Test Cases</div>
-                    <div className="text-3xl font-bold text-gray-900 mt-2">
-                      {generatedTests.reduce((sum, result) => sum + (result.testCases?.length || 0), 0)}
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">Coverage Score</div>
-                    <div className="text-3xl font-bold text-gray-900 mt-2">
-                      {generatedTests.length > 0
-                        ? Math.round(
-                            generatedTests.reduce(
-                              (sum, result) => sum + (result.metadata?.settings?.coverageLevel || 75),
-                              0,
-                            ) / generatedTests.length,
-                          )
-                        : 0}
-                      %
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">Items Processed</div>
-                    <div className="text-3xl font-bold text-gray-900 mt-2">{generatedTests.length}</div>
-                  </div>
-                </div>
-              </div>
-
-              {generatedTests.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Test Suites</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 mb-2">Selenium (Java)</h4>
-                      <p className="text-sm text-gray-600 mb-3">Export as Selenium WebDriver test suite</p>
-                      <button
-                        onClick={() => exportAllTests("selenium")}
-                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Export Selenium Suite
-                      </button>
-                    </div>
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 mb-2">Cypress (JavaScript)</h4>
-                      <p className="text-sm text-gray-600 mb-3">Export as Cypress test suite</p>
-                      <button
-                        onClick={() => exportAllTests("cypress")}
-                        className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Export Cypress Suite
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {generatedTests.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Test Cases</h3>
-                  <div className="space-y-4">
-                    {generatedTests.map((result, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              {result.metadata?.source === "jira"
-                                ? result.ticket?.key
-                                : `PR #${result.pullRequest?.number}`}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {result.metadata?.source === "jira" ? result.ticket?.summary : result.pullRequest?.title}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {result.testCases?.length || 0} test cases generated
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => exportTestCases(result, "json")}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Export JSON
-                            </button>
-                            <button
-                              onClick={() => exportTestCases(result, "selenium")}
-                              className="text-orange-600 hover:text-orange-800 text-sm"
-                            >
-                              Export Selenium
-                            </button>
-                            <button
-                              onClick={() => exportTestCases(result, "cypress")}
-                              className="text-purple-600 hover:text-purple-800 text-sm"
-                            >
-                              Export Cypress
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {(result.testCases || []).slice(0, 3).map((testCase, tcIndex) => (
-                            <div key={tcIndex} className="bg-gray-50 p-3 rounded">
-                              <div className="font-medium text-sm text-gray-900">{testCase.title}</div>
-                              <div className="text-xs text-gray-600 mt-1">{testCase.expectedResults}</div>
-                              <div className="flex gap-2 mt-2">
-                                <span
-                                  className={`px-2 py-1 text-xs rounded ${
-                                    testCase.priority === "High"
-                                      ? "bg-red-100 text-red-800"
-                                      : testCase.priority === "Medium"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-green-100 text-green-800"
-                                  }`}
-                                >
-                                  {testCase.priority}
-                                </span>
-                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                  {testCase.type}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                          {(result.testCases?.length || 0) > 3 && (
-                            <div className="text-sm text-gray-500 text-center py-2">
-                              ... and {(result.testCases?.length || 0) - 3} more test cases
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {liveTestResults && (
-                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Live Test Results</h4>
-                      <pre className="text-sm text-gray-700 whitespace-pre-wrap">{liveTestResults}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeView === "history" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Generation History</h3>
-                {testHistory.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No test generation history yet. Generate some test cases to see them here.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {testHistory.map((session, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">Session {session.id}</h4>
-                            <p className="text-sm text-gray-600">{session.timestamp?.toLocaleString()}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {session.ticketKey} - {session.testsGenerated} test cases
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => downloadHistorySession(session, "json")}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              JSON
-                            </button>
-                            <button
-                              onClick={() => downloadHistorySession(session, "selenium")}
-                              className="text-orange-600 hover:text-orange-800 text-sm"
-                            >
-                              Selenium
-                            </button>
-                            <button
-                              onClick={() => downloadHistorySession(session, "cypress")}
-                              className="text-purple-600 hover:text-purple-800 text-sm"
-                            >
-                              Cypress
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">{session.ticketSummary}</p>
-                          <p className="text-xs text-gray-500">Test Types: {(session.testTypes || []).join(", ")}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeView === "settings" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Settings</h2>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="app-url" className="block text-sm font-medium text-gray-700 mb-2">
-                        Application URL for Live Testing
-                      </label>
-                      <input
-                        id="app-url"
-                        type="url"
-                        value={applicationUrl}
-                        onChange={(e) => setApplicationUrl(e.target.value)}
-                        placeholder="https://your-app.vercel.app/"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <p className="mt-1 text-sm text-gray-500">
-                        This URL will be used when executing live tests against your application
-                      </p>
-                    </div>
-
-                    <div className="pt-4">
-                      <button
-                        onClick={() => {
-                          // Save settings (in a real app, this would save to backend)
-                          alert("Settings saved successfully!")
-                        }}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                      >
-                        Save Settings
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
+                <div\
