@@ -11,8 +11,7 @@ export async function POST(request: NextRequest) {
     // Create the JIRA API URL for searching issues
     const jiraApiUrl = `${url}/rest/api/3/search`
 
-    // JQL query to get tickets from the specified project
-    const jql = `project = ${projectKey} AND status IN ("To Do", "In Progress", "QA", "Ready for QA", "In Review", "Done")`
+    const jql = `project = ${projectKey} ORDER BY updated DESC`
 
     const searchParams = new URLSearchParams({
       jql,
