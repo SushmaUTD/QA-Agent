@@ -394,7 +394,7 @@ export default function JiraTestAI() {
   const BrainIcon = () => (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
-      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
+      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
     </svg>
   )
 
@@ -821,19 +821,19 @@ export default function JiraTestAI() {
 
   const [applicationUrl, setApplicationUrl] = useState("https://v0-product-crud-app.vercel.app/")
 
-  const executeLiveTest = async () => {
-    console.log("[v0] Starting live test execution")
+  const generateSeleniumCodeLive = async () => {
+    console.log("[v0] Generating Selenium code")
     setIsLiveTesting(true)
     setLiveTestResults("")
 
     try {
-      const response = await fetch("/api/execute-live-test", {
+      const response = await fetch("/api/generate-selenium-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           applicationUrl: applicationUrl,
           testCase: {
-            title: "Add New Trading Instrument - Live Test",
+            title: "Add New Trading Instrument - Selenium Test",
             steps: [
               "Navigate to the application",
               "Click on 'Add Instrument' button",
@@ -849,11 +849,11 @@ export default function JiraTestAI() {
       })
 
       const data = await response.json()
-      console.log("[v0] Live test response:", data)
-      setLiveTestResults(data.results || "Test completed successfully!")
+      console.log("[v0] Selenium code response:", data)
+      setLiveTestResults(data.seleniumCode || "Selenium code generated successfully!")
     } catch (error) {
-      console.log("[v0] Live test error:", error)
-      setLiveTestResults(`Test failed: ${error}`)
+      console.log("[v0] Selenium generation error:", error)
+      setLiveTestResults(`Code generation failed: ${error}`)
     } finally {
       setIsLiveTesting(false)
     }
@@ -1855,19 +1855,20 @@ M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1
                           )}
                         </button>
 
+                        {/* Replace Test Live button with Generate Selenium Code button */}
                         <button
-                          onClick={executeLiveTest}
+                          onClick={generateSeleniumCodeLive}
                           disabled={isLiveTesting || selectedTickets.length === 0}
-                          className="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                          title="Test live application"
+                          className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          title="Generate executable Selenium code"
                         >
                           {isLiveTesting ? (
                             <>
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Testing...
+                              Generating...
                             </>
                           ) : (
-                            <>🚀 Test Live</>
+                            <>🔧 Generate Selenium Code</>
                           )}
                         </button>
                       </div>
@@ -1991,65 +1992,39 @@ M8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1
               {liveTestResults && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Live Test Results</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Generated Selenium Code</h3>
                     <button
                       onClick={() => {
-                        // Download the automation package
-                        const automationFiles = {
-                          "package.json": JSON.stringify(
-                            {
-                              name: "jira-test-automation",
-                              version: "1.0.0",
-                              scripts: {
-                                test: "node test-runner.js",
-                                setup: "npm install && node setup.js",
-                              },
-                              dependencies: {
-                                puppeteer: "^21.0.0",
-                              },
-                            },
-                            null,
-                            2,
-                          ),
-                          "README.md": `# Real Browser Automation\n\n## Quick Start\n1. Download this folder\n2. Run: npm run setup\n3. Run: npm test\n\nThis will actually test your live application at:\n${applicationUrl || "https://v0-product-crud-app.vercel.app/"}`,
-                        }
-
-                        // Create and download zip would go here
-                        alert(
-                          "Download the automation folder from the v0 project files. See the automation/ directory for real browser testing.",
-                        )
+                        navigator.clipboard.writeText(liveTestResults)
+                        alert("Selenium code copied to clipboard!")
                       }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     >
-                      📦 Download Real Automation
+                      📋 Copy Code
                     </button>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-lg mb-4">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">{liveTestResults}</pre>
+                  <div className="p-4 bg-gray-900 rounded-lg mb-4">
+                    <pre className="text-sm text-green-400 whitespace-pre-wrap font-mono overflow-x-auto">
+                      {liveTestResults}
+                    </pre>
                   </div>
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-medium text-blue-900 mb-2">🚀 Want Real Browser Testing?</h4>
-                    <p className="text-sm text-blue-800 mb-3">
-                      The above results are simulated. For actual browser automation that will really add MSFT to your
-                      live application:
-                    </p>
-                    <ol className="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
-                      <li>Click "📦 Download Real Automation" above</li>
-                      <li>Extract the automation/ folder to your computer</li>
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">How to Execute:</h4>
+                    <ol className="text-sm text-blue-800 space-y-1">
                       <li>
-                        Open terminal in that folder and run:{" "}
-                        <code className="bg-blue-100 px-1 rounded">npm run setup</code>
+                        1. Save the code above as{" "}
+                        <code className="bg-blue-200 px-1 rounded">test_add_instrument.py</code>
                       </li>
                       <li>
-                        Run the test: <code className="bg-blue-100 px-1 rounded">npm test</code>
+                        2. Install Selenium: <code className="bg-blue-200 px-1 rounded">pip install selenium</code>
                       </li>
-                      <li>Watch Chrome browser automatically test your live app!</li>
+                      <li>3. Download ChromeDriver and add to PATH</li>
+                      <li>
+                        4. Run: <code className="bg-blue-200 px-1 rounded">python test_add_instrument.py</code>
+                      </li>
                     </ol>
-                    <p className="text-xs text-blue-600 mt-2">
-                      ✅ This will actually add instruments to your live application and take screenshots of each step.
-                    </p>
                   </div>
                 </div>
               )}
