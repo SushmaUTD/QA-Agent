@@ -10,6 +10,9 @@
     "test": "playwright test",
     "test:debug": "playwright test --debug",
     "test:headed": "playwright test --headed",
+    "test:selenium": "cd tests/selenium && python -m pytest add_instrument_test.py -v",
+    "test:selenium:headless": "cd tests/selenium && python -m pytest add_instrument_test.py -v --headless",
+    "test:selenium:report": "cd tests/selenium && python -m pytest add_instrument_test.py -v --html=test_report.html --self-contained-html",
     "test:ui": "playwright test --ui"
   },
   "dependencies": {
@@ -71,7 +74,6 @@
     "zod": "3.25.67"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^18",
