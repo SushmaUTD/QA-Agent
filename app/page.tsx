@@ -153,21 +153,31 @@ export default function JiraTestGenerator() {
   }
 
   const downloadTestCases = (format: "selenium" | "cypress" | "json", testResult: TestGenerationResult) => {
-    let content = ""
-    let filename = ""
-    let mimeType = ""
+    console.log("[v0] Downloading tests for:", testResult)
+    console.log("[v0] Test result metadata:", testResult?.metadata)
+
+    if (!testResult || !testResult.metadata) {
+      console.error("[v0] Invalid test result or missing metadata")
+      return
+    }
+
+    let content: string
+    let filename: string
+    let mimeType: string
+
+    const ticketKey = testResult.metadata.ticketKey || "UnknownTicket"
 
     if (format === "selenium") {
       content = generateSeleniumCode(testResult)
-      filename = `${testResult.metadata.ticketKey}_selenium_tests.java`
+      filename = `${ticketKey}_selenium_tests.java`
       mimeType = "text/java"
     } else if (format === "cypress") {
       content = generateCypressCode(testResult)
-      filename = `${testResult.metadata.ticketKey}_cypress_tests.js`
+      filename = `${ticketKey}_cypress_tests.js`
       mimeType = "text/javascript"
     } else {
       content = JSON.stringify(testResult, null, 2)
-      filename = `${testResult.metadata.ticketKey}_test_cases.json`
+      filename = `${ticketKey}_test_cases.json`
       mimeType = "application/json"
     }
 
@@ -609,8 +619,11 @@ ${generateRealSeleniumVerification(testCase, ticket)}
   }
 
   const generateCypressCode = (testResult: TestGenerationResult) => {
-    return `// Cypress tests for ${testResult.metadata.ticketKey}
-// Generated on ${new Date(testResult.metadata.generatedAt).toLocaleString()}
+    const ticketKey = testResult?.metadata?.ticketKey || "UnknownTicket"
+    const generatedAt = testResult?.metadata?.generatedAt || new Date().toISOString()
+
+    return `// Cypress tests for ${ticketKey}
+// Generated on ${new Date(generatedAt).toLocaleString()}
 // Application: ${appConfig.applicationUrl} (${appConfig.environment})
 
 describe('${testResult.ticket?.summary || "Test Suite"}', () => {
