@@ -199,11 +199,11 @@ export default function JiraTestAI() {
   })
 
   const [appConfig, setAppConfig] = useState({
-    applicationUrl: "https://your-app.com",
-    loginUsername: "testuser@company.com",
-    loginPassword: "test123",
+    applicationUrl: "",
     environment: "staging",
   })
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([])
+  const [showConfig, setShowConfig] = useState(false)
 
   const [githubConfig, setGithubConfig] = useState<GitHubConfig>({
     token: "",
@@ -511,10 +511,16 @@ export default function JiraTestAI() {
     </svg>
   )
 
+  const CheckCircleIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22,4 12,14.01 9,11.01" />
+    </svg>
+  )
+
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
-  const [selectedTickets, setSelectedTickets] = useState<string[]>([])
 
   const filteredTickets = useMemo(() => {
     let result = [...mockTickets]
@@ -773,18 +779,17 @@ export default function JiraTestAI() {
               deletions: 12,
               changes: 101,
             },
-            { filename: "src/types/payment.ts", status: "added", additions: 45, deletions: 0, changes: 45 },
           ],
           commits: [
             {
               sha: "vwx234",
-              message: "Add Stripe payment form with Elements integration",
+              message: "Add Stripe payment integration",
               author: "mike.wilson",
               date: "2024-01-25",
             },
             {
-              sha: "yzab567",
-              message: "Add payment webhooks and email notifications",
+              sha: "yza567",
+              message: "Implement payment webhooks and error handling",
               author: "mike.wilson",
               date: "2024-01-26",
             },
@@ -864,251 +869,230 @@ export default function JiraTestAI() {
     }
   }
 
-  const generateTestCasesForPR = async (pullRequest: GitHubPullRequest) => {
+  const generateTestCasesForSelectedTickets = async () => {
+    if (selectedTickets.length === 0) {
+      alert("Please select at least one ticket to generate test cases.")
+      return
+    }
+
     setIsGenerating(true)
-    setSelectedPR(pullRequest)
-
     try {
-      const response = await fetch("/api/generate-tests-github", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pullRequest,
-          settings: {
-            coverageLevel: aiConfig.coverageLevel,
-            testTypes: aiConfig.testTypes,
-            framework: aiConfig.framework,
-          },
-        }),
-      })
+      const selectedTicketObjects = tickets.filter((ticket) => selectedTickets.includes(ticket.key))
 
-      const result = await response.json()
-
-      if (result.success) {
-        const testResult: TestGenerationResult = {
-          pullRequest,
-          testCases: result.testCases,
-          metadata: {
-            prNumber: pullRequest.number,
-            generatedAt: new Date().toISOString(),
-            settings: aiConfig,
-            totalTests: result.testCases.length,
-            source: "github",
+      for (const ticket of selectedTicketObjects) {
+        const response = await fetch("/api/generate-tests", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            ticket,
+            appConfig,
+            settings: {
+              coverageLevel: aiConfig.coverageLevel,
+              testTypes: aiConfig.testTypes,
+              framework: aiConfig.framework,
+            },
+          }),
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          const testResult: TestGenerationResult = {
+            ticket,
+            testCases: result.testCases,
+            metadata: {
+              ticketKey: ticket.key,
+              generatedAt: new Date().toISOString(),
+              settings: aiConfig,
+              totalTests: result.testCases.length,
+              source: "jira",
+            },
+          }
+
+          setGeneratedTests((prev) => [testResult, ...prev])
         }
-
-        setGeneratedTests((prev) => [testResult, ...prev])
       }
     } catch (error) {
-      console.error("Error generating test cases for PR:", error)
+      console.error("Error generating test cases:", error)
       alert("Error generating test cases. Please try again.")
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const regenerateTestCases = async (identifier: string, source: "jira" | "github") => {
-    try {
-      let response
+  const downloadTestCases = (format: "selenium" | "cypress" | "json", testResult: TestGenerationResult) => {
+    let content = ""
+    let filename = ""
+    let mimeType = ""
 
-      if (source === "jira") {
-        const ticket = tickets.find((t) => t.key === identifier)
-        if (!ticket) return
-
-        response = await fetch("/api/generate-tests", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ticket,
-            settings: {
-              coverageLevel: aiConfig.coverageLevel,
-              testTypes: aiConfig.testTypes,
-              framework: aiConfig.framework,
-            },
-          }),
-        })
-      } else if (source === "github") {
-        const prNumber = Number.parseInt(identifier)
-        const pullRequest = pullRequests.find((pr) => pr.number === prNumber)
-        if (!pullRequest) return
-
-        response = await fetch("/api/generate-tests-github", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            pullRequest,
-            settings: {
-              coverageLevel: aiConfig.coverageLevel,
-              testTypes: aiConfig.testTypes,
-              framework: aiConfig.framework,
-            },
-          }),
-        })
-      }
-
-      if (response) {
-        const result = await response.json()
-        if (result.success) {
-          setGeneratedTests((prev) =>
-            prev.map((test) =>
-              (source === "jira" && test.metadata.ticketKey === identifier) ||
-              (source === "github" && test.metadata.prNumber === Number.parseInt(identifier))
-                ? {
-                    ...test,
-                    testCases: result.testCases,
-                    metadata: {
-                      ...test.metadata,
-                      generatedAt: new Date().toISOString(),
-                      totalTests: result.testCases.length,
-                    },
-                  }
-                : test,
-            ),
-          )
-        }
-      }
-    } catch (error) {
-      console.error("Error regenerating test cases:", error)
+    if (format === "selenium") {
+      content = generateSeleniumCode(testResult)
+      filename = `${testResult.metadata.ticketKey}_selenium_tests.java`
+      mimeType = "text/java"
+    } else if (format === "cypress") {
+      content = generateCypressCode(testResult)
+      filename = `${testResult.metadata.ticketKey}_cypress_tests.js`
+      mimeType = "text/javascript"
+    } else {
+      content = JSON.stringify(testResult, null, 2)
+      filename = `${testResult.metadata.ticketKey}_test_cases.json`
+      mimeType = "application/json"
     }
-  }
 
-  const executeTestsInCI = async (testSuiteId: string) => {
-    setIsExecutingTests(true)
-
-    try {
-      const response = await fetch("/api/execute-tests-ci", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          testSuiteId,
-          ciConfig,
-          appConfig,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        const newRun: CIPipelineRun = {
-          id: result.runId,
-          testSuiteId,
-          status: "pending",
-          startedAt: new Date().toISOString(),
-          logs: ["Pipeline started..."],
-        }
-
-        setPipelineRuns((prev) => [newRun, ...prev])
-
-        const pollStatus = async () => {
-          try {
-            const statusResponse = await fetch(`/api/pipeline-status/${result.runId}`)
-            const statusData = await statusResponse.json()
-
-            setPipelineRuns((prev) =>
-              prev.map((run) =>
-                run.id === result.runId
-                  ? {
-                      ...run,
-                      status: statusData.status,
-                      completedAt: statusData.completedAt,
-                      results: statusData.results,
-                      logs: statusData.logs,
-                    }
-                  : run,
-              ),
-            )
-
-            if (statusData.status === "running" || statusData.status === "pending") {
-              setTimeout(pollStatus, 5000)
-            }
-          } catch (error) {
-            console.error("Error polling pipeline status:", error)
-          }
-        }
-
-        setTimeout(pollStatus, 2000)
-      }
-    } catch (error) {
-      console.error("Error executing tests in CI:", error)
-      alert("Error executing tests. Please check your CI configuration.")
-    } finally {
-      setIsExecutingTests(false)
-    }
-  }
-
-  const postPRComment = async (prNumber: number, testResults: any) => {
-    setIsPostingComment(true)
-
-    try {
-      const response = await fetch("/api/post-pr-comment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prNumber,
-          testResults,
-          githubConfig,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        const newComment: PRComment = {
-          id: result.commentId,
-          prNumber,
-          author: "qa-bot",
-          body: result.commentBody,
-          createdAt: new Date().toISOString(),
-          testResults,
-        }
-
-        setPrComments((prev) => [newComment, ...prev])
-      }
-    } catch (error) {
-      console.error("Error posting PR comment:", error)
-      alert("Error posting comment to PR. Please check your GitHub configuration.")
-    } finally {
-      setIsPostingComment(false)
-    }
-  }
-
-  const downloadTestCases = (testResult: TestGenerationResult) => {
-    const content = JSON.stringify(testResult, null, 2)
-    const blob = new Blob([content], { type: "application/json" })
+    const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `test-cases-${testResult.metadata.ticketKey || testResult.metadata.prNumber}.json`
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
 
+  const generateSeleniumCode = (testResult: TestGenerationResult) => {
+    const className = `${testResult.metadata.ticketKey?.replace("-", "_")}_Tests`
+
+    return `package com.company.tests;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import java.time.Duration;
+import static org.junit.jupiter.api.Assertions.*;
+
+public class ${className} {
+    private WebDriver driver;
+    private WebDriverWait wait;
+    private final String BASE_URL = "${appConfig.applicationUrl}";
+    private final String ENVIRONMENT = "${appConfig.environment}";
+
+    @BeforeEach
+    public void setUp() {
+        driver = new ChromeDriver();
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        driver.manage().window().maximize();
+    }
+
+    @AfterEach
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+
+${testResult.testCases
+  .map(
+    (testCase, index) => `
+    @Test
+    public void ${testCase.title.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}() {
+        // Test: ${testCase.title}
+        // Priority: ${testCase.priority}
+        // Type: ${testCase.type}
+        
+        try {
+            // Navigate to application
+            driver.get(BASE_URL);
+            
+            // Preconditions
+${testCase.preconditions.map((condition) => `            // ${condition}`).join("\n")}
+            
+            // Test Steps
+${testCase.steps.map((step, stepIndex) => `            // Step ${stepIndex + 1}: ${step}`).join("\n")}
+            
+            // Expected Result: ${testCase.expectedResults}
+            
+            // Add your Selenium automation code here
+            // Example:
+            // WebElement element = wait.until(ExpectedConditions.elementToBeClickable(By.id("elementId")));
+            // element.click();
+            // assertTrue(driver.findElement(By.id("result")).isDisplayed());
+            
+        } catch (Exception e) {
+            fail("Test failed: " + e.getMessage());
+        }
+    }
+`,
+  )
+  .join("")}
+}`
+  }
+
+  const generateCypressCode = (testResult: TestGenerationResult) => {
+    return `// Cypress tests for ${testResult.metadata.ticketKey}
+// Generated on ${new Date(testResult.metadata.generatedAt).toLocaleString()}
+
+describe('${testResult.ticket?.summary || "Test Suite"}', () => {
+  const BASE_URL = '${appConfig.applicationUrl}';
+  const ENVIRONMENT = '${appConfig.environment}';
+
+  beforeEach(() => {
+    cy.visit(BASE_URL);
+  });
+
+${testResult.testCases
+  .map(
+    (testCase, index) => `
+  it('${testCase.title}', () => {
+    // Priority: ${testCase.priority}
+    // Type: ${testCase.type}
+    
+    // Preconditions
+${testCase.preconditions.map((condition) => `    // ${condition}`).join("\n")}
+    
+    // Test Steps
+${testCase.steps.map((step, stepIndex) => `    // Step ${stepIndex + 1}: ${step}`).join("\n")}
+    
+    // Expected Result: ${testCase.expectedResults}
+    
+    // Add your Cypress automation code here
+    // Example:
+    // cy.get('[data-testid="element"]').click();
+    // cy.get('[data-testid="result"]').should('be.visible');
+  });
+`,
+  )
+  .join("")}
+});`
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Left Sidebar */}
-      <div className="w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-200">
+      <div className="w-80 bg-slate-900 text-white shadow-lg border-r border-slate-700 flex flex-col">
+        <div className="p-6 border-b border-slate-700">
           <div className="flex items-center space-x-2">
             <BrainIcon />
-            <h1 className="text-xl font-bold text-gray-900">JIRA Test AI</h1>
+            <h1 className="text-xl font-bold text-white">JIRA Test AI</h1>
           </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
           <button
+            onClick={() => setActiveView("config")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
+              activeView === "config"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <SettingsIcon />
+            <span>AI Configuration</span>
+          </button>
+
+          <button
             onClick={() => setActiveView("generator")}
             className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
               activeView === "generator"
-                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                : "text-gray-700 hover:bg-gray-50"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <TestTubeIcon />
@@ -1116,11 +1100,23 @@ export default function JiraTestAI() {
           </button>
 
           <button
+            onClick={() => setActiveView("results")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
+              activeView === "results"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <CheckCircleIcon />
+            <span>Test Results</span>
+          </button>
+
+          <button
             onClick={() => setActiveView("history")}
             className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
               activeView === "history"
-                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                : "text-gray-700 hover:bg-gray-50"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <HistoryIcon />
@@ -1130,7 +1126,9 @@ export default function JiraTestAI() {
           <button
             onClick={() => setActiveView("ci")}
             className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "ci" ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-gray-700 hover:bg-gray-50"
+              activeView === "ci"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <ZapIcon />
@@ -1141,8 +1139,8 @@ export default function JiraTestAI() {
             onClick={() => setActiveView("analytics")}
             className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
               activeView === "analytics"
-                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                : "text-gray-700 hover:bg-gray-50"
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <BarChartIcon />
@@ -1150,11 +1148,17 @@ export default function JiraTestAI() {
           </button>
         </nav>
 
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-slate-700">
           <div className="flex items-center space-x-2 text-sm">
             <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`}></div>
-            <span className="text-gray-600">{isConnected ? "Connected to JIRA" : "Not connected"}</span>
+            <span className="text-slate-300">{isConnected ? "Connected to JIRA" : "Not connected"}</span>
           </div>
+          <button
+            onClick={() => setShowConfig(!showConfig)}
+            className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            {showConfig ? "Hide" : "Show"} Configuration
+          </button>
         </div>
       </div>
 
@@ -1163,594 +1167,277 @@ export default function JiraTestAI() {
         <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold text-gray-900">
+              {activeView === "config" && "AI Configuration"}
               {activeView === "generator" && "Test Case Generator"}
+              {activeView === "results" && "Test Results"}
               {activeView === "history" && "Test History"}
               {activeView === "ci" && "CI/CD Integration"}
               {activeView === "analytics" && "Analytics Dashboard"}
             </h2>
-            <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-              <SettingsIcon />
-            </button>
           </div>
         </header>
 
         <main className="flex-1 overflow-auto p-6">
+          {activeView === "config" && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Test Generation Settings</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
+                    <div className="space-y-2">
+                      {["Functional", "UI", "Integration", "Edge Case", "Performance", "Security"].map((type) => (
+                        <label key={type} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={aiConfig.testTypes.includes(type)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAiConfig({ ...aiConfig, testTypes: [...aiConfig.testTypes, type] })
+                              } else {
+                                setAiConfig({
+                                  ...aiConfig,
+                                  testTypes: aiConfig.testTypes.filter((t) => t !== type),
+                                })
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Coverage Level: {aiConfig.coverageLevel}%
+                    </label>
+                    <input
+                      type="range"
+                      min="25"
+                      max="100"
+                      step="25"
+                      value={aiConfig.coverageLevel}
+                      onChange={(e) => setAiConfig({ ...aiConfig, coverageLevel: Number.parseInt(e.target.value) })}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Basic</span>
+                      <span>Standard</span>
+                      <span>Comprehensive</span>
+                      <span>Exhaustive</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Default JIRA Configuration</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
+                    <input
+                      type="url"
+                      value={jiraConfig.url}
+                      onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
+                      placeholder="https://your-domain.atlassian.net"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={jiraConfig.email}
+                      onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
+                      placeholder="your-email@company.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
+                    <input
+                      type="text"
+                      value={jiraConfig.projectKey}
+                      onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
+                      placeholder="PROJ"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
+                    <input
+                      type="password"
+                      value={jiraConfig.apiToken}
+                      onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
+                      placeholder="Your JIRA API token"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
+                    <input
+                      type="url"
+                      value={appConfig.applicationUrl}
+                      onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
+                      placeholder="https://your-app.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
+                    <select
+                      value={appConfig.environment}
+                      onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="development">Development</option>
+                      <option value="staging">Staging</option>
+                      <option value="production">Production</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeView === "generator" && (
             <div className="space-y-6">
               {!isConnected ? (
-                <div className="bg-white rounded-lg shadow-sm border p-8">
-                  <div className="text-center mb-8">
-                    <BotIcon />
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your Integration Source</h2>
-                    <p className="text-gray-600 max-w-2xl mx-auto">
-                      Connect to JIRA or GitHub to automatically generate comprehensive test cases from your tickets and
-                      pull requests using AI.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-center mb-6">
-                    <div className="flex bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => setIntegrationMode("jira")}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                          integrationMode === "jira"
-                            ? "bg-white text-blue-600 shadow-sm"
-                            : "text-gray-600 hover:text-gray-900"
-                        }`}
-                      >
-                        JIRA Tickets
-                      </button>
-                      <button
-                        onClick={() => setIntegrationMode("github")}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                          integrationMode === "github"
-                            ? "bg-white text-blue-600 shadow-sm"
-                            : "text-gray-600 hover:text-gray-900"
-                        }`}
-                      >
-                        GitHub Pull Requests
-                      </button>
-                    </div>
-                  </div>
-
-                  {integrationMode === "jira" && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
-                          <input
-                            type="url"
-                            value={jiraConfig.url}
-                            onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
-                            placeholder="https://your-domain.atlassian.net"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                          <input
-                            type="email"
-                            value={jiraConfig.email}
-                            onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
-                            placeholder="your-email@company.com"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
-                          <input
-                            type="text"
-                            value={jiraConfig.projectKey}
-                            onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
-                            placeholder="PROJ"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
-                          <input
-                            type="password"
-                            value={jiraConfig.apiToken}
-                            onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
-                            placeholder="Your JIRA API token"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleJiraConnect}
-                        disabled={
-                          isConnecting ||
-                          !jiraConfig.url ||
-                          !jiraConfig.email ||
-                          !jiraConfig.apiToken ||
-                          !jiraConfig.projectKey
-                        }
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        {isConnecting ? "Connecting..." : "Connect to JIRA"}
-                      </button>
-                    </div>
-                  )}
-
-                  {integrationMode === "github" && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">GitHub Token</label>
-                          <input
-                            type="password"
-                            value={githubConfig.token}
-                            onChange={(e) => setGithubConfig({ ...githubConfig, token: e.target.value })}
-                            placeholder="ghp_xxxxxxxxxxxx"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Organization</label>
-                          <input
-                            type="text"
-                            value={githubConfig.organization}
-                            onChange={(e) => setGithubConfig({ ...githubConfig, organization: e.target.value })}
-                            placeholder="your-org"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Repository</label>
-                          <input
-                            type="text"
-                            value={githubConfig.repository}
-                            onChange={(e) => setGithubConfig({ ...githubConfig, repository: e.target.value })}
-                            placeholder="your-repo"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Webhook URL (Optional)</label>
-                          <input
-                            type="url"
-                            value={githubConfig.webhookUrl}
-                            onChange={(e) => setGithubConfig({ ...githubConfig, webhookUrl: e.target.value })}
-                            placeholder="https://your-app.com/webhook"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={connectToGithub}
-                        disabled={
-                          isConnectingGithub ||
-                          !githubConfig.token ||
-                          !githubConfig.organization ||
-                          !githubConfig.repository
-                        }
-                        className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        {isConnectingGithub ? "Connecting..." : "Connect to GitHub"}
-                      </button>
-                    </div>
-                  )}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Connect to JIRA</h3>
+                  <button
+                    onClick={handleJiraConnect}
+                    disabled={
+                      isConnecting ||
+                      !jiraConfig.url ||
+                      !jiraConfig.email ||
+                      !jiraConfig.apiToken ||
+                      !jiraConfig.projectKey
+                    }
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isConnecting ? "Connecting..." : "Connect to JIRA"}
+                  </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                  {/* Main Content Area */}
-                  <div className="xl:col-span-3 space-y-6">
-                    {integrationMode === "jira" && (
-                      <div className="bg-white rounded-lg shadow-sm border">
-                        <div className="p-6 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900">JIRA Tickets</h3>
-                            <div className="flex items-center space-x-2">
-                              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                                <RefreshIcon />
-                              </button>
-                              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                                <FilterIcon />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="divide-y divide-gray-200">
-                          {tickets.map((ticket) => (
-                            <div key={ticket.id} className="p-6 hover:bg-gray-50 transition-colors">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-3 mb-2">
-                                    <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                      {ticket.key}
-                                    </span>
-                                    <span
-                                      className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                        ticket.priority === "High"
-                                          ? "bg-red-100 text-red-800"
-                                          : ticket.priority === "Medium"
-                                            ? "bg-yellow-100 text-yellow-800"
-                                            : "bg-green-100 text-green-800"
-                                      }`}
-                                    >
-                                      {ticket.priority}
-                                    </span>
-                                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-800 font-medium">
-                                      {ticket.status}
-                                    </span>
-                                  </div>
-                                  <h4 className="text-lg font-medium text-gray-900 mb-2">{ticket.summary}</h4>
-                                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{ticket.description}</p>
-                                  {ticket.acceptanceCriteria.length > 0 && (
-                                    <div className="mb-3">
-                                      <h5 className="text-sm font-medium text-gray-700 mb-1">Acceptance Criteria:</h5>
-                                      <ul className="text-sm text-gray-600 space-y-1">
-                                        {ticket.acceptanceCriteria.slice(0, 2).map((criteria, index) => (
-                                          <li key={index} className="flex items-start">
-                                            <CheckIcon />
-                                            <span>{criteria}</span>
-                                          </li>
-                                        ))}
-                                        {ticket.acceptanceCriteria.length > 2 && (
-                                          <li className="text-gray-400 text-xs">
-                                            +{ticket.acceptanceCriteria.length - 2} more criteria
-                                          </li>
-                                        )}
-                                      </ul>
-                                    </div>
-                                  )}
-                                  <div className="flex items-center text-sm text-gray-500 space-x-4">
-                                    <span>Assignee: {ticket.assignee}</span>
-                                    <span>Updated: {ticket.updated}</span>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => generateTestCases(ticket)}
-                                  disabled={isGenerating}
-                                  className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-                                >
-                                  <BrainIcon />
-                                  <span>{isGenerating ? "Generating..." : "Generate Tests"}</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                <div className="space-y-6">
+                  <div className="bg-white rounded-lg shadow-sm border p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">Select JIRA Tickets</h3>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">{selectedTickets.length} selected</span>
+                        <button
+                          onClick={generateTestCasesForSelectedTickets}
+                          disabled={selectedTickets.length === 0 || isGenerating}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                          {isGenerating ? "Generating..." : "Generate Test Cases"}
+                        </button>
                       </div>
-                    )}
+                    </div>
 
-                    {integrationMode === "github" && isGithubConnected && (
-                      <div className="bg-white rounded-lg shadow-sm border">
-                        <div className="p-6 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900">GitHub Pull Requests</h3>
-                            <div className="flex items-center space-x-2">
-                              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                                <RefreshIcon />
-                              </button>
-                              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                                <FilterIcon />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="divide-y divide-gray-200">
-                          {pullRequests.map((pr) => (
-                            <div key={pr.id} className="p-6 hover:bg-gray-50 transition-colors">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-3 mb-2">
-                                    <span className="text-sm font-mono text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                                      #{pr.number}
-                                    </span>
-                                    <span
-                                      className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                        pr.status === "open"
-                                          ? "bg-green-100 text-green-800"
-                                          : pr.status === "ready_for_review"
-                                            ? "bg-blue-100 text-blue-800"
-                                            : "bg-gray-100 text-gray-800"
-                                      }`}
-                                    >
-                                      {pr.status.replace("_", " ")}
-                                    </span>
-                                  </div>
-                                  <h4 className="text-lg font-medium text-gray-900 mb-2">{pr.title}</h4>
-                                  <p className="text-gray-600 text-sm mb-3 line-clamp-3">{pr.description}</p>
-                                  <div className="flex items-center text-sm text-gray-500 space-x-4 mb-3">
-                                    <span>Author: {pr.author}</span>
-                                    <span>Branch: {pr.branch}</span>
-                                    <span>Files: {pr.files.length}</span>
-                                    <span>Commits: {pr.commits.length}</span>
-                                  </div>
-                                  <div className="flex items-center text-sm text-gray-500 space-x-4">
-                                    <span>Created: {pr.created}</span>
-                                    <span>Updated: {pr.updated}</span>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => generateTestCasesForPR(pr)}
-                                  disabled={isGenerating}
-                                  className="ml-4 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-                                >
-                                  <BrainIcon />
-                                  <span>{isGenerating ? "Generating..." : "Generate Tests"}</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                    {/* Search and Filter */}
+                    <div className="flex items-center space-x-4 mb-4">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          placeholder="Search tickets..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
                       </div>
-                    )}
-                  </div>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">All Status</option>
+                        <option value="QA">QA</option>
+                        <option value="Ready for QA">Ready for QA</option>
+                        <option value="In Review">In Review</option>
+                      </select>
+                      <select
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">All Priority</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+                      <button
+                        onClick={resetFilters}
+                        className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
 
-                  {/* Right Sidebar */}
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-lg shadow-sm border p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Configuration</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
-                          <div className="space-y-2">
-                            {["Functional", "UI", "Integration", "Edge Case", "Performance", "Security"].map((type) => (
-                              <label key={type} className="flex items-center">
+                    {/* Ticket List */}
+                    <div className="space-y-3">
+                      {filteredTickets.map((ticket) => (
+                        <div
+                          key={ticket.id}
+                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                            selectedTickets.includes(ticket.key)
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                          onClick={() => toggleTicketSelection(ticket.key)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
                                 <input
                                   type="checkbox"
-                                  checked={aiConfig.testTypes.includes(type)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setAiConfig({ ...aiConfig, testTypes: [...aiConfig.testTypes, type] })
-                                    } else {
-                                      setAiConfig({
-                                        ...aiConfig,
-                                        testTypes: aiConfig.testTypes.filter((t) => t !== type),
-                                      })
-                                    }
-                                  }}
+                                  checked={selectedTickets.includes(ticket.key)}
+                                  onChange={() => toggleTicketSelection(ticket.key)}
                                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">{type}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Coverage Level: {aiConfig.coverageLevel}%
-                          </label>
-                          <input
-                            type="range"
-                            min="25"
-                            max="100"
-                            step="25"
-                            value={aiConfig.coverageLevel}
-                            onChange={(e) =>
-                              setAiConfig({ ...aiConfig, coverageLevel: Number.parseInt(e.target.value) })
-                            }
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Framework</label>
-                          <select
-                            value={aiConfig.framework}
-                            onChange={(e) => setAiConfig({ ...aiConfig, framework: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value="generic">Generic</option>
-                            <option value="selenium">Selenium</option>
-                            <option value="cypress">Cypress</option>
-                            <option value="playwright">Playwright</option>
-                            <option value="jest">Jest</option>
-                            <option value="postman">Postman</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-sm border p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Config</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
-                          <input
-                            type="url"
-                            value={appConfig.applicationUrl}
-                            onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Test Username</label>
-                          <input
-                            type="text"
-                            value={appConfig.loginUsername}
-                            onChange={(e) => setAppConfig({ ...appConfig, loginUsername: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Test Password</label>
-                          <input
-                            type="password"
-                            value={appConfig.loginPassword}
-                            onChange={(e) => setAppConfig({ ...appConfig, loginPassword: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
-                          <select
-                            value={appConfig.environment}
-                            onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value="development">Development</option>
-                            <option value="staging">Staging</option>
-                            <option value="production">Production</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {generatedTests.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border">
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">Generated Test Cases</h3>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => downloadTestCases("selenium")}
-                          className="bg-green-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
-                        >
-                          <DownloadIcon />
-                          <span>Selenium</span>
-                        </button>
-                        <button
-                          onClick={() => downloadTestCases("cypress")}
-                          className="bg-purple-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1"
-                        >
-                          <DownloadIcon />
-                          <span>Cypress</span>
-                        </button>
-                        <button
-                          onClick={() => downloadTestCases("json")}
-                          className="bg-gray-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-1"
-                        >
-                          <DownloadIcon />
-                          <span>JSON</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    {generatedTests.map((testResult, index) => (
-                      <div key={index} className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h4 className="text-lg font-medium text-gray-900">
-                              {testResult.ticket?.summary || testResult.pullRequest?.title}
-                            </h4>
-                            <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                              <span>
-                                {testResult.metadata.source === "jira"
-                                  ? testResult.metadata.ticketKey
-                                  : `PR #${testResult.metadata.prNumber}`}
-                              </span>
-                              <span>{testResult.metadata.totalTests} test cases</span>
-                              <span>{new Date(testResult.metadata.generatedAt).toLocaleDateString()}</span>
+                                <span className="font-medium text-blue-600">{ticket.key}</span>
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    ticket.priority === "High"
+                                      ? "bg-red-100 text-red-800"
+                                      : ticket.priority === "Medium"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-green-100 text-green-800"
+                                  }`}
+                                >
+                                  {ticket.priority}
+                                </span>
+                                <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+                                  {ticket.status}
+                                </span>
+                              </div>
+                              <h4 className="font-medium text-gray-900 mb-1">{ticket.summary}</h4>
+                              <p className="text-sm text-gray-600 mb-2">{ticket.description}</p>
+                              <div className="text-xs text-gray-500">
+                                Assignee: {ticket.assignee} • Updated: {ticket.updated}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() =>
-                                regenerateTestCases(
-                                  testResult.metadata.source === "jira"
-                                    ? tickets.find((t) => t.key === testResult.metadata.ticketKey)
-                                    : pullRequests.find((pr) => pr.number === testResult.metadata.prNumber),
-                                )
-                              }
-                              disabled={isGenerating}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:text-gray-400"
-                            >
-                              Regenerate
-                            </button>
-                          </div>
                         </div>
-                        <div className="grid gap-4">
-                          {testResult.testCases.map((testCase, testIndex) => (
-                            <div key={testCase.id} className="border border-gray-200 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h5 className="font-medium text-gray-900">{testCase.title}</h5>
-                                <div className="flex items-center space-x-2">
-                                  <span
-                                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                      testCase.priority === "High"
-                                        ? "bg-red-100 text-red-800"
-                                        : testCase.priority === "Medium"
-                                          ? "bg-yellow-100 text-yellow-800"
-                                          : "bg-green-100 text-green-800"
-                                    }`}
-                                  >
-                                    {testCase.priority}
-                                  </span>
-                                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-medium">
-                                    {testCase.type}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {testCase.preconditions.length > 0 && (
-                                <div className="mb-3">
-                                  <h6 className="text-sm font-medium text-gray-700 mb-1">Preconditions:</h6>
-                                  <ul className="text-sm text-gray-600 space-y-1">
-                                    {testCase.preconditions.map((condition, condIndex) => (
-                                      <li key={condIndex} className="flex items-start">
-                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 mr-2 flex-shrink-0"></span>
-                                        <span>{condition}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              <div className="mb-3">
-                                <h6 className="text-sm font-medium text-gray-700 mb-1">Test Steps:</h6>
-                                <ol className="text-sm text-gray-600 space-y-1">
-                                  {testCase.steps.map((step, stepIndex) => (
-                                    <li key={stepIndex} className="flex items-start">
-                                      <span className="w-5 h-5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium flex items-center justify-center mr-2 mt-0.5 flex-shrink-0">
-                                        {stepIndex + 1}
-                                      </span>
-                                      <span>{step}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-
-                              <div className="mb-3">
-                                <h6 className="text-sm font-medium text-gray-700 mb-1">Expected Result:</h6>
-                                <p className="text-sm text-gray-600">{testCase.expectedResults}</p>
-                              </div>
-
-                              {testCase.testData && (
-                                <div>
-                                  <h6 className="text-sm font-medium text-gray-700 mb-1">Test Data:</h6>
-                                  <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded font-mono">
-                                    {testCase.testData}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {activeView === "history" && (
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Test Generation History</h3>
-              <p className="text-gray-600">View and manage your previously generated test cases.</p>
-            </div>
-          )}
-
-          {activeView === "ci" && (
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">CI/CD Integration</h3>
-              <p className="text-gray-600">Configure continuous integration and deployment workflows.</p>
-            </div>
-          )}
-
-          {activeView === "analytics" && (
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Analytics Dashboard</h3>
-              <p className="text-gray-600">View test generation metrics and insights.</p>
-            </div>
-          )}
+          {/* 
+            // ... rest of code here ...
+          </CHANGE> */}
         </main>
       </div>
     </div>
