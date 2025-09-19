@@ -188,13 +188,24 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
 import java.time.Duration;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Automated tests for ${testResult.ticket?.summary || "JIRA Ticket"}
+ * Generated from JIRA ticket: ${testResult.metadata.ticketKey}
+ * Application URL: ${appConfig.applicationUrl}
+ * Environment: ${appConfig.environment}
+ */
 public class ${className} {
     private WebDriver driver;
     private WebDriverWait wait;
@@ -203,9 +214,16 @@ public class ${className} {
 
     @BeforeEach
     public void setUp() {
-        driver = new ChromeDriver();
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless"); // Remove this line to run with browser UI
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--window-size=1920,1080");
+        
+        driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         driver.manage().window().maximize();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
     }
 
     @AfterEach
@@ -215,35 +233,62 @@ public class ${className} {
         }
     }
 
+    // Helper methods for common actions
+    private void navigateToPage(String path) {
+        String fullUrl = BASE_URL + (path.startsWith("/") ? path : "/" + path);
+        driver.get(fullUrl);
+        wait.until(ExpectedConditions.urlContains(path));
+    }
+
+    private WebElement waitForElement(By locator) {
+        return wait.until(ExpectedConditions.elementToBeClickable(locator));
+    }
+
+    private void clickElement(By locator) {
+        WebElement element = waitForElement(locator);
+        element.click();
+    }
+
+    private void enterText(By locator, String text) {
+        WebElement element = waitForElement(locator);
+        element.clear();
+        element.sendKeys(text);
+    }
+
+    private void verifyElementVisible(By locator) {
+        assertTrue(wait.until(ExpectedConditions.visibilityOfElementLocated(locator)).isDisplayed(),
+                "Element should be visible: " + locator.toString());
+    }
+
+    private void verifyTextPresent(String text) {
+        assertTrue(driver.getPageSource().contains(text),
+                "Text should be present on page: " + text);
+    }
+
 ${testResult.testCases
   .map(
     (testCase, index) => `
     @Test
     public void ${testCase.title.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}() {
         // Test: ${testCase.title}
-        // Priority: ${testCase.priority}
-        // Type: ${testCase.type}
+        // Priority: ${testCase.priority} | Type: ${testCase.type}
         
         try {
             // Navigate to application
             driver.get(BASE_URL);
             
-            // Preconditions
-${testCase.preconditions.map((condition) => `            // ${condition}`).join("\n")}
+            // Wait for page to load
+            wait.until(ExpectedConditions.titleContains(""));
             
-            // Test Steps
-${testCase.steps.map((step, stepIndex) => `            // Step ${stepIndex + 1}: ${step}`).join("\n")}
+            ${generateSeleniumSteps(testCase)}
             
-            // Expected Result: ${testCase.expectedResults}
-            
-            // Add your Selenium automation code here
-            // Example:
-            // WebElement element = wait.until(ExpectedConditions.elementToBeClickable(By.id("elementId")));
-            // element.click();
-            // assertTrue(driver.findElement(By.id("result")).isDisplayed());
+            // Verify expected result: ${testCase.expectedResults}
+            ${generateSeleniumVerification(testCase)}
             
         } catch (Exception e) {
-            fail("Test failed: " + e.getMessage());
+            // Take screenshot on failure
+            // ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            fail("Test '${testCase.title}' failed: " + e.getMessage());
         }
     }
 `,
@@ -252,9 +297,91 @@ ${testCase.steps.map((step, stepIndex) => `            // Step ${stepIndex + 1}:
 }`
   }
 
+  // Helper function to generate actual Selenium test steps
+  const generateSeleniumSteps = (testCase: TestCase) => {
+    return testCase.steps
+      .map((step, stepIndex) => {
+        // Convert natural language steps to Selenium code
+        const stepLower = step.toLowerCase()
+
+        if (stepLower.includes("click") || stepLower.includes("select")) {
+          if (stepLower.includes("button")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            clickElement(By.xpath("//button[contains(text(), 'Submit') or contains(text(), 'Save') or contains(text(), 'Login')]"));`
+          } else if (stepLower.includes("link")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            clickElement(By.xpath("//a[contains(text(), 'Link Text')]"));`
+          } else {
+            return `            // Step ${stepIndex + 1}: ${step}
+            clickElement(By.id("elementId")); // Update with actual element ID`
+          }
+        } else if (stepLower.includes("enter") || stepLower.includes("input") || stepLower.includes("type")) {
+          if (stepLower.includes("email")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.id("email"), "test@example.com");`
+          } else if (stepLower.includes("password")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.id("password"), "testPassword123");`
+          } else if (stepLower.includes("username")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.id("username"), "testuser");`
+          } else {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.id("inputField"), "test data"); // Update with actual field ID and data`
+          }
+        } else if (stepLower.includes("navigate") || stepLower.includes("go to")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            navigateToPage("/target-page"); // Update with actual page path`
+        } else if (stepLower.includes("wait") || stepLower.includes("load")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            Thread.sleep(2000); // Wait for page to load
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));`
+        } else if (stepLower.includes("scroll")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, document.body.scrollHeight);");`
+        } else if (stepLower.includes("select") && stepLower.includes("dropdown")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            Select dropdown = new Select(driver.findElement(By.id("dropdownId")));
+            dropdown.selectByVisibleText("Option Text");`
+        } else {
+          return `            // Step ${stepIndex + 1}: ${step}
+            // TODO: Implement specific action for this step
+            verifyElementVisible(By.tagName("body")); // Generic verification`
+        }
+      })
+      .join("\n")
+  }
+
+  // Helper function to generate verification code
+  const generateSeleniumVerification = (testCase: TestCase) => {
+    const expectedResult = testCase.expectedResults.toLowerCase()
+
+    if (expectedResult.includes("success") || expectedResult.includes("successful")) {
+      return `            verifyTextPresent("Success");
+            verifyElementVisible(By.className("success-message"));`
+    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
+      return `            verifyTextPresent("Error");
+            verifyElementVisible(By.className("error-message"));`
+    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
+      return `            wait.until(ExpectedConditions.urlContains("/expected-page"));
+            assertTrue(driver.getCurrentUrl().contains("/expected-page"));`
+    } else if (expectedResult.includes("display") || expectedResult.includes("show")) {
+      return `            verifyElementVisible(By.id("result-element"));
+            assertTrue(driver.findElement(By.id("result-element")).isDisplayed());`
+    } else if (expectedResult.includes("login") || expectedResult.includes("authenticated")) {
+      return `            wait.until(ExpectedConditions.urlContains("/dashboard"));
+            verifyElementVisible(By.id("user-menu"));`
+    } else {
+      return `            // Verify: ${testCase.expectedResults}
+            verifyElementVisible(By.tagName("body"));
+            assertFalse(driver.getPageSource().contains("error"));`
+    }
+  }
+
   const generateCypressCode = (testResult: TestGenerationResult) => {
     return `// Cypress tests for ${testResult.metadata.ticketKey}
 // Generated on ${new Date(testResult.metadata.generatedAt).toLocaleString()}
+// Application: ${appConfig.applicationUrl} (${appConfig.environment})
 
 describe('${testResult.ticket?.summary || "Test Suite"}', () => {
   const BASE_URL = '${appConfig.applicationUrl}';
@@ -262,32 +389,87 @@ describe('${testResult.ticket?.summary || "Test Suite"}', () => {
 
   beforeEach(() => {
     cy.visit(BASE_URL);
+    cy.viewport(1920, 1080);
   });
 
 ${testResult.testCases
   .map(
     (testCase, index) => `
   it('${testCase.title}', () => {
-    // Priority: ${testCase.priority}
-    // Type: ${testCase.type}
+    // Priority: ${testCase.priority} | Type: ${testCase.type}
     
-    // Preconditions
-${testCase.preconditions.map((condition) => `    // ${condition}`).join("\n")}
+    ${generateCypressSteps(testCase)}
     
-    // Test Steps
-${testCase.steps.map((step, stepIndex) => `    // Step ${stepIndex + 1}: ${step}`).join("\n")}
-    
-    // Expected Result: ${testCase.expectedResults}
-    
-    // Add your Cypress automation code here
-    // Example:
-    // cy.get('[data-testid="element"]').click();
-    // cy.get('[data-testid="result"]').should('be.visible');
+    // Verify expected result: ${testCase.expectedResults}
+    ${generateCypressVerification(testCase)}
   });
 `,
   )
   .join("")}
 });`
+  }
+
+  // Helper function to generate Cypress test steps
+  const generateCypressSteps = (testCase: TestCase) => {
+    return testCase.steps
+      .map((step, stepIndex) => {
+        const stepLower = step.toLowerCase()
+
+        if (stepLower.includes("click") || stepLower.includes("select")) {
+          if (stepLower.includes("button")) {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('button').contains('Submit').click();`
+          } else if (stepLower.includes("link")) {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('a').contains('Link Text').click();`
+          } else {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('[data-testid="element"]').click();`
+          }
+        } else if (stepLower.includes("enter") || stepLower.includes("input") || stepLower.includes("type")) {
+          if (stepLower.includes("email")) {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('input[type="email"]').type('test@example.com');`
+          } else if (stepLower.includes("password")) {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('input[type="password"]').type('testPassword123');`
+          } else {
+            return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('input').type('test data');`
+          }
+        } else if (stepLower.includes("navigate") || stepLower.includes("go to")) {
+          return `    // Step ${stepIndex + 1}: ${step}
+    cy.visit(BASE_URL + '/target-page');`
+        } else if (stepLower.includes("wait") || stepLower.includes("load")) {
+          return `    // Step ${stepIndex + 1}: ${step}
+    cy.wait(2000);`
+        } else {
+          return `    // Step ${stepIndex + 1}: ${step}
+    cy.get('body').should('be.visible');`
+        }
+      })
+      .join("\n")
+  }
+
+  // Helper function to generate Cypress verification
+  const generateCypressVerification = (testCase: TestCase) => {
+    const expectedResult = testCase.expectedResults.toLowerCase()
+
+    if (expectedResult.includes("success") || expectedResult.includes("successful")) {
+      return `    cy.contains('Success').should('be.visible');
+    cy.get('.success-message').should('be.visible');`
+    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
+      return `    cy.contains('Error').should('be.visible');
+    cy.get('.error-message').should('be.visible');`
+    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
+      return `    cy.url().should('include', '/expected-page');`
+    } else if (expectedResult.includes("display") || expectedResult.includes("show")) {
+      return `    cy.get('[data-testid="result"]').should('be.visible');`
+    } else {
+      return `    // Verify: ${testCase.expectedResults}
+    cy.get('body').should('be.visible');
+    cy.get('body').should('not.contain', 'error');`
+    }
   }
 
   return (
