@@ -3,8 +3,13 @@ import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
+  let ticket = {}
+  let settings = {}
+
   try {
-    const { ticket, settings } = await request.json()
+    const requestBody = await request.json()
+    ticket = requestBody.ticket || {}
+    settings = requestBody.settings || {}
 
     console.log("[v0] Environment check:")
     console.log("[v0] OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY)
@@ -74,8 +79,13 @@ Return the response as a JSON array of test case objects.`
     // Parse the AI response and structure it
     let testCases
     try {
-      testCases = JSON.parse(text)
-    } catch {
+      const cleanedText = text
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim()
+      testCases = JSON.parse(cleanedText)
+    } catch (parseError) {
+      console.log("[v0] JSON parsing failed, using text parsing fallback")
       // If AI doesn't return valid JSON, create structured response
       const lines = text.split("\n").filter((line) => line.trim())
       testCases = parseTestCasesFromText(lines, ticket.key)
@@ -96,7 +106,6 @@ Return the response as a JSON array of test case objects.`
     })
   } catch (error) {
     console.error("Test generation error:", error)
-    const { ticket = {}, settings = {} } = await request.json().catch(() => ({ ticket: {}, settings: {} }))
     return NextResponse.json({
       success: true,
       testCases: generateFallbackTests(ticket, settings),
