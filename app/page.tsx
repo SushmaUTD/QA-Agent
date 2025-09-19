@@ -183,8 +183,9 @@ export default function JiraTestGenerator() {
   }
 
   const generateSeleniumCode = (testResult: TestGenerationResult) => {
-    const className = `${testResult.metadata.ticketKey?.replace("-", "_")}_Tests`
-    const ticket = testResult.ticket
+    const ticketKey = testResult?.metadata?.ticketKey || "UnknownTicket"
+    const className = `${ticketKey.replace("-", "_")}_Tests`
+    const ticket = testResult?.ticket
 
     return `package com.company.tests;
 
@@ -208,7 +209,7 @@ import org.apache.commons.io.FileUtils;
 
 /**
  * Automated tests for ${ticket?.summary || "JIRA Ticket"}
- * Generated from JIRA ticket: ${testResult.metadata.ticketKey}
+ * Generated from JIRA ticket: ${ticketKey}
  * 
  * JIRA Description: ${ticket?.description || "No description"}
  * 
@@ -227,22 +228,22 @@ public class ${className} {
     private static final String ENVIRONMENT = "${appConfig.environment}";
 
     public static void main(String[] args) {
-        System.out.println("Starting automated tests for ${testResult.metadata.ticketKey}");
-        System.out.println("Testing: ${ticket?.summary}");
+        System.out.println("Starting automated tests for ${ticketKey}");
+        System.out.println("Testing: ${ticket?.summary || "Unknown Test"}");
         System.out.println("Application: " + BASE_URL + " (" + ENVIRONMENT + ")");
         
         setUp();
         
         try {
-${testResult.testCases
+${(testResult?.testCases || [])
   .map(
     (testCase, index) => `            // Running Test ${index + 1}: ${testCase.title}
-            System.out.println("\\n=== Test ${index + 1}: ${testCase.title} ===");
+            System.out.println("\\\\n=== Test ${index + 1}: ${testCase.title} ===");
             test${index + 1}_${testCase.title.replace(/[^a-zA-Z0-9]/g, "_")}();`,
   )
   .join("\n")}
             
-            System.out.println("\\n✅ All tests completed successfully!");
+            System.out.println("\\\\n✅ All tests completed successfully!");
             
         } catch (Exception e) {
             System.err.println("❌ Test failed: " + e.getMessage());
@@ -361,12 +362,14 @@ ${testResult.testCases
         }
     }
 
-${testResult.testCases
+    // Test methods
+${(testResult?.testCases || [])
   .map(
     (testCase, index) => `
     /**
      * Test: ${testCase.title}
-     * Priority: ${testCase.priority} | Type: ${testCase.type}
+     * Priority: ${testCase.priority}
+     * Type: ${testCase.type}
      * Expected Result: ${testCase.expectedResults}
      */
     private static void test${index + 1}_${testCase.title.replace(/[^a-zA-Z0-9]/g, "_")}() {
@@ -374,7 +377,7 @@ ${testResult.testCases
             System.out.println("Starting test: ${testCase.title}");
             
             // Test preconditions
-${testCase.preconditions.map((precondition) => `            // Precondition: ${precondition}`).join("\n")}
+${(testCase.preconditions || []).map((precondition) => `            // Precondition: ${precondition}`).join("\n")}
             
             // Test steps
 ${generateRealSeleniumSteps(testCase, ticket)}
@@ -699,40 +702,26 @@ ${testResult.testCases
     }
   }
 
-  const generateTestCases = async () => {
-    if (selectedTickets.length === 0) return
-
-    setIsGenerating(true)
-    try {
-      const selectedTicketData = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
-
-      const response = await fetch("/api/generate-tests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tickets: selectedTicketData,
-          testTypes: testType,
-          testPercentage: testPercentage,
-          framework: testFramework,
-          appConfig: appConfig,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-      setGeneratedTests(data.testCases || [])
-      setActiveSection("test-results")
-    } catch (error) {
-      console.error("Test generation error:", error)
-      alert("Failed to generate test cases. Please try again.")
-    } finally {
-      setIsGenerating(false)
+  const downloadAllTests = () => {
+    if (generatedTests.length === 0) {
+      alert("No test cases to download")
+      return
     }
+
+    const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
+    const testTypeString = Array.isArray(testType) && testType.length > 0 ? testType.join("_") : "AllTypes"
+    const frameworkString = testFramework || "selenium"
+    const percentageString = testPercentage || 75
+
+    const blob = new Blob([allTestCode], { type: "text/java" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${frameworkString}_test_suite_${testTypeString}_${percentageString}percent.java`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const downloadSelenium = () => {
@@ -960,6 +949,42 @@ public class ${className} {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const generateTestCases = async () => {
+    if (selectedTickets.length === 0) return
+
+    setIsGenerating(true)
+    try {
+      const selectedTicketData = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
+
+      const response = await fetch("/api/generate-tests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tickets: selectedTicketData,
+          testTypes: testType,
+          testPercentage: testPercentage,
+          framework: testFramework,
+          appConfig: appConfig,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setGeneratedTests(data.testCases || [])
+      setActiveSection("test-results")
+    } catch (error) {
+      console.error("Test generation error:", error)
+      alert("Failed to generate test cases. Please try again.")
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
@@ -1271,12 +1296,12 @@ public class ${className} {
 
                           <button
                             onClick={generateTestCases}
-                            disabled={isGenerating || testType.length === 0}
+                            disabled={isGenerating || !Array.isArray(testType) || testType.length === 0}
                             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isGenerating
                               ? "🔄 Generating..."
-                              : `🚀 Generate ${testType.join(", ")} Tests (${testPercentage}%)`}
+                              : `🚀 Generate ${Array.isArray(testType) ? testType.join(", ") : "Tests"} Tests (${testPercentage}%)`}
                           </button>
                         </div>
                       )}
