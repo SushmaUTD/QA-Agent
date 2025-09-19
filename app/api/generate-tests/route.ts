@@ -38,6 +38,13 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] OpenAI API key found, using AI generation")
 
+    const safeSettings = {
+      coverageLevel: settings.coverageLevel || "Basic",
+      testTypes: Array.isArray(settings.testTypes) ? settings.testTypes : ["Functional"],
+      framework: settings.framework || "Selenium",
+      ...settings,
+    }
+
     const prompt = `You are an expert QA engineer. Generate comprehensive test cases for this JIRA ticket:
 
 **Ticket:** ${ticket.summary}
@@ -47,11 +54,11 @@ export async function POST(request: NextRequest) {
 **Type:** ${ticket.type}
 
 **Test Generation Settings:**
-- Coverage Level: ${settings.coverageLevel}
-- Test Types: ${settings.testTypes.join(", ")}
-- Framework: ${settings.framework}
+- Coverage Level: ${safeSettings.coverageLevel}
+- Test Types: ${safeSettings.testTypes.join(", ")}
+- Framework: ${safeSettings.framework}
 
-Generate ${settings.coverageLevel === "Basic" ? "5-7" : settings.coverageLevel === "Comprehensive" ? "10-15" : "15-20"} detailed test cases that cover:
+Generate ${safeSettings.coverageLevel === "Basic" ? "5-7" : safeSettings.coverageLevel === "Comprehensive" ? "10-15" : "15-20"} detailed test cases that cover:
 1. Happy path scenarios
 2. Edge cases and boundary conditions
 3. Error handling and validation
@@ -62,7 +69,7 @@ For each test case, provide:
 - Test Case ID (format: TC_${ticket.key}_001)
 - Title (clear, descriptive)
 - Priority (High/Medium/Low)
-- Type (${settings.testTypes.join("/")})
+- Type (${safeSettings.testTypes.join("/")})
 - Preconditions
 - Test Steps (numbered, detailed)
 - Expected Results
@@ -99,21 +106,28 @@ Return the response as a JSON array of test case objects.`
       metadata: {
         ticketKey: ticket.key,
         generatedAt: new Date().toISOString(),
-        settings,
+        settings: safeSettings,
         totalTests: testCases.length,
         usingFallback: false,
       },
     })
   } catch (error) {
     console.error("Test generation error:", error)
+    const safeSettings = {
+      coverageLevel: settings?.coverageLevel || "Basic",
+      testTypes: Array.isArray(settings?.testTypes) ? settings.testTypes : ["Functional"],
+      framework: settings?.framework || "Selenium",
+      ...settings,
+    }
+
     return NextResponse.json({
       success: true,
-      testCases: generateFallbackTests(ticket, settings),
+      testCases: generateFallbackTests(ticket, safeSettings),
       metadata: {
         ticketKey: ticket.key || "ERROR",
         generatedAt: new Date().toISOString(),
-        settings,
-        totalTests: generateFallbackTests(ticket, settings).length,
+        settings: safeSettings,
+        totalTests: generateFallbackTests(ticket, safeSettings).length,
         usingFallback: true,
         error: "AI generation failed, using fallback",
       },
