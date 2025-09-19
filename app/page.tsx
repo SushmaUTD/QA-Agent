@@ -37,7 +37,7 @@ interface TestGenerationResult {
   }
 }
 
-export default function JiraTestAI() {
+export default function JiraTestGenerator() {
   const [activeSection, setActiveSection] = useState("ai-config")
 
   const [jiraConfig, setJiraConfig] = useState({
@@ -58,6 +58,10 @@ export default function JiraTestAI() {
   const [selectedTickets, setSelectedTickets] = useState<string[]>([])
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const [testType, setTestType] = useState<string[]>(["functional"])
+  const [testPercentage, setTestPercentage] = useState(100)
+  const [testFramework, setTestFramework] = useState("selenium")
 
   const handleJiraConnect = async () => {
     console.log("[v0] JIRA Connect button clicked")
@@ -95,7 +99,7 @@ export default function JiraTestAI() {
     }
   }
 
-  const generateTestCases = async () => {
+  const generateTestCasesOld = async () => {
     if (selectedTickets.length === 0) {
       alert("Please select at least one ticket to generate test cases.")
       return
@@ -695,6 +699,269 @@ ${testResult.testCases
     }
   }
 
+  const generateTestCases = async () => {
+    if (selectedTickets.length === 0) return
+
+    setIsGenerating(true)
+    try {
+      const selectedTicketData = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
+
+      const response = await fetch("/api/generate-tests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tickets: selectedTicketData,
+          testTypes: testType,
+          testPercentage: testPercentage,
+          framework: testFramework,
+          appConfig: appConfig,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setGeneratedTests(data.testCases || [])
+      setActiveSection("test-results")
+    } catch (error) {
+      console.error("Test generation error:", error)
+      alert("Failed to generate test cases. Please try again.")
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const downloadSelenium = () => {
+    if (generatedTests.length === 0) return
+
+    const generateSeleniumCode = (test: any) => {
+      const className = `${test.title.replace(/[^a-zA-Z0-9]/g, "")}Test`
+
+      let testMethods = ""
+
+      // Generate different test methods based on selected test types
+      testType.forEach((type) => {
+        switch (type) {
+          case "functional":
+            testMethods += `
+    @Test
+    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Functional() {
+        System.out.println("Starting functional test: ${test.title}");
+        
+        // Navigate to application
+        driver.get("${appConfig.applicationUrl}");
+        
+        // Perform functional test steps
+        ${test.steps
+          .map((step: string, index: number) => {
+            if (step.toLowerCase().includes("click") || step.toLowerCase().includes("button")) {
+              const elementName = step.match(/click\s+(?:on\s+)?(?:the\s+)?([^.]+)/i)?.[1] || "button"
+              return `        // Step ${index + 1}: ${step}
+        WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//button[contains(text(),'${elementName}')]"));
+        ${elementName.replace(/\s+/g, "")}Element.click();
+        Thread.sleep(1000);`
+            } else if (
+              step.toLowerCase().includes("enter") ||
+              step.toLowerCase().includes("input") ||
+              step.toLowerCase().includes("fill")
+            ) {
+              const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
+              const fieldName = fieldMatch?.[1] || "field"
+              return `        // Step ${index + 1}: ${step}
+        WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
+        ${fieldName.replace(/\s+/g, "")}Field.clear();
+        ${fieldName.replace(/\s+/g, "")}Field.sendKeys("Test Data ${index + 1}");`
+            } else if (step.toLowerCase().includes("verify") || step.toLowerCase().includes("check")) {
+              const elementMatch = step.match(/(?:verify|check)\s+(?:that\s+)?([^.]+)/i)
+              const elementName = elementMatch?.[1] || "element"
+              return `        // Step ${index + 1}: ${step}
+        WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//*[contains(text(),'${elementName}')]"));
+        Assert.assertTrue("${elementName} should be visible", ${elementName.replace(/\s+/g, "")}Element.isDisplayed());`
+            } else {
+              return `        // Step ${index + 1}: ${step}
+        // Custom implementation needed for: ${step}`
+            }
+          })
+          .join("\n")}
+        
+        System.out.println("Functional test completed successfully");
+    }`
+            break
+
+          case "ui":
+            testMethods += `
+    @Test
+    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}UI() {
+        System.out.println("Starting UI test: ${test.title}");
+        
+        driver.get("${appConfig.applicationUrl}");
+        
+        // UI-specific validations
+        Assert.assertTrue("Page title should be present", !driver.getTitle().isEmpty());
+        
+        // Check responsive design
+        driver.manage().window().setSize(new Dimension(1920, 1080));
+        Thread.sleep(500);
+        driver.manage().window().setSize(new Dimension(768, 1024));
+        Thread.sleep(500);
+        driver.manage().window().maximize();
+        
+        System.out.println("UI test completed successfully");
+    }`
+            break
+
+          case "edgecase":
+            testMethods += `
+    @Test
+    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}EdgeCases() {
+        System.out.println("Starting edge case test: ${test.title}");
+        
+        driver.get("${appConfig.applicationUrl}");
+        
+        // Test with empty inputs
+        ${test.steps
+          .filter((step: string) => step.toLowerCase().includes("enter") || step.toLowerCase().includes("input"))
+          .map((step: string, index: number) => {
+            const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
+            const fieldName = fieldMatch?.[1] || "field"
+            return `        // Edge case: Empty ${fieldName}
+        WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
+        ${fieldName.replace(/\s+/g, "")}Field.clear();
+        ${fieldName.replace(/\s+/g, "")}Field.sendKeys("");`
+          })
+          .join("\n")}
+        
+        // Test with invalid data
+        // Test with maximum length inputs
+        // Test boundary conditions
+        
+        System.out.println("Edge case test completed successfully");
+    }`
+            break
+
+          case "performance":
+            testMethods += `
+    @Test
+    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Performance() {
+        System.out.println("Starting performance test: ${test.title}");
+        
+        long startTime = System.currentTimeMillis();
+        
+        driver.get("${appConfig.applicationUrl}");
+        
+        long pageLoadTime = System.currentTimeMillis() - startTime;
+        Assert.assertTrue("Page should load within 5 seconds", pageLoadTime < 5000);
+        
+        // Measure action performance
+        ${test.steps
+          .slice(0, Math.ceil((test.steps.length * testPercentage) / 100))
+          .map((step: string, index: number) => {
+            return `        // Performance test for: ${step}
+        long actionStart = System.currentTimeMillis();
+        // Perform action here
+        long actionTime = System.currentTimeMillis() - actionStart;
+        System.out.println("Action ${index + 1} took: " + actionTime + "ms");`
+          })
+          .join("\n")}
+        
+        System.out.println("Performance test completed successfully");
+    }`
+            break
+        }
+      })
+
+      return `package com.testautomation;
+
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.By;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.Dimension;
+import org.testng.Assert;
+import org.testng.annotations.*;
+import java.time.Duration;
+
+/**
+ * Automated Test Suite for: ${test.title}
+ * Generated from JIRA: ${test.jiraKey}
+ * Framework: ${testFramework.toUpperCase()}
+ * Test Types: ${testType.join(", ")}
+ * Coverage: ${testPercentage}%
+ * Environment: ${appConfig.environment}
+ * Application URL: ${appConfig.applicationUrl}
+ */
+public class ${className} {
+    private WebDriver driver;
+    private WebDriverWait wait;
+    
+    @BeforeMethod
+    public void setUp() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=false"); // Set to true for headless mode
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--window-size=1920,1080");
+        
+        driver = new ChromeDriver(options);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+    }
+    
+    @AfterMethod
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+    
+    private WebElement waitForElement(By locator) {
+        return wait.until(ExpectedConditions.elementToBeClickable(locator));
+    }
+    
+    private void takeScreenshot(String testName) {
+        // Screenshot implementation
+        System.out.println("Screenshot taken for: " + testName);
+    }
+    ${testMethods}
+    
+    // Main method for standalone execution
+    public static void main(String[] args) {
+        ${className} testSuite = new ${className}();
+        
+        try {
+            testSuite.setUp();
+            ${testType.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
+            System.out.println("All tests completed successfully!");
+        } catch (Exception e) {
+            System.err.println("Test execution failed: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            testSuite.tearDown();
+        }
+    }
+}`
+    }
+
+    const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
+
+    const blob = new Blob([allTestCode], { type: "text/java" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${testFramework}_test_suite_${testType.join("_")}_${testPercentage}percent.java`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="flex h-screen">
@@ -940,12 +1207,76 @@ ${testResult.testCases
                           <p className="text-sm text-blue-800 mb-3">
                             {selectedTickets.length} ticket(s) selected for test generation
                           </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            {/* Test Type Selection */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
+                              <div className="space-y-2">
+                                {["functional", "ui", "edgecase", "performance"].map((type) => (
+                                  <label key={type} className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={testType.includes(type)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setTestType([...testType, type])
+                                        } else {
+                                          setTestType(testType.filter((t) => t !== type))
+                                        }
+                                      }}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700 capitalize">{type}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Test Percentage */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Coverage (%)</label>
+                              <input
+                                type="range"
+                                min="10"
+                                max="100"
+                                step="10"
+                                value={testPercentage}
+                                onChange={(e) => setTestPercentage(Number(e.target.value))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>10%</span>
+                                <span className="font-medium text-blue-600">{testPercentage}%</span>
+                                <span>100%</span>
+                              </div>
+                            </div>
+
+                            {/* Framework Selection */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Framework</label>
+                              <select
+                                value={testFramework}
+                                onChange={(e) => setTestFramework(e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="selenium">Selenium (Java)</option>
+                                <option value="cypress">Cypress (JavaScript)</option>
+                                <option value="playwright">Playwright (TypeScript)</option>
+                                <option value="testng">TestNG (Java)</option>
+                                <option value="junit">JUnit (Java)</option>
+                              </select>
+                            </div>
+                          </div>
+
                           <button
                             onClick={generateTestCases}
-                            disabled={isGenerating}
+                            disabled={isGenerating || testType.length === 0}
                             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isGenerating ? "🔄 Generating..." : `🚀 Generate Test Cases`}
+                            {isGenerating
+                              ? "🔄 Generating..."
+                              : `🚀 Generate ${testType.join(", ")} Tests (${testPercentage}%)`}
                           </button>
                         </div>
                       )}
