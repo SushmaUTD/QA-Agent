@@ -1,69 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
-// import {
-//   Search,
-//   Filter,
-//   Download,
-//   RefreshCw,
-//   Settings,
-//   BarChart3,
-//   FileText,
-//   History,
-//   Zap,
-//   CheckCircle,
-//   Bot,
-//   TestTube,
-//   Brain,
-//   ExternalLink,
-//   SuperscriptIcon as AlertDescription,
-//   Sliders as Slider,
-//   AlertCircle,
-//   ChevronDown,
-//   ListOrdered,
-//   Code,
-// } from "lucide-react"
-
-// import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-
-interface GitHubPullRequest {
-  id: string
-  number: number
-  title: string
-  description: string
-  status: string
-  author: string
-  reviewers: string[]
-  files: GitHubFile[]
-  commits: GitHubCommit[]
-  created: string
-  updated: string
-  branch: string
-  baseBranch: string
-}
-
-interface GitHubFile {
-  filename: string
-  status: "added" | "modified" | "removed"
-  additions: number
-  deletions: number
-  changes: number
-  patch?: string
-}
-
-interface GitHubCommit {
-  sha: string
-  message: string
-  author: string
-  date: string
-}
-
-interface GitHubConfig {
-  token: string
-  repository: string
-  organization: string
-  webhookUrl?: string
-}
+import { useState } from "react"
 
 interface JiraTicket {
   id: string
@@ -90,472 +27,37 @@ interface TestCase {
 
 interface TestGenerationResult {
   ticket?: JiraTicket
-  pullRequest?: GitHubPullRequest // Added GitHub PR support to test results
   testCases: TestCase[]
   metadata: {
     ticketKey?: string
-    prNumber?: number // Added PR number to metadata
     generatedAt: string
     settings: any
     totalTests: number
-    source: "jira" | "github" // Added source tracking
+    source: "jira"
   }
-}
-
-interface AIConfig {
-  testTypes: string[]
-  coverageLevel: number
-  includeEdgeCases: boolean
-  includeNegativeTests: boolean
-  includePerformanceTests: boolean
-  includeSecurityTests: boolean
-  framework: string
-  coverage: string
-}
-
-interface CIPipelineRun {
-  id: string
-  testSuiteId: string
-  status: "pending" | "running" | "success" | "failed" | "cancelled"
-  startedAt: string
-  completedAt?: string
-  results?: {
-    total: number
-    passed: number
-    failed: number
-    skipped: number
-    duration: number
-    failedTests: Array<{
-      name: string
-      error: string
-      screenshot?: string
-    }>
-  }
-  logs: string[]
-  prNumber?: number
-  commitSha?: string
-}
-
-interface CIConfig {
-  provider: "github-actions" | "jenkins" | "gitlab-ci" | "custom"
-  webhookUrl: string
-  apiKey: string
-  environment: string
-  timeout: number
-  parallelJobs: number
-  notifications: {
-    slack?: string
-    email?: string[]
-    prComments: boolean
-  }
-}
-
-interface PRComment {
-  id: string
-  prNumber: number
-  author: string
-  body: string
-  createdAt: string
-  testResults?: {
-    total: number
-    passed: number
-    failed: number
-    duration: number
-    status: "success" | "failed"
-    failedTests: Array<{
-      name: string
-      error: string
-    }>
-  }
-}
-
-interface PRReport {
-  id: string
-  prNumber: number
-  prTitle: string
-  testSuiteId: string
-  status: "pending" | "success" | "failed"
-  createdAt: string
-  results: {
-    total: number
-    passed: number
-    failed: number
-    skipped: number
-    duration: number
-    coverage: number
-    missingTests: string[]
-  }
-  comments: PRComment[]
 }
 
 export default function JiraTestAI() {
-  const [activeView, setActiveView] = useState("generator")
+  const [activeSection, setActiveSection] = useState("ai-config")
 
   const [jiraConfig, setJiraConfig] = useState({
     url: "",
     email: "",
     apiToken: "",
-    projectKey: "", // Fixed property name to match API
+    projectKey: "",
   })
 
   const [appConfig, setAppConfig] = useState({
     applicationUrl: "",
     environment: "staging",
   })
-  const [selectedTickets, setSelectedTickets] = useState<string[]>([])
-  const [showConfig, setShowConfig] = useState(false)
-
-  const [githubConfig, setGithubConfig] = useState<GitHubConfig>({
-    token: "",
-    repository: "",
-    organization: "",
-    webhookUrl: "",
-  })
-
-  const [isGithubConnected, setIsGithubConnected] = useState(false)
-  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([])
-  const [selectedPR, setSelectedPR] = useState<GitHubPullRequest | null>(null)
-  const [isConnectingGithub, setIsConnectingGithub] = useState(false)
 
   const [isConnected, setIsConnected] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false) // Added missing state
-  const mockTickets: JiraTicket[] = useMemo(
-    () => [
-      {
-        id: "1",
-        key: "PROJ-123",
-        summary: "User Login Authentication",
-        description: "Implement secure user login with email and password validation",
-        status: "QA",
-        acceptanceCriteria: [
-          "User can login with valid email and password",
-          "Invalid credentials show appropriate error message",
-          "Account lockout after 3 failed attempts",
-          "Password reset functionality works",
-        ],
-        assignee: "john.doe@company.com",
-        priority: "High",
-        updated: "2024-01-20",
-      },
-      {
-        id: "2",
-        key: "PROJ-124",
-        summary: "Shopping Cart Functionality",
-        description: "Users should be able to add, remove, and modify items in shopping cart",
-        status: "QA",
-        acceptanceCriteria: [
-          "Add items to cart from product page",
-          "Update quantity of items in cart",
-          "Remove items from cart",
-          "Cart persists across sessions",
-          "Calculate total price correctly",
-        ],
-        assignee: "jane.smith@company.com",
-        priority: "Medium",
-        updated: "2024-01-22",
-      },
-      {
-        id: "3",
-        key: "PROJ-125",
-        summary: "Payment Processing Integration",
-        description: "Integrate Stripe payment processing for checkout flow",
-        status: "Ready for QA",
-        acceptanceCriteria: [
-          "Process credit card payments securely",
-          "Handle payment failures gracefully",
-          "Send confirmation emails after successful payment",
-          "Send confirmation emails after successful payment",
-          "Support multiple currencies",
-        ],
-        assignee: "mike.wilson@company.com",
-        priority: "High",
-        updated: "2024-01-25",
-      },
-      {
-        id: "4",
-        key: "PROJ-126",
-        summary: "User Profile Management",
-        description: "Allow users to update their profile information and preferences",
-        status: "QA",
-        acceptanceCriteria: [
-          "Users can edit personal information",
-          "Profile picture upload functionality",
-          "Email notification preferences",
-          "Account deletion option",
-        ],
-        assignee: "sarah.johnson@company.com",
-        priority: "Low",
-        updated: "2024-01-28",
-      },
-      {
-        id: "5",
-        key: "PROJ-127",
-        summary: "Search and Filter Products",
-        description: "Implement product search with advanced filtering options",
-        status: "In Review",
-        acceptanceCriteria: [
-          "Search products by name and description",
-          "Filter by category, price range, and ratings",
-          "Sort results by relevance, price, and popularity",
-          "Save search preferences",
-        ],
-        assignee: "john.doe@company.com",
-        priority: "Medium",
-        updated: "2024-01-30",
-      },
-    ],
-    [],
-  )
-  const [tickets, setTickets] = useState<JiraTicket[]>(mockTickets)
-  const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [tickets, setTickets] = useState<JiraTicket[]>([])
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([])
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
-
-  const [integrationMode, setIntegrationMode] = useState<"jira" | "github">("jira")
-
-  const [filters, setFilters] = useState({
-    status: "all",
-    priority: "all",
-    assignee: "all",
-    search: "",
-  })
-
-  const [aiConfig, setAiConfig] = useState<AIConfig>({
-    testTypes: ["Functional", "UI", "Edge Case"],
-    coverageLevel: 75,
-    includeEdgeCases: true,
-    includeNegativeTests: true,
-    includePerformanceTests: false,
-    includeSecurityTests: false,
-    framework: "generic",
-    coverage: "comprehensive",
-  })
-
-  const [testHistory, setTestHistory] = useState<
-    Array<{
-      id: string
-      ticketKey: string
-      ticketSummary: string
-      testsGenerated: number
-      timestamp: Date
-      testTypes: string[]
-      priority: string
-    }>
-  >([])
-
-  const [ciConfig, setCiConfig] = useState<CIConfig>({
-    provider: "github-actions",
-    webhookUrl: "",
-    apiKey: "",
-    environment: "staging",
-    timeout: 30,
-    parallelJobs: 2,
-    notifications: {
-      prComments: true,
-    },
-  })
-
-  const [pipelineRuns, setPipelineRuns] = useState<CIPipelineRun[]>([])
-  const [isExecutingTests, setIsExecutingTests] = useState(false)
-
-  const [prReports, setPrReports] = useState<PRReport[]>([])
-  const [prComments, setPrComments] = useState<PRComment[]>([])
-  const [isPostingComment, setIsPostingComment] = useState(false)
-
-  const SearchIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  )
-
-  const FilterIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46" />
-    </svg>
-  )
-
-  const DownloadIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7,10 12,15 17,10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  )
-
-  const RefreshIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <polyline points="23,4 23,10 17,10" />
-      <polyline points="1,20 1,14 7,14" />
-      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
-    </svg>
-  )
-
-  const SettingsIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v6m0 8v6m11-7h-6m-8 0H1m15.5-3.5L19 12l-2.5 2.5M5 9.5L2.5 12 5 14.5" />
-    </svg>
-  )
-
-  const BarChartIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <line x1="12" y1="20" x2="12" y2="10" />
-      <line x1="18" y1="20" x2="18" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="16" />
-    </svg>
-  )
-
-  const FileIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
-    </svg>
-  )
-
-  const HistoryIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12,6 12,12 16,14" />
-    </svg>
-  )
-
-  const ZapIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />
-    </svg>
-  )
-
-  const CheckIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22,4 12,14.01 9,11.01" />
-    </svg>
-  )
-
-  const BotIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <rect x="3" y="11" width="18" height="10" rx="2" />
-      <circle cx="12" cy="5" r="2" />
-      <path d="M12 7v4" />
-      <line x1="8" y1="16" x2="8" y2="16" />
-      <line x1="16" y1="16" x2="16" y2="16" />
-    </svg>
-  )
-
-  const TestTubeIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M14.5 2h-5L7 8v8a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8l-2.5-6z" />
-      <line x1="9" y1="9" x2="15" y2="9" />
-    </svg>
-  )
-
-  const BrainIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
-      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
-    </svg>
-  )
-
-  const ExternalLinkIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15,3 21,3 21,9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  )
-
-  const AlertIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  )
-
-  const ChevronDownIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <polyline points="6,9 12,15 18,9" />
-    </svg>
-  )
-
-  const ListIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  )
-
-  const CodeIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <polyline points="16,18 22,12 16,6" />
-      <polyline points="8,6 2,12 8,18" />
-    </svg>
-  )
-
-  const InfoIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="16" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  )
-
-  const ClockIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12,6 12,12 16,14" />
-    </svg>
-  )
-
-  const CheckCircleIcon = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22,4 12,14.01 9,11.01" />
-    </svg>
-  )
-
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [priorityFilter, setPriorityFilter] = useState("")
-
-  const filteredTickets = useMemo(() => {
-    let result = [...mockTickets]
-
-    if (searchTerm) {
-      result = result.filter(
-        (ticket) =>
-          ticket.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          ticket.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          ticket.description.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    if (statusFilter) {
-      result = result.filter((ticket) => ticket.status === statusFilter)
-    }
-
-    if (priorityFilter) {
-      result = result.filter((ticket) => ticket.priority === priorityFilter)
-    }
-
-    return result
-  }, [mockTickets, searchTerm, statusFilter, priorityFilter])
-
-  const toggleTicketSelection = (ticketKey: string) => {
-    setSelectedTickets((prev) =>
-      prev.includes(ticketKey) ? prev.filter((key) => key !== ticketKey) : [...prev, ticketKey],
-    )
-  }
-
-  const resetFilters = () => {
-    setSearchTerm("")
-    setStatusFilter("")
-    setPriorityFilter("")
-  }
 
   const handleJiraConnect = async () => {
     console.log("[v0] JIRA Connect button clicked")
@@ -577,7 +79,7 @@ export default function JiraTestAI() {
       console.log("[v0] API Response data:", data)
 
       if (data.success && data.tickets) {
-        setTickets(data.tickets) // Use real tickets instead of mock data
+        setTickets(data.tickets)
         setIsConnected(true)
         console.log(`[v0] Successfully loaded ${data.tickets.length} tickets from JIRA`)
       } else {
@@ -593,283 +95,7 @@ export default function JiraTestAI() {
     }
   }
 
-  const connectToGithub = async () => {
-    setIsConnectingGithub(true)
-    try {
-      // Simulate GitHub API connection
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      const mockPRs: GitHubPullRequest[] = [
-        {
-          id: "1",
-          number: 123,
-          title: "Implement User Login Authentication System",
-          description: `This PR implements a complete user authentication system corresponding to PROJ-123.
-
-**Features implemented:**
-- Secure user login with email and password validation
-- Invalid credentials error handling with appropriate messages
-- Account lockout mechanism after 3 failed login attempts
-- Password reset functionality with email verification
-- Session management and token-based authentication
-
-**Testing Notes:**
-- All acceptance criteria from PROJ-123 have been implemented
-- Ready for comprehensive QA testing
-- Includes unit tests for authentication logic`,
-          status: "open",
-          author: "john.doe",
-          reviewers: ["jane.smith", "mike.wilson"],
-          files: [
-            {
-              filename: "src/components/auth/LoginForm.tsx",
-              status: "added",
-              additions: 89,
-              deletions: 0,
-              changes: 89,
-            },
-            {
-              filename: "src/components/auth/PasswordReset.tsx",
-              status: "added",
-              additions: 67,
-              deletions: 0,
-              changes: 67,
-            },
-            { filename: "src/hooks/useAuth.ts", status: "added", additions: 134, deletions: 0, changes: 134 },
-            { filename: "src/utils/validation.ts", status: "modified", additions: 45, deletions: 12, changes: 57 },
-            { filename: "src/api/auth.ts", status: "added", additions: 78, deletions: 0, changes: 78 },
-            { filename: "src/middleware/auth.ts", status: "added", additions: 56, deletions: 0, changes: 56 },
-          ],
-          commits: [
-            {
-              sha: "abc123",
-              message: "Add login form component with validation",
-              author: "john.doe",
-              date: "2024-01-20",
-            },
-            {
-              sha: "def456",
-              message: "Implement password reset functionality",
-              author: "john.doe",
-              date: "2024-01-21",
-            },
-            { sha: "ghi789", message: "Add account lockout mechanism", author: "john.doe", date: "2024-01-21" },
-            {
-              sha: "jkl012",
-              message: "Add authentication middleware and session management",
-              author: "john.doe",
-              date: "2024-01-22",
-            },
-          ],
-          created: "2024-01-20",
-          updated: "2024-01-22",
-          branch: "feature/user-authentication-proj-123",
-          baseBranch: "main",
-        },
-        {
-          id: "2",
-          number: 124,
-          title: "Shopping Cart Functionality Implementation",
-          description: `Complete shopping cart implementation for PROJ-124.
-
-**Features implemented:**
-- Add items to cart from product pages
-- Update item quantities with real-time price calculation
-- Remove items from cart with confirmation
-- Cart persistence across user sessions using localStorage
-- Accurate total price calculation including taxes and discounts
-
-**Technical Details:**
-- Uses React Context for cart state management
-- Implements optimistic updates for better UX
-- Includes comprehensive error handling
-- Mobile-responsive cart interface`,
-          status: "open",
-          author: "jane.smith",
-          reviewers: ["john.doe", "sarah.johnson"],
-          files: [
-            {
-              filename: "src/components/cart/ShoppingCart.tsx",
-              status: "added",
-              additions: 156,
-              deletions: 0,
-              changes: 156,
-            },
-            { filename: "src/components/cart/CartItem.tsx", status: "added", additions: 89, deletions: 0, changes: 89 },
-            { filename: "src/hooks/useCart.ts", status: "added", additions: 167, deletions: 0, changes: 167 },
-            { filename: "src/context/CartContext.tsx", status: "added", additions: 98, deletions: 0, changes: 98 },
-            { filename: "src/utils/cartCalculations.ts", status: "added", additions: 67, deletions: 0, changes: 67 },
-            { filename: "src/pages/checkout.tsx", status: "modified", additions: 45, deletions: 23, changes: 68 },
-          ],
-          commits: [
-            {
-              sha: "mno345",
-              message: "Add shopping cart component and context",
-              author: "jane.smith",
-              date: "2024-01-22",
-            },
-            {
-              sha: "pqr678",
-              message: "Implement cart persistence and calculations",
-              author: "jane.smith",
-              date: "2024-01-23",
-            },
-            {
-              sha: "stu901",
-              message: "Add cart item management and quantity updates",
-              author: "jane.smith",
-              date: "2024-01-24",
-            },
-          ],
-          created: "2024-01-22",
-          updated: "2024-01-24",
-          branch: "feature/shopping-cart-proj-124",
-          baseBranch: "main",
-        },
-        {
-          id: "3",
-          number: 125,
-          title: "Stripe Payment Processing Integration - Ready for QA",
-          description: `Payment processing integration for PROJ-125 - **READY FOR QA TESTING**
-
-**Features implemented:**
-- Secure credit card payment processing via Stripe API
-- Comprehensive payment failure handling with user-friendly error messages
-- Automated confirmation emails after successful payments
-- Multi-currency support (USD, EUR, GBP, CAD)
-- PCI-compliant payment form with Stripe Elements
-- Webhook handling for payment status updates
-
-**QA Testing Notes:**
-- All acceptance criteria from PROJ-125 completed
-- Test credit card numbers available in Stripe test mode
-- Email templates configured for payment confirmations
-- Error scenarios thoroughly tested in development
-- Ready for comprehensive QA validation
-
-**Test Cards for QA:**
-- Success: 4242424242424242
-- Declined: 4000000000000002
-- Insufficient funds: 4000000000009995`,
-          status: "ready_for_review",
-          author: "mike.wilson",
-          reviewers: ["john.doe", "jane.smith", "sarah.johnson"],
-          files: [
-            {
-              filename: "src/components/payment/PaymentForm.tsx",
-              status: "added",
-              additions: 234,
-              deletions: 0,
-              changes: 234,
-            },
-            {
-              filename: "src/components/payment/PaymentSuccess.tsx",
-              status: "added",
-              additions: 78,
-              deletions: 0,
-              changes: 78,
-            },
-            { filename: "src/api/payment/stripe.ts", status: "added", additions: 189, deletions: 0, changes: 189 },
-            { filename: "src/api/payment/webhooks.ts", status: "added", additions: 145, deletions: 0, changes: 145 },
-            { filename: "src/utils/currency.ts", status: "added", additions: 67, deletions: 0, changes: 67 },
-            {
-              filename: "src/services/emailService.ts",
-              status: "modified",
-              additions: 89,
-              deletions: 12,
-              changes: 101,
-            },
-          ],
-          commits: [
-            {
-              sha: "vwx234",
-              message: "Add Stripe payment integration",
-              author: "mike.wilson",
-              date: "2024-01-25",
-            },
-            {
-              sha: "yza567",
-              message: "Implement payment webhooks and error handling",
-              author: "mike.wilson",
-              date: "2024-01-26",
-            },
-          ],
-          created: "2024-01-25",
-          updated: "2024-01-26",
-          branch: "feature/stripe-payment-proj-125",
-          baseBranch: "main",
-        },
-      ]
-
-      setPullRequests(mockPRs)
-      setIsGithubConnected(true)
-    } catch (error) {
-      console.error("Error connecting to GitHub:", error)
-      alert("Error connecting to GitHub. Please check your configuration.")
-    } finally {
-      setIsConnectingGithub(false)
-    }
-  }
-
-  const generateTestCases = async (ticket: JiraTicket) => {
-    setIsGenerating(true)
-    setSelectedTicket(ticket)
-
-    try {
-      const response = await fetch("/api/generate-tests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ticket,
-          settings: {
-            coverageLevel: aiConfig.coverageLevel,
-            testTypes: aiConfig.testTypes,
-            framework: aiConfig.framework,
-          },
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        const testResult: TestGenerationResult = {
-          ticket,
-          testCases: result.testCases,
-          metadata: {
-            ticketKey: ticket.key,
-            generatedAt: new Date().toISOString(),
-            settings: aiConfig,
-            totalTests: result.testCases.length,
-            source: "jira",
-          },
-        }
-
-        setGeneratedTests((prev) => [testResult, ...prev])
-
-        setTestHistory((prev) => [
-          {
-            id: Date.now().toString(),
-            ticketKey: ticket.key,
-            ticketSummary: ticket.summary,
-            testsGenerated: result.testCases.length,
-            timestamp: new Date(),
-            testTypes: aiConfig.testTypes,
-            priority: ticket.priority,
-          },
-          ...prev,
-        ])
-      }
-    } catch (error) {
-      console.error("Error generating test cases:", error)
-      alert("Error generating test cases. Please try again.")
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  const generateTestCasesForSelectedTickets = async () => {
+  const generateTestCases = async () => {
     if (selectedTickets.length === 0) {
       alert("Please select at least one ticket to generate test cases.")
       return
@@ -877,7 +103,7 @@ export default function JiraTestAI() {
 
     setIsGenerating(true)
     try {
-      const selectedTicketObjects = tickets.filter((ticket) => selectedTickets.includes(ticket.key))
+      const selectedTicketObjects = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
 
       for (const ticket of selectedTicketObjects) {
         const response = await fetch("/api/generate-tests", {
@@ -889,9 +115,9 @@ export default function JiraTestAI() {
             ticket,
             appConfig,
             settings: {
-              coverageLevel: aiConfig.coverageLevel,
-              testTypes: aiConfig.testTypes,
-              framework: aiConfig.framework,
+              coverageLevel: 75,
+              testTypes: ["Functional", "UI", "Edge Case"],
+              framework: "selenium",
             },
           }),
         })
@@ -905,7 +131,7 @@ export default function JiraTestAI() {
             metadata: {
               ticketKey: ticket.key,
               generatedAt: new Date().toISOString(),
-              settings: aiConfig,
+              settings: { coverageLevel: 75, testTypes: ["Functional", "UI", "Edge Case"], framework: "selenium" },
               totalTests: result.testCases.length,
               source: "jira",
             },
@@ -1065,345 +291,226 @@ ${testCase.steps.map((step, stepIndex) => `    // Step ${stepIndex + 1}: ${step}
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <div className="w-80 bg-slate-900 text-white shadow-lg border-r border-slate-700 flex flex-col">
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <BrainIcon />
-            <h1 className="text-xl font-bold text-white">JIRA Test AI</h1>
+    <div className="min-h-screen bg-gray-50">
+      <div className="flex h-screen">
+        {/* Dark Navy Blue Sidebar */}
+        <div className="w-64 bg-slate-900 text-white flex flex-col">
+          <div className="p-6 border-b border-slate-700">
+            <h1 className="text-xl font-bold">QA Test Generator</h1>
           </div>
+
+          <nav className="flex-1 p-4 space-y-2">
+            <button
+              onClick={() => setActiveSection("ai-config")}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${
+                activeSection === "ai-config" ? "bg-blue-600" : "hover:bg-slate-800"
+              }`}
+            >
+              🤖 AI Configuration
+            </button>
+
+            <button
+              onClick={() => setActiveSection("test-generator")}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${
+                activeSection === "test-generator" ? "bg-blue-600" : "hover:bg-slate-800"
+              }`}
+            >
+              🧪 Test Generator
+            </button>
+
+            <button
+              onClick={() => setActiveSection("test-results")}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${
+                activeSection === "test-results" ? "bg-blue-600" : "hover:bg-slate-800"
+              }`}
+            >
+              📊 Test Results
+            </button>
+
+            <button
+              onClick={() => setActiveSection("ci-cd")}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${
+                activeSection === "ci-cd" ? "bg-blue-600" : "hover:bg-slate-800"
+              }`}
+            >
+              🚀 CI/CD Integration
+            </button>
+
+            <button
+              onClick={() => setActiveSection("analytics")}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${
+                activeSection === "analytics" ? "bg-blue-600" : "hover:bg-slate-800"
+              }`}
+            >
+              📈 Analytics
+            </button>
+          </nav>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setActiveView("config")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "config"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <SettingsIcon />
-            <span>AI Configuration</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView("generator")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "generator"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <TestTubeIcon />
-            <span>Test Generator</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView("results")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "results"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <CheckCircleIcon />
-            <span>Test Results</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView("history")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "history"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <HistoryIcon />
-            <span>Test History</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView("ci")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "ci"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <ZapIcon />
-            <span>CI/CD Integration</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView("analytics")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-              activeView === "analytics"
-                ? "bg-blue-600 text-white border border-blue-500"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <BarChartIcon />
-            <span>Analytics</span>
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-slate-700">
-          <div className="flex items-center space-x-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`}></div>
-            <span className="text-slate-300">{isConnected ? "Connected to JIRA" : "Not connected"}</span>
-          </div>
-          <button
-            onClick={() => setShowConfig(!showConfig)}
-            className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            {showConfig ? "Hide" : "Show"} Configuration
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          <header className="bg-white border-b border-gray-200 p-6">
             <h2 className="text-2xl font-semibold text-gray-900">
-              {activeView === "config" && "AI Configuration"}
-              {activeView === "generator" && "Test Case Generator"}
-              {activeView === "results" && "Test Results"}
-              {activeView === "history" && "Test History"}
-              {activeView === "ci" && "CI/CD Integration"}
-              {activeView === "analytics" && "Analytics Dashboard"}
+              {activeSection === "ai-config" && "AI Configuration"}
+              {activeSection === "test-generator" && "Test Generator"}
+              {activeSection === "test-results" && "Test Results"}
+              {activeSection === "ci-cd" && "CI/CD Integration"}
+              {activeSection === "analytics" && "Analytics"}
             </h2>
-          </div>
-        </header>
+          </header>
 
-        <main className="flex-1 overflow-auto p-6">
-          {activeView === "config" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Test Generation Settings</h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
-                    <div className="space-y-2">
-                      {["Functional", "UI", "Integration", "Edge Case", "Performance", "Security"].map((type) => (
-                        <label key={type} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={aiConfig.testTypes.includes(type)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAiConfig({ ...aiConfig, testTypes: [...aiConfig.testTypes, type] })
-                              } else {
-                                setAiConfig({
-                                  ...aiConfig,
-                                  testTypes: aiConfig.testTypes.filter((t) => t !== type),
-                                })
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">{type}</span>
-                        </label>
-                      ))}
+          <main className="flex-1 p-6 overflow-auto">
+            {activeSection === "ai-config" && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold mb-4">Default JIRA Configuration</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
+                      <input
+                        type="text"
+                        value={jiraConfig.url}
+                        onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
+                        placeholder="https://your-domain.atlassian.net"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={jiraConfig.email}
+                        onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
+                        placeholder="your-email@company.com"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
+                      <input
+                        type="password"
+                        value={jiraConfig.apiToken}
+                        onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
+                        placeholder="Your JIRA API Token"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
+                      <input
+                        type="text"
+                        value={jiraConfig.projectKey}
+                        onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
+                        placeholder="KAN"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Coverage Level: {aiConfig.coverageLevel}%
-                    </label>
-                    <input
-                      type="range"
-                      min="25"
-                      max="100"
-                      step="25"
-                      value={aiConfig.coverageLevel}
-                      onChange={(e) => setAiConfig({ ...aiConfig, coverageLevel: Number.parseInt(e.target.value) })}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Basic</span>
-                      <span>Standard</span>
-                      <span>Comprehensive</span>
-                      <span>Exhaustive</span>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold mb-4">Default Application Configuration</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
+                      <input
+                        type="text"
+                        value={appConfig.applicationUrl}
+                        onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
+                        placeholder="https://your-app.com"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
+                      <select
+                        value={appConfig.environment}
+                        onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="staging">Staging</option>
+                        <option value="production">Production</option>
+                        <option value="development">Development</option>
+                      </select>
                     </div>
                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Default JIRA Configuration</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
-                    <input
-                      type="url"
-                      value={jiraConfig.url}
-                      onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
-                      placeholder="https://your-domain.atlassian.net"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={jiraConfig.email}
-                      onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
-                      placeholder="your-email@company.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
-                    <input
-                      type="text"
-                      value={jiraConfig.projectKey}
-                      onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
-                      placeholder="PROJ"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
-                    <input
-                      type="password"
-                      value={jiraConfig.apiToken}
-                      onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
-                      placeholder="Your JIRA API token"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Configuration</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
-                    <input
-                      type="url"
-                      value={appConfig.applicationUrl}
-                      onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                      placeholder="https://your-app.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
-                    <select
-                      value={appConfig.environment}
-                      onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            {activeSection === "test-generator" && (
+              <div className="space-y-6">
+                {!isConnected ? (
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h3 className="text-lg font-semibold mb-4">Connect to JIRA</h3>
+                    <p className="text-gray-600 mb-4">
+                      Connect to your JIRA instance to fetch real tickets for test generation.
+                    </p>
+                    <button
+                      onClick={handleJiraConnect}
+                      disabled={
+                        isConnecting ||
+                        !jiraConfig.url ||
+                        !jiraConfig.email ||
+                        !jiraConfig.apiToken ||
+                        !jiraConfig.projectKey
+                      }
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <option value="development">Development</option>
-                      <option value="staging">Staging</option>
-                      <option value="production">Production</option>
-                    </select>
+                      {isConnecting ? "Connecting..." : "Connect to JIRA"}
+                    </button>
+                    {(!jiraConfig.url || !jiraConfig.email || !jiraConfig.apiToken || !jiraConfig.projectKey) && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Please configure your JIRA settings in AI Configuration first.
+                      </p>
+                    )}
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeView === "generator" && (
-            <div className="space-y-6">
-              {!isConnected ? (
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Connect to JIRA</h3>
-                  <button
-                    onClick={handleJiraConnect}
-                    disabled={
-                      isConnecting ||
-                      !jiraConfig.url ||
-                      !jiraConfig.email ||
-                      !jiraConfig.apiToken ||
-                      !jiraConfig.projectKey
-                    }
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    {isConnecting ? "Connecting..." : "Connect to JIRA"}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Select JIRA Tickets</h3>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">{selectedTickets.length} selected</span>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">
+                          Select JIRA Tickets ({tickets.length} found from {jiraConfig.projectKey})
+                        </h3>
                         <button
-                          onClick={generateTestCasesForSelectedTickets}
-                          disabled={selectedTickets.length === 0 || isGenerating}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          onClick={() => setIsConnected(false)}
+                          className="text-sm text-blue-600 hover:text-blue-800"
                         >
-                          {isGenerating ? "Generating..." : "Generate Test Cases"}
+                          🔄 Reconnect
                         </button>
                       </div>
-                    </div>
-
-                    {/* Search and Filter */}
-                    <div className="flex items-center space-x-4 mb-4">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          placeholder="Search tickets..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">All Status</option>
-                        <option value="QA">QA</option>
-                        <option value="Ready for QA">Ready for QA</option>
-                        <option value="In Review">In Review</option>
-                      </select>
-                      <select
-                        value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">All Priority</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
-                      <button
-                        onClick={resetFilters}
-                        className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                      >
-                        Reset
-                      </button>
-                    </div>
-
-                    {/* Ticket List */}
-                    <div className="space-y-3">
-                      {filteredTickets.map((ticket) => (
-                        <div
-                          key={ticket.id}
-                          className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                            selectedTickets.includes(ticket.key)
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                          onClick={() => toggleTicketSelection(ticket.key)}
-                        >
-                          <div className="flex items-start justify-between">
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {tickets.map((ticket) => (
+                          <div
+                            key={ticket.id}
+                            className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTickets.includes(ticket.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedTickets([...selectedTickets, ticket.id])
+                                } else {
+                                  setSelectedTickets(selectedTickets.filter((id) => id !== ticket.id))
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
                             <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-2">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedTickets.includes(ticket.key)}
-                                  onChange={() => toggleTicketSelection(ticket.key)}
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
+                              <div className="flex items-center space-x-2">
                                 <span className="font-medium text-blue-600">{ticket.key}</span>
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    ticket.status === "QA Ready"
+                                      ? "bg-green-100 text-green-800"
+                                      : ticket.status === "Dev In Progess"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-blue-100 text-blue-800"
+                                  }`}
+                                >
+                                  {ticket.status}
+                                </span>
                                 <span
                                   className={`px-2 py-1 text-xs rounded-full ${
                                     ticket.priority === "High"
@@ -1415,30 +522,140 @@ ${testCase.steps.map((step, stepIndex) => `    // Step ${stepIndex + 1}: ${step}
                                 >
                                   {ticket.priority}
                                 </span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                                  {ticket.status}
-                                </span>
                               </div>
-                              <h4 className="font-medium text-gray-900 mb-1">{ticket.summary}</h4>
-                              <p className="text-sm text-gray-600 mb-2">{ticket.description}</p>
-                              <div className="text-xs text-gray-500">
-                                Assignee: {ticket.assignee} • Updated: {ticket.updated}
-                              </div>
+                              <p className="text-sm text-gray-600 mt-1">{ticket.summary}</p>
+                              <p className="text-xs text-gray-500">Assigned to: {ticket.assignee}</p>
                             </div>
                           </div>
+                        ))}
+                      </div>
+
+                      {selectedTickets.length > 0 && (
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-blue-800 mb-3">
+                            {selectedTickets.length} ticket(s) selected for test generation
+                          </p>
+                          <button
+                            onClick={generateTestCases}
+                            disabled={isGenerating}
+                            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isGenerating ? "🔄 Generating..." : `🚀 Generate Test Cases`}
+                          </button>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
 
-          {/* 
-            // ... rest of code here ...
-          </CHANGE> */}
-        </main>
+            {activeSection === "test-results" && (
+              <div className="space-y-6">
+                {generatedTests.length > 0 ? (
+                  generatedTests.map((result, index) => (
+                    <div key={index} className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-blue-600">{result.metadata.ticketKey}</h3>
+                          <p className="text-gray-600">{result.ticket?.summary}</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Generated {result.testCases.length} test cases on{" "}
+                            {new Date(result.metadata.generatedAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => downloadTestCases("selenium", result)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                          >
+                            📥 Selenium
+                          </button>
+                          <button
+                            onClick={() => downloadTestCases("cypress", result)}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
+                          >
+                            📥 Cypress
+                          </button>
+                          <button
+                            onClick={() => downloadTestCases("json", result)}
+                            className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm"
+                          >
+                            📥 JSON
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {result.testCases.map((testCase, tcIndex) => (
+                          <div key={tcIndex} className="border rounded-lg p-4 hover:bg-gray-50">
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-medium text-gray-900">{testCase.title}</h4>
+                              <div className="flex space-x-2">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    testCase.priority === "High"
+                                      ? "bg-red-100 text-red-800"
+                                      : testCase.priority === "Medium"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-green-100 text-green-800"
+                                  }`}
+                                >
+                                  {testCase.priority}
+                                </span>
+                                <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                  {testCase.type}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">
+                              <strong>Expected:</strong> {testCase.expectedResults}
+                            </p>
+                            <div className="space-y-2">
+                              <h5 className="font-medium text-sm text-gray-700">Test Steps:</h5>
+                              {testCase.steps.map((step, stepIndex) => (
+                                <div key={stepIndex} className="flex items-start space-x-2">
+                                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded min-w-[24px] text-center">
+                                    {stepIndex + 1}
+                                  </span>
+                                  <span className="text-sm text-gray-700">{step}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <div className="text-gray-400 text-6xl mb-4">🧪</div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No test results yet</h3>
+                    <p className="text-gray-600">Generate some test cases first to see them here!</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeSection === "ci-cd" && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold mb-4">CI/CD Integration</h3>
+                  <p className="text-gray-600">Configure your CI/CD pipeline integration here.</p>
+                </div>
+              </div>
+            )}
+
+            {activeSection === "analytics" && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold mb-4">Analytics</h3>
+                  <p className="text-gray-600">View your test generation analytics here.</p>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   )
