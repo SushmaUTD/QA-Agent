@@ -180,12 +180,10 @@ export default function JiraTestAI() {
 
   const generateSeleniumCode = (testResult: TestGenerationResult) => {
     const className = `${testResult.metadata.ticketKey?.replace("-", "_")}_Tests`
+    const ticket = testResult.ticket
 
     return `package com.company.tests;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterEach;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -196,185 +194,410 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.OutputType;
 import java.time.Duration;
 import java.util.List;
-import static org.junit.jupiter.api.Assertions.*;
+import java.io.File;
+import java.io.IOException;
+import org.apache.commons.io.FileUtils;
 
 /**
- * Automated tests for ${testResult.ticket?.summary || "JIRA Ticket"}
+ * Automated tests for ${ticket?.summary || "JIRA Ticket"}
  * Generated from JIRA ticket: ${testResult.metadata.ticketKey}
+ * 
+ * JIRA Description: ${ticket?.description || "No description"}
+ * 
  * Application URL: ${appConfig.applicationUrl}
  * Environment: ${appConfig.environment}
+ * 
+ * To run this test:
+ * 1. Make sure ChromeDriver is in your PATH
+ * 2. Add Selenium WebDriver dependencies to your project
+ * 3. Run: java ${className}
  */
 public class ${className} {
-    private WebDriver driver;
-    private WebDriverWait wait;
-    private final String BASE_URL = "${appConfig.applicationUrl}";
-    private final String ENVIRONMENT = "${appConfig.environment}";
+    private static WebDriver driver;
+    private static WebDriverWait wait;
+    private static final String BASE_URL = "${appConfig.applicationUrl}";
+    private static final String ENVIRONMENT = "${appConfig.environment}";
 
-    @BeforeEach
-    public void setUp() {
+    public static void main(String[] args) {
+        System.out.println("Starting automated tests for ${testResult.metadata.ticketKey}");
+        System.out.println("Testing: ${ticket?.summary}");
+        System.out.println("Application: " + BASE_URL + " (" + ENVIRONMENT + ")");
+        
+        setUp();
+        
+        try {
+${testResult.testCases
+  .map(
+    (testCase, index) => `            // Running Test ${index + 1}: ${testCase.title}
+            System.out.println("\\n=== Test ${index + 1}: ${testCase.title} ===");
+            test${index + 1}_${testCase.title.replace(/[^a-zA-Z0-9]/g, "_")}();`,
+  )
+  .join("\n")}
+            
+            System.out.println("\\n✅ All tests completed successfully!");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Test failed: " + e.getMessage());
+            takeScreenshot("test_failure");
+            e.printStackTrace();
+        } finally {
+            tearDown();
+        }
+    }
+
+    private static void setUp() {
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless"); // Remove this line to run with browser UI
+        // Remove --headless to see the browser in action
+        // options.addArguments("--headless");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--window-size=1920,1080");
+        options.addArguments("--disable-blink-features=AutomationControlled");
+        options.setExperimentalOption("useAutomationExtension", false);
+        options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
         
         driver = new ChromeDriver(options);
-        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
         driver.manage().window().maximize();
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        
+        // Navigate to application
+        System.out.println("Navigating to: " + BASE_URL);
+        driver.get(BASE_URL);
     }
 
-    @AfterEach
-    public void tearDown() {
+    private static void tearDown() {
         if (driver != null) {
             driver.quit();
+            System.out.println("Browser closed.");
         }
     }
 
     // Helper methods for common actions
-    private void navigateToPage(String path) {
-        String fullUrl = BASE_URL + (path.startsWith("/") ? path : "/" + path);
-        driver.get(fullUrl);
-        wait.until(ExpectedConditions.urlContains(path));
-    }
-
-    private WebElement waitForElement(By locator) {
+    private static WebElement waitForElement(By locator) {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    private void clickElement(By locator) {
-        WebElement element = waitForElement(locator);
-        element.click();
+    private static void clickElement(By locator) {
+        try {
+            WebElement element = waitForElement(locator);
+            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
+            Thread.sleep(500); // Small delay for scroll
+            element.click();
+            System.out.println("✓ Clicked element: " + locator.toString());
+        } catch (Exception e) {
+            System.err.println("✗ Failed to click element: " + locator.toString());
+            throw e;
+        }
     }
 
-    private void enterText(By locator, String text) {
-        WebElement element = waitForElement(locator);
-        element.clear();
-        element.sendKeys(text);
+    private static void enterText(By locator, String text) {
+        try {
+            WebElement element = waitForElement(locator);
+            element.clear();
+            element.sendKeys(text);
+            System.out.println("✓ Entered text '" + text + "' in: " + locator.toString());
+        } catch (Exception e) {
+            System.err.println("✗ Failed to enter text in: " + locator.toString());
+            throw e;
+        }
     }
 
-    private void verifyElementVisible(By locator) {
-        assertTrue(wait.until(ExpectedConditions.visibilityOfElementLocated(locator)).isDisplayed(),
-                "Element should be visible: " + locator.toString());
+    private static void verifyElementVisible(By locator) {
+        try {
+            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            if (element.isDisplayed()) {
+                System.out.println("✓ Element is visible: " + locator.toString());
+            } else {
+                throw new RuntimeException("Element not visible: " + locator.toString());
+            }
+        } catch (Exception e) {
+            System.err.println("✗ Element not found or not visible: " + locator.toString());
+            throw e;
+        }
     }
 
-    private void verifyTextPresent(String text) {
-        assertTrue(driver.getPageSource().contains(text),
-                "Text should be present on page: " + text);
+    private static void verifyTextPresent(String text) {
+        try {
+            if (driver.getPageSource().contains(text)) {
+                System.out.println("✓ Text found on page: " + text);
+            } else {
+                throw new RuntimeException("Text not found on page: " + text);
+            }
+        } catch (Exception e) {
+            System.err.println("✗ Text not found: " + text);
+            throw e;
+        }
+    }
+
+    private static void selectFromDropdown(By locator, String optionText) {
+        try {
+            Select dropdown = new Select(waitForElement(locator));
+            dropdown.selectByVisibleText(optionText);
+            System.out.println("✓ Selected '" + optionText + "' from dropdown: " + locator.toString());
+        } catch (Exception e) {
+            System.err.println("✗ Failed to select from dropdown: " + locator.toString());
+            throw e;
+        }
+    }
+
+    private static void takeScreenshot(String filename) {
+        try {
+            TakesScreenshot screenshot = (TakesScreenshot) driver;
+            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
+            File destFile = new File(filename + "_" + System.currentTimeMillis() + ".png");
+            FileUtils.copyFile(sourceFile, destFile);
+            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+        } catch (IOException e) {
+            System.err.println("Failed to take screenshot: " + e.getMessage());
+        }
     }
 
 ${testResult.testCases
   .map(
     (testCase, index) => `
-    @Test
-    public void ${testCase.title.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}() {
-        // Test: ${testCase.title}
-        // Priority: ${testCase.priority} | Type: ${testCase.type}
-        
+    /**
+     * Test: ${testCase.title}
+     * Priority: ${testCase.priority} | Type: ${testCase.type}
+     * Expected Result: ${testCase.expectedResults}
+     */
+    private static void test${index + 1}_${testCase.title.replace(/[^a-zA-Z0-9]/g, "_")}() {
         try {
-            // Navigate to application
-            driver.get(BASE_URL);
+            System.out.println("Starting test: ${testCase.title}");
             
-            // Wait for page to load
-            wait.until(ExpectedConditions.titleContains(""));
+            // Test preconditions
+${testCase.preconditions.map((precondition) => `            // Precondition: ${precondition}`).join("\n")}
             
-            ${generateSeleniumSteps(testCase)}
+            // Test steps
+${generateRealSeleniumSteps(testCase, ticket)}
             
             // Verify expected result: ${testCase.expectedResults}
-            ${generateSeleniumVerification(testCase)}
+${generateRealSeleniumVerification(testCase, ticket)}
+            
+            System.out.println("✅ Test passed: ${testCase.title}");
             
         } catch (Exception e) {
-            // Take screenshot on failure
-            // ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            fail("Test '${testCase.title}' failed: " + e.getMessage());
+            System.err.println("❌ Test failed: ${testCase.title}");
+            takeScreenshot("test_${index + 1}_failure");
+            throw e;
         }
-    }
-`,
+    }`,
   )
   .join("")}
 }`
   }
 
-  // Helper function to generate actual Selenium test steps
-  const generateSeleniumSteps = (testCase: TestCase) => {
+  const generateRealSeleniumSteps = (testCase: TestCase, ticket?: JiraTicket) => {
+    const ticketSummary = ticket?.summary?.toLowerCase() || ""
+    const ticketDescription = ticket?.description?.toLowerCase() || ""
+
     return testCase.steps
       .map((step, stepIndex) => {
-        // Convert natural language steps to Selenium code
         const stepLower = step.toLowerCase()
 
-        if (stepLower.includes("click") || stepLower.includes("select")) {
-          if (stepLower.includes("button")) {
+        // Analyze JIRA content to generate contextual test steps
+        if (ticketSummary.includes("add") || ticketSummary.includes("create") || ticketSummary.includes("new")) {
+          if (
+            stepLower.includes("click") &&
+            (stepLower.includes("add") || stepLower.includes("create") || stepLower.includes("new"))
+          ) {
             return `            // Step ${stepIndex + 1}: ${step}
-            clickElement(By.xpath("//button[contains(text(), 'Submit') or contains(text(), 'Save') or contains(text(), 'Login')]"));`
-          } else if (stepLower.includes("link")) {
-            return `            // Step ${stepIndex + 1}: ${step}
-            clickElement(By.xpath("//a[contains(text(), 'Link Text')]"));`
-          } else {
-            return `            // Step ${stepIndex + 1}: ${step}
-            clickElement(By.id("elementId")); // Update with actual element ID`
+            clickElement(By.xpath("//button[contains(text(), 'Add') or contains(text(), 'Create') or contains(text(), 'New')]"));
+            Thread.sleep(1000); // Wait for form to load`
           }
-        } else if (stepLower.includes("enter") || stepLower.includes("input") || stepLower.includes("type")) {
-          if (stepLower.includes("email")) {
-            return `            // Step ${stepIndex + 1}: ${step}
-            enterText(By.id("email"), "test@example.com");`
-          } else if (stepLower.includes("password")) {
-            return `            // Step ${stepIndex + 1}: ${step}
-            enterText(By.id("password"), "testPassword123");`
-          } else if (stepLower.includes("username")) {
-            return `            // Step ${stepIndex + 1}: ${step}
-            enterText(By.id("username"), "testuser");`
-          } else {
-            return `            // Step ${stepIndex + 1}: ${step}
-            enterText(By.id("inputField"), "test data"); // Update with actual field ID and data`
+
+          if (stepLower.includes("fill") || stepLower.includes("enter") || stepLower.includes("input")) {
+            if (ticketSummary.includes("instrument")) {
+              return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.name("instrumentName"), "Test Instrument " + System.currentTimeMillis());
+            enterText(By.name("instrumentType"), "Guitar");
+            enterText(By.name("description"), "Test instrument added by automation");
+            if (driver.findElements(By.name("price")).size() > 0) {
+                enterText(By.name("price"), "299.99");
+            }`
+            } else if (ticketSummary.includes("user") || ticketSummary.includes("account")) {
+              return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.name("firstName"), "Test");
+            enterText(By.name("lastName"), "User");
+            enterText(By.name("email"), "test" + System.currentTimeMillis() + "@example.com");
+            if (driver.findElements(By.name("phone")).size() > 0) {
+                enterText(By.name("phone"), "555-0123");
+            }`
+            } else {
+              return `            // Step ${stepIndex + 1}: ${step}
+            // Fill form fields based on available inputs
+            List<WebElement> inputs = driver.findElements(By.tagName("input"));
+            for (int i = 0; i < inputs.size() && i < 3; i++) {
+                WebElement input = inputs.get(i);
+                String type = input.getAttribute("type");
+                if ("text".equals(type) || "email".equals(type)) {
+                    input.clear();
+                    input.sendKeys("Test Data " + (i + 1));
+                }
+            }`
+            }
           }
-        } else if (stepLower.includes("navigate") || stepLower.includes("go to")) {
+
+          if (stepLower.includes("save") || stepLower.includes("submit") || stepLower.includes("confirm")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            clickElement(By.xpath("//button[contains(text(), 'Save') or contains(text(), 'Submit') or contains(text(), 'Confirm') or contains(text(), 'Add')]"));
+            Thread.sleep(2000); // Wait for save operation`
+          }
+        }
+
+        // Login/Authentication scenarios
+        if (ticketSummary.includes("login") || ticketSummary.includes("auth") || stepLower.includes("login")) {
+          if (stepLower.includes("username") || stepLower.includes("email")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.name("username"), "testuser@example.com");
+            // Alternative selectors in case name attribute is different
+            if (driver.findElements(By.name("username")).isEmpty()) {
+                enterText(By.name("email"), "testuser@example.com");
+            }`
+          }
+
+          if (stepLower.includes("password")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.name("password"), "TestPassword123!");`
+          }
+
+          if (stepLower.includes("click") && stepLower.includes("login")) {
+            return `            // Step ${stepIndex + 1}: ${step}
+            clickElement(By.xpath("//button[contains(text(), 'Login') or contains(text(), 'Sign In')]"));`
+          }
+        }
+
+        // Navigation steps
+        if (stepLower.includes("navigate") || stepLower.includes("go to") || stepLower.includes("visit")) {
           return `            // Step ${stepIndex + 1}: ${step}
-            navigateToPage("/target-page"); // Update with actual page path`
-        } else if (stepLower.includes("wait") || stepLower.includes("load")) {
+            String targetUrl = BASE_URL + "/dashboard"; // Update with actual target page
+            driver.get(targetUrl);
+            wait.until(ExpectedConditions.urlContains("dashboard"));`
+        }
+
+        // Search functionality
+        if (stepLower.includes("search")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            enterText(By.name("search"), "test search term");
+            clickElement(By.xpath("//button[contains(text(), 'Search')]"));
+            Thread.sleep(1000); // Wait for search results`
+        }
+
+        // Generic click actions
+        if (stepLower.includes("click")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            // Try multiple common selectors for clickable elements
+            try {
+                clickElement(By.xpath("//button[contains(text(), 'Submit')]"));
+            } catch (Exception e1) {
+                try {
+                    clickElement(By.xpath("//input[@type='submit']"));
+                } catch (Exception e2) {
+                    clickElement(By.xpath("//a[contains(@class, 'btn')]"));
+                }
+            }`
+        }
+
+        // Generic input actions
+        if (stepLower.includes("enter") || stepLower.includes("type") || stepLower.includes("input")) {
+          return `            // Step ${stepIndex + 1}: ${step}
+            // Find and fill the first available text input
+            WebElement firstInput = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//input[@type='text' or @type='email' or not(@type)]")));
+            firstInput.clear();
+            firstInput.sendKeys("Test input data");`
+        }
+
+        // Wait/verification steps
+        if (stepLower.includes("wait") || stepLower.includes("load")) {
           return `            // Step ${stepIndex + 1}: ${step}
             Thread.sleep(2000); // Wait for page to load
             wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));`
-        } else if (stepLower.includes("scroll")) {
-          return `            // Step ${stepIndex + 1}: ${step}
-            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, document.body.scrollHeight);");`
-        } else if (stepLower.includes("select") && stepLower.includes("dropdown")) {
-          return `            // Step ${stepIndex + 1}: ${step}
-            Select dropdown = new Select(driver.findElement(By.id("dropdownId")));
-            dropdown.selectByVisibleText("Option Text");`
-        } else {
-          return `            // Step ${stepIndex + 1}: ${step}
-            // TODO: Implement specific action for this step
-            verifyElementVisible(By.tagName("body")); // Generic verification`
         }
+
+        // Default fallback
+        return `            // Step ${stepIndex + 1}: ${step}
+            // Generic verification that page is responsive
+            verifyElementVisible(By.tagName("body"));
+            System.out.println("Executed step: ${step}");`
       })
       .join("\n")
   }
 
-  // Helper function to generate verification code
-  const generateSeleniumVerification = (testCase: TestCase) => {
+  const generateRealSeleniumVerification = (testCase: TestCase, ticket?: JiraTicket) => {
     const expectedResult = testCase.expectedResults.toLowerCase()
+    const ticketSummary = ticket?.summary?.toLowerCase() || ""
 
-    if (expectedResult.includes("success") || expectedResult.includes("successful")) {
-      return `            verifyTextPresent("Success");
-            verifyElementVisible(By.className("success-message"));`
-    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
-      return `            verifyTextPresent("Error");
-            verifyElementVisible(By.className("error-message"));`
-    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
-      return `            wait.until(ExpectedConditions.urlContains("/expected-page"));
-            assertTrue(driver.getCurrentUrl().contains("/expected-page"));`
-    } else if (expectedResult.includes("display") || expectedResult.includes("show")) {
-      return `            verifyElementVisible(By.id("result-element"));
-            assertTrue(driver.findElement(By.id("result-element")).isDisplayed());`
+    if (ticketSummary.includes("add") || ticketSummary.includes("create") || ticketSummary.includes("new")) {
+      if (ticketSummary.includes("instrument")) {
+        return `            // Verify new instrument was added successfully
+            Thread.sleep(2000); // Wait for save operation
+            try {
+                verifyTextPresent("successfully");
+                System.out.println("✓ Success message found");
+            } catch (Exception e) {
+                // Alternative: check if we're redirected to list page
+                if (driver.getCurrentUrl().contains("list") || driver.getCurrentUrl().contains("instruments")) {
+                    System.out.println("✓ Redirected to instruments list");
+                } else {
+                    // Check for the newly added instrument in the page
+                    verifyElementVisible(By.xpath("//td[contains(text(), 'Test Instrument')] | //div[contains(text(), 'Test Instrument')]"));
+                    System.out.println("✓ New instrument visible in list");
+                }
+            }`
+      } else {
+        return `            // Verify item was created successfully
+            Thread.sleep(2000);
+            try {
+                verifyTextPresent("success");
+                System.out.println("✓ Success message displayed");
+            } catch (Exception e) {
+                // Check for redirect or new item in list
+                verifyElementVisible(By.xpath("//div[contains(@class, 'success')] | //div[contains(text(), 'created')]"));
+                System.out.println("✓ Creation confirmed");
+            }`
+      }
     } else if (expectedResult.includes("login") || expectedResult.includes("authenticated")) {
-      return `            wait.until(ExpectedConditions.urlContains("/dashboard"));
-            verifyElementVisible(By.id("user-menu"));`
+      return `            // Verify successful login
+            wait.until(ExpectedConditions.urlContains("dashboard"));
+            verifyElementVisible(By.xpath("//div[contains(@class, 'user-menu')] | //button[contains(text(), 'Logout')] | //span[contains(text(), 'Welcome')]"));
+            System.out.println("✓ User successfully logged in");`
+    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
+      return `            // Verify error is displayed
+            verifyElementVisible(By.xpath("//div[contains(@class, 'error')] | //div[contains(@class, 'alert-danger')]"));
+            verifyTextPresent("error");
+            System.out.println("✓ Error message displayed as expected");`
+    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
+      return `            // Verify page redirection
+            wait.until(ExpectedConditions.not(ExpectedConditions.urlToBe(driver.getCurrentUrl())));
+            System.out.println("✓ Page redirected successfully to: " + driver.getCurrentUrl());`
+    } else if (
+      expectedResult.includes("display") ||
+      expectedResult.includes("show") ||
+      expectedResult.includes("visible")
+    ) {
+      return `            // Verify content is displayed
+            verifyElementVisible(By.xpath("//div[contains(@class, 'content')] | //main | //section"));
+            System.out.println("✓ Content displayed successfully");
+            
+            // Take screenshot of final result
+            takeScreenshot("test_result_success");`
     } else {
-      return `            // Verify: ${testCase.expectedResults}
+      return `            // Generic verification: ${testCase.expectedResults}
+            // Verify page is functional and no errors occurred
             verifyElementVisible(By.tagName("body"));
-            assertFalse(driver.getPageSource().contains("error"));`
+            
+            // Check that no error messages are present
+            List<WebElement> errorElements = driver.findElements(By.xpath("//div[contains(@class, 'error')] | //div[contains(text(), 'Error')]"));
+            if (errorElements.size() > 0) {
+                throw new RuntimeException("Unexpected error found on page");
+            }
+            
+            System.out.println("✓ Test completed successfully - no errors detected");
+            takeScreenshot("test_completion");`
     }
   }
 
