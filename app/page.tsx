@@ -197,9 +197,9 @@ export default function JiraTestGenerator() {
   }
 
   const generateSpringBootProject = (testResult: TestGenerationResult, ticketKey: string) => {
-    const projectName = `${ticketKey.toLowerCase().replace(/-/g, "_")}_selenium_tests`
-    const packageName = `com.testing.${projectName}`
-    const className = `${ticketKey.replace(/-/g, "_")}_Tests`
+    const projectName = "qa_agent"
+    const packageName = `com.testing.qaagent`
+    const className = "InstrumentTests"
 
     // Create project files
     const files: { [key: string]: string } = {}
@@ -792,34 +792,182 @@ public class ${className} {
     const ticketSummary = ticket?.summary?.toLowerCase() || ""
     const testTitle = testCase.title?.toLowerCase() || ""
 
-    // Generate specific test steps based on ticket content
     if (ticketSummary.includes("add") && (ticketSummary.includes("instrument") || ticketSummary.includes("trading"))) {
       return `
-            // Navigate to instruments page
+            // Step 1: Navigate to instruments/trading page
+            System.out.println("Step 1: Navigating to instruments page...");
             waitAndClick(By.linkText("Instruments"));
-            Thread.sleep(1000);
-            
-            // Click Add New Instrument button
-            waitAndClick(By.xpath("//button[contains(text(), 'Add') or contains(text(), 'New')]"));
-            Thread.sleep(1000);
-            
-            // Fill instrument form
-            waitAndSendKeys(By.name("instrumentName"), "Test Instrument " + System.currentTimeMillis());
-            waitAndSendKeys(By.name("symbol"), "TEST" + System.currentTimeMillis() % 1000);
-            waitAndSendKeys(By.name("price"), "100.50");
-            
-            // Submit form
-            waitAndClick(By.xpath("//button[@type='submit' or contains(text(), 'Save') or contains(text(), 'Add')]"));
             Thread.sleep(2000);
             
-            // Verify success message or new instrument appears
-            if (isElementPresent(By.xpath("//*[contains(text(), 'success') or contains(text(), 'added') or contains(text(), 'created')]"))) {
+            // Alternative navigation paths if direct link doesn't exist
+            if (!driver.getCurrentUrl().contains("instrument")) {
+                // Try menu navigation
+                if (isElementPresent(By.xpath("//nav//a[contains(text(), 'Trading') or contains(text(), 'Instruments')]"))) {
+                    waitAndClick(By.xpath("//nav//a[contains(text(), 'Trading') or contains(text(), 'Instruments')]"));
+                    Thread.sleep(2000);
+                } else if (isElementPresent(By.xpath("//button[contains(text(), 'Menu')]"))) {
+                    waitAndClick(By.xpath("//button[contains(text(), 'Menu')]"));
+                    Thread.sleep(1000);
+                    waitAndClick(By.xpath("//a[contains(text(), 'Instruments')]"));
+                    Thread.sleep(2000);
+                }
+            }
+            
+            // Step 2: Click Add New Instrument button
+            System.out.println("Step 2: Clicking Add New Instrument button...");
+            WebElement addButton = null;
+            String[] addButtonSelectors = {
+                "//button[contains(text(), 'Add New Instrument')]",
+                "//button[contains(text(), 'Add Instrument')]", 
+                "//button[contains(text(), 'New Instrument')]",
+                "//a[contains(text(), 'Add New')]",
+                "//button[@id='add-instrument']",
+                "//button[contains(@class, 'add-btn')]"
+            };
+            
+            for (String selector : addButtonSelectors) {
+                if (isElementPresent(By.xpath(selector))) {
+                    addButton = driver.findElement(By.xpath(selector));
+                    break;
+                }
+            }
+            
+            if (addButton == null) {
+                throw new RuntimeException("Could not find Add New Instrument button");
+            }
+            
+            addButton.click();
+            Thread.sleep(2000);
+            
+            // Step 3: Fill out the instrument form with realistic data
+            System.out.println("Step 3: Filling out instrument form...");
+            String timestamp = String.valueOf(System.currentTimeMillis() % 10000);
+            String instrumentName = "Apple Inc Stock " + timestamp;
+            String symbol = "AAPL" + timestamp;
+            String price = "150.75";
+            
+            // Fill instrument name/title
+            String[] nameSelectors = {"name", "instrumentName", "title", "instrument_name"};
+            for (String selector : nameSelectors) {
+                if (isElementPresent(By.name(selector))) {
+                    waitAndSendKeys(By.name(selector), instrumentName);
+                    System.out.println("✓ Filled instrument name: " + instrumentName);
+                    break;
+                }
+            }
+            
+            // Fill symbol/ticker
+            String[] symbolSelectors = {"symbol", "ticker", "code", "instrument_symbol"};
+            for (String selector : symbolSelectors) {
+                if (isElementPresent(By.name(selector))) {
+                    waitAndSendKeys(By.name(selector), symbol);
+                    System.out.println("✓ Filled symbol: " + symbol);
+                    break;
+                }
+            }
+            
+            // Fill price if field exists
+            String[] priceSelectors = {"price", "currentPrice", "value", "market_price"};
+            for (String selector : priceSelectors) {
+                if (isElementPresent(By.name(selector))) {
+                    waitAndSendKeys(By.name(selector), price);
+                    System.out.println("✓ Filled price: " + price);
+                    break;
+                }
+            }
+            
+            // Select instrument type if dropdown exists
+            if (isElementPresent(By.name("type")) || isElementPresent(By.name("instrumentType"))) {
+                WebElement typeDropdown = isElementPresent(By.name("type")) ? 
+                    driver.findElement(By.name("type")) : driver.findElement(By.name("instrumentType"));
+                Select select = new Select(typeDropdown);
+                try {
+                    select.selectByVisibleText("Stock");
+                    System.out.println("✓ Selected instrument type: Stock");
+                } catch (Exception e) {
+                    select.selectByIndex(1); // Select first non-default option
+                    System.out.println("✓ Selected instrument type by index");
+                }
+            }
+            
+            // Step 4: Submit the form
+            System.out.println("Step 4: Submitting the form...");
+            WebElement submitButton = null;
+            String[] submitSelectors = {
+                "//button[@type='submit']",
+                "//button[contains(text(), 'Save')]",
+                "//button[contains(text(), 'Add')]",
+                "//button[contains(text(), 'Create')]",
+                "//input[@type='submit']"
+            };
+            
+            for (String selector : submitSelectors) {
+                if (isElementPresent(By.xpath(selector))) {
+                    submitButton = driver.findElement(By.xpath(selector));
+                    break;
+                }
+            }
+            
+            if (submitButton == null) {
+                throw new RuntimeException("Could not find submit button");
+            }
+            
+            submitButton.click();
+            Thread.sleep(3000); // Wait for form submission
+            
+            // Step 5: Verify the instrument was added successfully
+            System.out.println("Step 5: Verifying instrument was added...");
+            boolean instrumentAdded = false;
+            
+            // Check for success message
+            if (isElementPresent(By.xpath("//*[contains(text(), 'successfully') or contains(text(), 'Success') or contains(text(), 'added') or contains(text(), 'created')]"))) {
                 System.out.println("✓ Success message displayed");
-            } else if (isElementPresent(By.xpath("//table//td[contains(text(), 'Test Instrument')]"))) {
-                System.out.println("✓ New instrument appears in list");
-            } else {
-                throw new RuntimeException("Could not verify instrument was added successfully");
-            }`
+                instrumentAdded = true;
+            }
+            
+            // Navigate back to instruments list if not already there
+            if (!driver.getCurrentUrl().contains("instrument") || driver.getCurrentUrl().contains("add") || driver.getCurrentUrl().contains("new")) {
+                waitAndClick(By.linkText("Instruments"));
+                Thread.sleep(2000);
+            }
+            
+            // Step 6: Verify instrument appears in the list
+            System.out.println("Step 6: Checking if instrument appears in list...");
+            
+            // Look for the instrument in various list formats
+            String[] listSelectors = {
+                "//table//td[contains(text(), '" + instrumentName + "')]",
+                "//table//td[contains(text(), '" + symbol + "')]",
+                "//div[contains(@class, 'instrument')]//span[contains(text(), '" + instrumentName + "')]",
+                "//li[contains(text(), '" + instrumentName + "')]",
+                "//*[contains(text(), '" + symbol + "')]"
+            };
+            
+            for (String selector : listSelectors) {
+                if (isElementPresent(By.xpath(selector))) {
+                    System.out.println("✓ Instrument found in list: " + instrumentName);
+                    instrumentAdded = true;
+                    break;
+                }
+            }
+            
+            // Final verification
+            if (!instrumentAdded) {
+                // Take screenshot for debugging
+                takeScreenshot("instrument_not_found");
+                
+                // Check if we're on the right page
+                System.out.println("Current URL: " + driver.getCurrentUrl());
+                System.out.println("Page title: " + driver.getTitle());
+                
+                // List all visible text for debugging
+                List<WebElement> allText = driver.findElements(By.xpath("//*[text()]"));
+                System.out.println("Visible text elements: " + allText.size());
+                
+                throw new RuntimeException("Could not verify that instrument '" + instrumentName + "' was added successfully. Check screenshot for details.");
+            }
+            
+            System.out.println("✓ Test completed successfully - Instrument added and verified in list");`
     } else if (ticketSummary.includes("view") || ticketSummary.includes("display") || ticketSummary.includes("list")) {
       return `
             // Navigate to the relevant page
