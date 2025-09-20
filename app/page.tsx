@@ -59,9 +59,10 @@ export default function JiraTestGenerator() {
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
 
-  const [testType, setTestType] = useState<string[]>(["functional"])
-  const [testPercentage, setTestPercentage] = useState(100)
-  const [testFramework, setTestFramework] = useState("selenium")
+  // Renamed state variables to match the updates
+  const [testTypes, setTestTypes] = useState<string[]>(["functional"])
+  const [testCoverage, setTestCoverage] = useState(100)
+  const [selectedFramework, setSelectedFramework] = useState("selenium")
 
   const handleJiraConnect = async () => {
     console.log("[v0] JIRA Connect button clicked")
@@ -194,7 +195,236 @@ export default function JiraTestGenerator() {
     URL.revokeObjectURL(url)
   }
 
-  const generateSeleniumCode = (testResult: TestGenerationResult) => {
+  const generateSeleniumCode = (testResult: TestGenerationResult): string => {
+    const ticketKey = testResult.metadata?.ticketKey || "UnknownTicket"
+    const className = `${ticketKey.replace(/-/g, "_")}_Tests`
+
+    let seleniumCode = `import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.OutputType;
+import org.apache.commons.io.FileUtils;
+import java.io.File;
+import java.time.Duration;
+import java.util.List;
+
+/**
+ * Automated Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}
+ * Generated on: ${testResult.metadata?.generatedAt || new Date().toISOString()}
+ * Framework: Selenium WebDriver
+ * Total Test Cases: ${testResult.testCases?.length || 0}
+ */
+public class ${className} {
+    private WebDriver driver;
+    private WebDriverWait wait;
+    private static final String BASE_URL = "http://localhost:3000"; // Update with your application URL
+    
+    public static void main(String[] args) {
+        ${className} testSuite = new ${className}();
+        testSuite.setUp();
+        
+        try {
+            // Run all test methods
+`
+
+    // Generate test methods based on actual test cases
+    testResult.testCases?.forEach((testCase: any, index: number) => {
+      const methodName = `test${String(index + 1).padStart(2, "0")}_${testCase.title?.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50) || "TestCase"}`
+
+      seleniumCode += `
+            testSuite.${methodName}();`
+    })
+
+    seleniumCode += `
+            
+            System.out.println("All tests completed successfully!");
+            
+        } catch (Exception e) {
+            System.err.println("Test execution failed: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            testSuite.tearDown();
+        }
+    }
+    
+    public void setUp() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless"); // Remove this line to see browser actions
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        
+        driver = new ChromeDriver(options);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        driver.manage().window().maximize();
+        
+        System.out.println("Test setup completed - WebDriver initialized");
+    }
+    
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+            System.out.println("Test teardown completed - WebDriver closed");
+        }
+    }
+    
+    private void takeScreenshot(String testName) {
+        try {
+            TakesScreenshot screenshot = (TakesScreenshot) driver;
+            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
+            File destFile = new File("screenshots/" + testName + "_" + System.currentTimeMillis() + ".png");
+            FileUtils.copyFile(sourceFile, destFile);
+            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("Failed to take screenshot: " + e.getMessage());
+        }
+    }
+    
+    private void waitAndClick(By locator) {
+        WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+        element.click();
+    }
+    
+    private void waitAndSendKeys(By locator, String text) {
+        WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        element.clear();
+        element.sendKeys(text);
+    }
+    
+    private boolean isElementPresent(By locator) {
+        try {
+            driver.findElement(locator);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+`
+
+    // Generate actual test methods based on test cases
+    testResult.testCases?.forEach((testCase: any, index: number) => {
+      const methodName = `test${String(index + 1).padStart(2, "0")}_${testCase.title?.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50) || "TestCase"}`
+
+      seleniumCode += `
+    /**
+     * ${testCase.title || `Test Case ${index + 1}`}
+     * Priority: ${testCase.priority || "Medium"}
+     * Type: ${testCase.type || "Functional"}
+     */
+    public void ${methodName}() {
+        System.out.println("\\n=== Executing: ${testCase.title || `Test Case ${index + 1}`} ===");
+        
+        try {
+            // Navigate to application
+            driver.get(BASE_URL);
+            Thread.sleep(2000);
+            
+            // Test implementation based on JIRA ticket: ${testResult.ticket?.summary || "Unknown"}
+            ${generateTestSteps(testCase, testResult.ticket)}
+            
+            System.out.println("✓ ${testCase.title || `Test Case ${index + 1}`} - PASSED");
+            
+        } catch (Exception e) {
+            System.err.println("✗ ${testCase.title || `Test Case ${index + 1}`} - FAILED: " + e.getMessage());
+            takeScreenshot("${methodName}_failed");
+            throw new RuntimeException("Test failed: " + e.getMessage());
+        }
+    }`
+    })
+
+    seleniumCode += `
+}
+`
+
+    return seleniumCode
+  }
+
+  const generateTestSteps = (testCase: any, ticket: any): string => {
+    const ticketSummary = ticket?.summary?.toLowerCase() || ""
+    const testTitle = testCase.title?.toLowerCase() || ""
+
+    // Generate specific test steps based on ticket content
+    if (ticketSummary.includes("add") && (ticketSummary.includes("instrument") || ticketSummary.includes("trading"))) {
+      return `
+            // Navigate to instruments page
+            waitAndClick(By.linkText("Instruments"));
+            Thread.sleep(1000);
+            
+            // Click Add New Instrument button
+            waitAndClick(By.xpath("//button[contains(text(), 'Add') or contains(text(), 'New')]"));
+            Thread.sleep(1000);
+            
+            // Fill instrument form
+            waitAndSendKeys(By.name("instrumentName"), "Test Instrument " + System.currentTimeMillis());
+            waitAndSendKeys(By.name("symbol"), "TEST" + System.currentTimeMillis() % 1000);
+            waitAndSendKeys(By.name("price"), "100.50");
+            
+            // Submit form
+            waitAndClick(By.xpath("//button[@type='submit' or contains(text(), 'Save') or contains(text(), 'Add')]"));
+            Thread.sleep(2000);
+            
+            // Verify success message or new instrument appears
+            if (isElementPresent(By.xpath("//*[contains(text(), 'success') or contains(text(), 'added') or contains(text(), 'created')]"))) {
+                System.out.println("✓ Success message displayed");
+            } else if (isElementPresent(By.xpath("//table//td[contains(text(), 'Test Instrument')]"))) {
+                System.out.println("✓ New instrument appears in list");
+            } else {
+                throw new RuntimeException("Could not verify instrument was added successfully");
+            }`
+    } else if (ticketSummary.includes("view") || ticketSummary.includes("display") || ticketSummary.includes("list")) {
+      return `
+            // Navigate to the relevant page
+            waitAndClick(By.linkText("${ticketSummary.includes("instrument") ? "Instruments" : "Dashboard"}"));
+            Thread.sleep(2000);
+            
+            // Verify page loads correctly
+            if (!isElementPresent(By.xpath("//h1 | //h2 | //title"))) {
+                throw new RuntimeException("Page did not load correctly");
+            }
+            
+            // Check for data display elements
+            if (isElementPresent(By.xpath("//table | //div[contains(@class, 'list')] | //ul"))) {
+                System.out.println("✓ Data display elements found");
+            } else {
+                System.out.println("! No data display elements found - might be empty state");
+            }
+            
+            // Verify essential UI elements
+            List<WebElement> buttons = driver.findElements(By.tagName("button"));
+            System.out.println("Found " + buttons.size() + " interactive buttons");`
+    } else {
+      // Generic test steps for other scenarios
+      return `
+            // Generic test implementation for: ${testCase.title || "Test Case"}
+            System.out.println("Executing test steps...");
+            
+            // Verify page is accessible
+            if (driver.getTitle().isEmpty()) {
+                throw new RuntimeException("Page title is empty - page may not have loaded");
+            }
+            
+            // Look for main content area
+            if (isElementPresent(By.xpath("//main | //div[@id='content'] | //div[contains(@class, 'content')]"))) {
+                System.out.println("✓ Main content area found");
+            }
+            
+            // Check for interactive elements
+            List<WebElement> interactiveElements = driver.findElements(By.xpath("//button | //input | //select | //a"));
+            System.out.println("Found " + interactiveElements.size() + " interactive elements");
+            
+            // Simulate user interaction if elements are present
+            if (!interactiveElements.isEmpty()) {
+                System.out.println("✓ Interactive elements available for testing");
+            }`
+    }
+  }
+
+  const generateSeleniumCodeOld = (testResult: TestGenerationResult) => {
     const ticketKey = testResult?.metadata?.ticketKey || "UnknownTicket"
     const className = `${ticketKey.replace("-", "_")}_Tests`
     const ticket = testResult?.ticket
@@ -724,9 +954,9 @@ ${testResult.testCases
     }
 
     const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
-    const testTypeString = Array.isArray(testType) && testType.length > 0 ? testType.join("_") : "AllTypes"
-    const frameworkString = testFramework || "selenium"
-    const percentageString = testPercentage || 75
+    const testTypeString = Array.isArray(testTypes) && testTypes.length > 0 ? testTypes.join("_") : "AllTypes"
+    const frameworkString = selectedFramework || "selenium"
+    const percentageString = testCoverage || 75
 
     const blob = new Blob([allTestCode], { type: "text/java" })
     const url = URL.createObjectURL(blob)
@@ -748,7 +978,7 @@ ${testResult.testCases
       let testMethods = ""
 
       // Generate different test methods based on selected test types
-      testType.forEach((type) => {
+      testTypes.forEach((type) => {
         switch (type) {
           case "functional":
             testMethods += `
@@ -862,7 +1092,7 @@ ${testResult.testCases
         
         // Measure action performance
         ${test.steps
-          .slice(0, Math.ceil((test.steps.length * testPercentage) / 100))
+          .slice(0, Math.ceil((test.steps.length * testCoverage) / 100))
           .map((step: string, index: number) => {
             return `        // Performance test for: ${step}
         long actionStart = System.currentTimeMillis();
@@ -895,9 +1125,9 @@ import java.time.Duration;
 /**
  * Automated Test Suite for: ${test.title}
  * Generated from JIRA: ${test.jiraKey}
- * Framework: ${testFramework.toUpperCase()}
- * Test Types: ${testType.join(", ")}
- * Coverage: ${testPercentage}%
+ * Framework: ${selectedFramework.toUpperCase()}
+ * Test Types: ${testTypes.join(", ")}
+ * Coverage: ${testCoverage}%
  * Environment: ${appConfig.environment}
  * Application URL: ${appConfig.applicationUrl}
  */
@@ -941,7 +1171,7 @@ public class ${className} {
         
         try {
             testSuite.setUp();
-            ${testType.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
+            ${testTypes.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
             System.out.println("All tests completed successfully!");
         } catch (Exception e) {
             System.err.println("Test execution failed: " + e.getMessage());
@@ -959,7 +1189,7 @@ public class ${className} {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${testFramework}_test_suite_${testType.join("_")}_${testPercentage}percent.java`
+    a.download = `${selectedFramework}_test_suite_${testTypes.join("_")}_${testCoverage}percent.java`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -991,9 +1221,9 @@ public class ${className} {
           tickets: selectedTicketObjects, // Send the full ticket objects
           appConfig, // Include appConfig here
           settings: {
-            coverageLevel: testPercentage, // Use testPercentage for coverageLevel
-            testTypes: testType,
-            framework: testFramework,
+            coverageLevel: testCoverage, // Use testCoverage for coverageLevel
+            testTypes: testTypes,
+            framework: selectedFramework,
           },
         }),
       })
@@ -1275,12 +1505,12 @@ public class ${className} {
                                   <label key={type} className="flex items-center">
                                     <input
                                       type="checkbox"
-                                      checked={testType.includes(type)}
+                                      checked={testTypes.includes(type)}
                                       onChange={(e) => {
                                         if (e.target.checked) {
-                                          setTestType([...testType, type])
+                                          setTestTypes([...testTypes, type])
                                         } else {
-                                          setTestType(testType.filter((t) => t !== type))
+                                          setTestTypes(testTypes.filter((t) => t !== type))
                                         }
                                       }}
                                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -1299,13 +1529,13 @@ public class ${className} {
                                 min="10"
                                 max="100"
                                 step="10"
-                                value={testPercentage}
-                                onChange={(e) => setTestPercentage(Number(e.target.value))}
+                                value={testCoverage}
+                                onChange={(e) => setTestCoverage(Number(e.target.value))}
                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                               />
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
                                 <span>10%</span>
-                                <span className="font-medium text-blue-600">{testPercentage}%</span>
+                                <span className="font-medium text-blue-600">{testCoverage}%</span>
                                 <span>100%</span>
                               </div>
                             </div>
@@ -1314,8 +1544,8 @@ public class ${className} {
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">Test Framework</label>
                               <select
-                                value={testFramework}
-                                onChange={(e) => setTestFramework(e.target.value)}
+                                value={selectedFramework}
+                                onChange={(e) => setSelectedFramework(e.target.value)}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               >
                                 <option value="selenium">Selenium (Java)</option>
@@ -1329,12 +1559,12 @@ public class ${className} {
 
                           <button
                             onClick={generateTestCases}
-                            disabled={isGenerating || !Array.isArray(testType) || testType.length === 0}
+                            disabled={isGenerating || !Array.isArray(testTypes) || testTypes.length === 0}
                             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isGenerating
                               ? "🔄 Generating..."
-                              : `🚀 Generate ${Array.isArray(testType) ? testType.join(", ") : "Tests"} Tests (${testPercentage}%)`}
+                              : `🚀 Generate ${Array.isArray(testTypes) ? testTypes.join(", ") : "Tests"} Tests (${testCoverage}%)`}
                           </button>
                         </div>
                       )}
@@ -1348,9 +1578,14 @@ public class ${className} {
               <div className="space-y-6">
                 {generatedTests.length > 0 ? (
                   generatedTests.map((result, index) => {
-                    if (!result || !result.testCases) {
+                    if (!result || !Array.isArray(result.testCases) || result.testCases.length === 0) {
                       console.error("[v0] Invalid result at index", index, result)
-                      return null
+                      return (
+                        <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <p className="text-red-600">Invalid test result at index {index}</p>
+                          <pre className="text-xs text-red-500 mt-2">{JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                      )
                     }
 
                     return (
