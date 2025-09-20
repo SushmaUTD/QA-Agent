@@ -132,7 +132,7 @@ export default function JiraTestGenerator() {
           const testResult: TestGenerationResult = {
             ticket,
             testCases: result.testCases,
-            metadata: {
+            metadata: result.metadata || {
               ticketKey: ticket.key,
               generatedAt: new Date().toISOString(),
               settings: { coverageLevel: 75, testTypes: ["Functional", "UI", "Edge Case"], framework: "selenium" },
@@ -141,6 +141,8 @@ export default function JiraTestGenerator() {
             },
           }
 
+          console.log("[v0] Test result created:", testResult)
+          console.log("[v0] Test result metadata:", testResult.metadata)
           setGeneratedTests((prev) => [testResult, ...prev])
         }
       }
@@ -1346,9 +1348,10 @@ public class ${className} {
               <div className="space-y-6">
                 {generatedTests.length > 0 ? (
                   generatedTests.map((result, index) => {
-                    console.log("[v0] Rendering result at index", index, ":", result)
-                    console.log("[v0] result.metadata:", result?.metadata)
-                    console.log("[v0] result.metadata.ticketKey:", result?.metadata?.ticketKey)
+                    if (!result || !result.testCases) {
+                      console.error("[v0] Invalid result at index", index, result)
+                      return null
+                    }
 
                     return (
                       <div key={index} className="bg-white rounded-lg shadow p-6">
@@ -1388,43 +1391,58 @@ public class ${className} {
                         </div>
 
                         <div className="space-y-4">
-                          {result.testCases.map((testCase, tcIndex) => (
-                            <div key={tcIndex} className="border rounded-lg p-4 hover:bg-gray-50">
-                              <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-medium text-gray-900">{testCase.title}</h4>
-                                <div className="flex space-x-2">
+                          {Array.isArray(result.testCases) ? (
+                            result.testCases.map((testCase, testIndex) => (
+                              <div key={testIndex} className="border rounded-lg p-4 bg-gray-50">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-medium text-gray-900">
+                                    {testCase.TestCaseID || testCase.id || `Test Case ${testIndex + 1}`}
+                                  </h4>
                                   <span
-                                    className={`px-2 py-1 text-xs rounded-full ${
-                                      testCase.priority === "High"
+                                    className={`px-2 py-1 rounded text-xs font-medium ${
+                                      (testCase.Priority || testCase.priority) === "High"
                                         ? "bg-red-100 text-red-800"
-                                        : testCase.priority === "Medium"
+                                        : (testCase.Priority || testCase.priority) === "Medium"
                                           ? "bg-yellow-100 text-yellow-800"
                                           : "bg-green-100 text-green-800"
                                     }`}
                                   >
-                                    {testCase.priority}
-                                  </span>
-                                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                    {testCase.type}
+                                    {testCase.Priority || testCase.priority || "Medium"}
                                   </span>
                                 </div>
-                              </div>
-                              <p className="text-sm text-gray-600 mb-3">
-                                <strong>Expected:</strong> {testCase.expectedResults}
-                              </p>
-                              <div className="space-y-2">
-                                <h5 className="font-medium text-sm text-gray-700">Test Steps:</h5>
-                                {testCase.steps.map((step, stepIndex) => (
-                                  <div key={stepIndex} className="flex items-start space-x-2">
-                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded min-w-[24px] text-center">
-                                      {stepIndex + 1}
-                                    </span>
-                                    <span className="text-sm text-gray-700">{step}</span>
+                                <p className="text-gray-700 mb-2">{testCase.Title || testCase.title || "No title"}</p>
+                                <div className="text-sm text-gray-600">
+                                  <p>
+                                    <strong>Type:</strong> {testCase.Type || testCase.type || "Functional"}
+                                  </p>
+                                  <p>
+                                    <strong>Preconditions:</strong>{" "}
+                                    {testCase.Preconditions || testCase.preconditions || "None specified"}
+                                  </p>
+                                  <div>
+                                    <strong>Steps:</strong>
+                                    <ol className="list-decimal list-inside mt-1">
+                                      {Array.isArray(testCase.TestSteps || testCase.steps) ? (
+                                        (testCase.TestSteps || testCase.steps).map(
+                                          (step: string, stepIndex: number) => <li key={stepIndex}>{step}</li>,
+                                        )
+                                      ) : (
+                                        <li>No steps defined</li>
+                                      )}
+                                    </ol>
                                   </div>
-                                ))}
+                                  <p>
+                                    <strong>Expected Results:</strong>{" "}
+                                    {testCase.ExpectedResults ||
+                                      testCase.expectedResults ||
+                                      "No expected results defined"}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))
+                          ) : (
+                            <div className="text-gray-500">No test cases available</div>
+                          )}
                         </div>
                       </div>
                     )
