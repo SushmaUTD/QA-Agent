@@ -90,7 +90,8 @@ Return the response as a JSON array of test case objects.`
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
         .trim()
-      testCases = JSON.parse(cleanedText)
+      const rawTestCases = JSON.parse(cleanedText)
+      testCases = Array.isArray(rawTestCases) ? rawTestCases.map(normalizeTestCase) : [normalizeTestCase(rawTestCases)]
     } catch (parseError) {
       console.log("[v0] JSON parsing failed, using text parsing fallback")
       // If AI doesn't return valid JSON, create structured response
@@ -310,4 +311,38 @@ function generateFallbackTests(ticket?: any, settings?: any) {
   }
 
   return baseTests
+}
+
+function normalizeTestCase(rawTestCase: any): any {
+  return {
+    id: rawTestCase.id || rawTestCase["Test Case ID"] || rawTestCase["testCaseId"] || `TC_${Date.now()}`,
+    title: rawTestCase.title || rawTestCase["Title"] || rawTestCase["Test Title"] || "Untitled Test",
+    priority: rawTestCase.priority || rawTestCase["Priority"] || "Medium",
+    type: rawTestCase.type || rawTestCase["Type"] || rawTestCase["Test Type"] || "Functional",
+    preconditions: Array.isArray(rawTestCase.preconditions)
+      ? rawTestCase.preconditions
+      : Array.isArray(rawTestCase["Preconditions"])
+        ? rawTestCase["Preconditions"]
+        : typeof rawTestCase.preconditions === "string"
+          ? [rawTestCase.preconditions]
+          : typeof rawTestCase["Preconditions"] === "string"
+            ? [rawTestCase["Preconditions"]]
+            : ["No preconditions specified"],
+    steps: Array.isArray(rawTestCase.steps)
+      ? rawTestCase.steps
+      : Array.isArray(rawTestCase["Test Steps"])
+        ? rawTestCase["Test Steps"]
+        : Array.isArray(rawTestCase["Steps"])
+          ? rawTestCase["Steps"]
+          : ["No steps specified"],
+    expectedResults:
+      rawTestCase.expectedResults ||
+      rawTestCase["Expected Results"] ||
+      rawTestCase["Expected Result"] ||
+      "No expected results specified",
+    testData:
+      typeof rawTestCase.testData === "object"
+        ? JSON.stringify(rawTestCase.testData)
+        : rawTestCase.testData || rawTestCase["Test Data"] || "",
+  }
 }
