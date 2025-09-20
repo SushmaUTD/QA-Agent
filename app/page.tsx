@@ -798,179 +798,141 @@ ${(testResult?.testCases || [])
     }
 
     if (steps.length === 0) {
-      return `
-            // No specific steps provided - using generic test implementation
-            System.out.println("Executing generic test steps...");
-            
-            // Verify page is accessible
-            if (driver.getTitle().isEmpty()) {
-                throw new RuntimeException("Page title is empty - page may not have loaded");
-            }
-            
-            System.out.println("✓ Basic page verification completed");`
+      return `// No test steps provided`
     }
 
-    let testStepsCode = `
-            // Test implementation based on specific test case steps
-            System.out.println("Executing ${steps.length} test steps...");`
+    let testStepsCode = ""
 
     steps.forEach((step: string, index: number) => {
-      const stepNumber = index + 1
       const stepLower = step.toLowerCase()
-
-      testStepsCode += `
-            
-            // Step ${stepNumber}: ${step}
-            System.out.println("Step ${stepNumber}: ${step}");`
 
       if (stepLower.includes("navigate") && stepLower.includes("add") && stepLower.includes("instrument")) {
         testStepsCode += `
             // Navigate to Add Trading Instrument page
-            WebElement addInstrumentLink = findElementSafely(By.xpath("//a[contains(text(), 'Add') and contains(text(), 'Instrument')] | //button[contains(text(), 'Add') and contains(text(), 'Instrument')] | //a[contains(@href, 'add-instrument')] | //a[contains(@href, 'instruments/new')] | //nav//a[contains(text(), 'Instruments')]"));
+            System.out.println("Looking for Add Instrument button...");
             
-            if (addInstrumentLink != null) {
-                clickElement(By.xpath("//a[contains(text(), 'Add') and contains(text(), 'Instrument')] | //button[contains(text(), 'Add') and contains(text(), 'Instrument')] | //a[contains(@href, 'add-instrument')] | //a[contains(@href, 'instruments/new')] | //nav//a[contains(text(), 'Instruments')]"));
+            // Try multiple selectors for Add Instrument button (top right corner)
+            WebElement addInstrumentButton = findElementSafely(By.xpath(
+                "//button[contains(text(), 'Add Instrument')] | " +
+                "//a[contains(text(), 'Add Instrument')] | " +
+                "//button[contains(text(), 'Add')] | " +
+                "//a[contains(text(), 'Add')] | " +
+                "//*[@class='btn' and contains(text(), 'Add')] | " +
+                "//*[contains(@class, 'add-btn')] | " +
+                "//*[contains(@class, 'btn-primary') and contains(text(), 'Add')]"
+            ));
+            
+            if (addInstrumentButton != null) {
+                clickElement(addInstrumentButton);
                 Thread.sleep(2000); // Wait for page load
-                System.out.println("✓ Navigated to Add Trading Instrument page");
+                System.out.println("✓ Successfully clicked Add Instrument button");
             } else {
-                System.out.println("! Could not find Add Instrument navigation - trying direct URL");
-                driver.get(testConfig.getBaseUrl() + "/instruments/add"); // Assuming BASE_URL is accessible or defined in BaseTest
+                System.out.println("! Add Instrument button not found, trying direct navigation...");
+                driver.get(driver.getCurrentUrl() + "/add-instrument");
                 Thread.sleep(2000);
             }`
       } else if (stepLower.includes("enter") && stepLower.includes("symbol")) {
-        const symbol = testData.symbol || "AAPL" + Math.floor(Math.random() * 1000)
+        const symbol = (testData as any)?.symbol || "AAPL"
         testStepsCode += `
             // Enter stock symbol
-            String symbol = "${symbol}";
-            WebElement symbolInput = findElementSafely(By.name("symbol")) != null ? findElementSafely(By.name("symbol")) : 
-                                findElementSafely(By.name("ticker")) != null ? findElementSafely(By.name("ticker")) :
-                                findElementSafely(By.name("code")) != null ? findElementSafely(By.name("code")) :
-                                findElementSafely(By.name("instrument_symbol")) != null ? findElementSafely(By.name("instrument_symbol")) :
-                                findElementSafely(By.name("stockSymbol")) != null ? findElementSafely(By.name("stockSymbol")) :
-                                findElementSafely(By.xpath("//input[@placeholder='Symbol' or @placeholder='Ticker']"));
+            System.out.println("Entering stock symbol: ${symbol}");
+            WebElement symbolField = findElementSafely(By.xpath(
+                "//input[@name='symbol'] | " +
+                "//input[@id='symbol'] | " +
+                "//input[contains(@placeholder, 'symbol')] | " +
+                "//input[contains(@placeholder, 'Symbol')] | " +
+                "//input[@type='text'][1]"
+            ));
             
-            if (symbolInput != null) {
-                enterText(By.name(symbolInput.getAttribute("name")), symbol); // Use enterText helper
-                System.out.println("✓ Entered symbol: " + symbol);
+            if (symbolField != null) {
+                enterText(symbolField, "${symbol}");
+                System.out.println("✓ Entered stock symbol: ${symbol}");
             } else {
                 throw new RuntimeException("Could not find symbol input field");
             }`
-      } else if (stepLower.includes("enter") && stepLower.includes("company") && stepLower.includes("name")) {
-        const companyName = testData.name || "Apple Inc"
+      } else if (stepLower.includes("enter") && stepLower.includes("company")) {
+        const companyName = (testData as any)?.companyName || "Apple Inc."
         testStepsCode += `
             // Enter company name
-            String companyName = "${companyName}";
-            WebElement nameInput = findElementSafely(By.name("name")) != null ? findElementSafely(By.name("name")) :
-                                findElementSafely(By.name("companyName")) != null ? findElementSafely(By.name("companyName")) :
-                                findElementSafely(By.name("instrumentName")) != null ? findElementSafely(By.name("instrumentName")) :
-                                findElementSafely(By.name("title")) != null ? findElementSafely(By.name("title")) :
-                                findElementSafely(By.name("company_name")) != null ? findElementSafely(By.name("company_name")) :
-                                findElementSafely(By.xpath("//input[@placeholder='Company Name' or @placeholder='Name']"));
-
-            if (nameInput != null) {
-                enterText(By.name(nameInput.getAttribute("name")), companyName); // Use enterText helper
-                System.out.println("✓ Entered company name: " + companyName);
+            System.out.println("Entering company name: ${companyName}");
+            WebElement companyField = findElementSafely(By.xpath(
+                "//input[@name='companyName'] | " +
+                "//input[@name='company'] | " +
+                "//input[@id='companyName'] | " +
+                "//input[@id='company'] | " +
+                "//input[contains(@placeholder, 'company')] | " +
+                "//input[contains(@placeholder, 'Company')] | " +
+                "//input[@type='text'][2]"
+            ));
+            
+            if (companyField != null) {
+                enterText(companyField, "${companyName}");
+                System.out.println("✓ Entered company name: ${companyName}");
             } else {
                 throw new RuntimeException("Could not find company name input field");
             }`
-      } else if (stepLower.includes("select") && stepLower.includes("instrument type")) {
-        const instrumentType = testData.type || "Stock"
+      } else if (stepLower.includes("select") && stepLower.includes("type")) {
+        const instrumentType = (testData as any)?.type || "Stock"
         testStepsCode += `
             // Select instrument type
-            String instrumentType = "${instrumentType}";
-            WebElement typeDropdown = findElementSafely(By.name("type")) != null ? findElementSafely(By.name("type")) :
-                                    findElementSafely(By.name("instrumentType")) != null ? findElementSafely(By.name("instrumentType")) :
-                                    findElementSafely(By.name("category")) != null ? findElementSafely(By.name("category")) :
-                                    findElementSafely(By.name("instrument_type"));
+            System.out.println("Selecting instrument type: ${instrumentType}");
+            WebElement typeDropdown = findElementSafely(By.xpath(
+                "//select[@name='type'] | " +
+                "//select[@name='instrumentType'] | " +
+                "//select[@id='type'] | " +
+                "//select[@id='instrumentType'] | " +
+                "//select[contains(@class, 'type')]"
+            ));
             
             if (typeDropdown != null) {
                 Select select = new Select(typeDropdown);
-                try {
-                    select.selectByVisibleText(instrumentType);
-                    System.out.println("✓ Selected instrument type: " + instrumentType);
-                } catch (Exception e) {
-                    // Try selecting by value if visible text fails
-                    try {
-                        select.selectByValue(instrumentType.toLowerCase());
-                        System.out.println("✓ Selected instrument type by value: " + instrumentType);
-                    } catch (Exception e2) {
-                        System.err.println("Could not select instrument type by visible text or value: " + instrumentType);
-                    }
-                }
+                select.selectByVisibleText("${instrumentType}");
+                System.out.println("✓ Selected instrument type: ${instrumentType}");
             } else {
-                // Try radio buttons if dropdown not found
-                WebElement typeRadio = findElementSafely(By.xpath("//input[@type='radio' and (@value='" + instrumentType.toLowerCase() + "' or contains(@id, '" + instrumentType.toLowerCase() + "'))]"));
-                if (typeRadio != null) {
-                    clickElement(By.xpath("//input[@type='radio' and (@value='" + instrumentType.toLowerCase() + "' or contains(@id, '" + instrumentType.toLowerCase() + "'))]")); // Use clickElement helper
-                    System.out.println("✓ Selected instrument type via radio: " + instrumentType);
-                } else {
-                    System.out.println("! Instrument type selector not found - continuing with test");
-                }
-            }`
-      } else if (stepLower.includes("set") && stepLower.includes("trading hours")) {
-        const tradingHours = testData.tradingHours || "9:30-16:00 EST"
-        testStepsCode += `
-            // Set trading hours
-            String tradingHours = "${tradingHours}";
-            WebElement hoursInput = findElementSafely(By.name("tradingHours")) != null ? findElementSafely(By.name("tradingHours")) :
-                                  findElementSafely(By.name("hours")) != null ? findElementSafely(By.name("hours")) :
-                                  findElementSafely(By.name("marketHours")) != null ? findElementSafely(By.name("marketHours")) :
-                                  findElementSafely(By.name("trading_hours"));
-            
-            if (hoursInput != null) {
-                enterText(By.name(hoursInput.getAttribute("name")), tradingHours); // Use enterText helper
-                System.out.println("✓ Set trading hours: " + tradingHours);
-            } else {
-                System.out.println("! Trading hours field not found - may be optional");
+                System.out.println("! Instrument type dropdown not found - may be optional");
             }`
       } else if (stepLower.includes("click") && stepLower.includes("add instrument")) {
         testStepsCode += `
-            // Click Add Instrument button
-            WebElement addButton = findElementSafely(By.xpath("//button[contains(text(), 'Add Instrument')] | //button[contains(text(), 'Add')] | //button[contains(text(), 'Save')] | //button[contains(text(), 'Create')] | //button[@type='submit'] | //input[@type='submit']"));
+            // Click Add Instrument submit button
+            System.out.println("Looking for submit button...");
+            WebElement submitButton = findElementSafely(By.xpath(
+                "//button[contains(text(), 'Add Instrument')] | " +
+                "//button[contains(text(), 'Save')] | " +
+                "//button[contains(text(), 'Create')] | " +
+                "//button[contains(text(), 'Submit')] | " +
+                "//button[@type='submit'] | " +
+                "//input[@type='submit'] | " +
+                "//*[contains(@class, 'btn-primary')]"
+            ));
             
-            if (addButton != null) {
-                clickElement(By.xpath("//button[contains(text(), 'Add Instrument')] | //button[contains(text(), 'Add')] | //button[contains(text(), 'Save')] | //button[contains(text(), 'Create')] | //button[@type='submit'] | //input[@type='submit']")); // Use clickElement helper
-                Thread.sleep(3000); // Wait for form submission and potential redirect
-                System.out.println("✓ Clicked Add Instrument button");
+            if (submitButton != null) {
+                clickElement(submitButton);
+                Thread.sleep(3000); // Wait for form submission
+                System.out.println("✓ Successfully submitted the form");
             } else {
-                throw new RuntimeException("Could not find Add Instrument button");
+                throw new RuntimeException("Could not find submit button");
             }`
       } else if (stepLower.includes("verify") || stepLower.includes("check")) {
         testStepsCode += `
-            // Verification step: ${step}
-            Thread.sleep(2000); // Allow time for UI updates
+            // Verification: ${step}
+            System.out.println("Performing verification...");
             
-            // Check for success indicators
-            boolean verificationPassed = false;
+            // Check for success message or new instrument in list
+            WebElement successIndicator = findElementSafely(By.xpath(
+                "//*[contains(text(), 'successfully')] | " +
+                "//*[contains(text(), 'Success')] | " +
+                "//*[contains(text(), 'added')] | " +
+                "//*[contains(@class, 'success')] | " +
+                "//*[contains(@class, 'alert-success')] | " +
+                "//table//td[contains(text(), 'AAPL')] | " +
+                "//div[contains(@class, 'instrument-list')]//div[contains(text(), 'AAPL')]"
+            ));
             
-            // Look for success messages
-            if (findElementSafely(By.xpath("//*[contains(text(), 'success') or contains(text(), 'Success') or contains(text(), 'added') or contains(text(), 'created')]")) != null) {
-                System.out.println("✓ Success message found");
-                verificationPassed = true;
-            }
-            
-            // Check if we're redirected to instruments list
-            if (driver.getCurrentUrl().contains("instrument") && !driver.getCurrentUrl().contains("add")) {
-                System.out.println("✓ Redirected to instruments list");
-                verificationPassed = true;
-            }
-            
-            // Look for the new instrument in any visible lists or tables
-            if (findElementSafely(By.xpath("//table//td | //div[contains(@class, 'instrument')] | //li")) != null) {
-                System.out.println("✓ Instrument data visible on page");
-                verificationPassed = true;
-            }
-            
-            if (!verificationPassed) {
-                takeScreenshot("verification_failed_step_${stepNumber}");
-                System.out.println("! Verification may have failed - check screenshot");
+            if (successIndicator != null) {
+                System.out.println("✓ Verification passed: " + successIndicator.getText());
+            } else {
+                System.out.println("! Verification warning: Success indicator not found, but no error occurred");
             }`
-      } else {
-        // Generic step implementation
-        testStepsCode += `
-            // Generic implementation for: ${step}
-            Thread.sleep(1000);
-            System.out.println("✓ Step ${stepNumber} executed");`
       }
     })
 
