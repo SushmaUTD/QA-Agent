@@ -387,6 +387,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.Assert;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -455,6 +456,67 @@ public abstract class BaseTest extends AbstractTestNGSpringContextTests {
         }
     }
     
+    protected void verifyElementVisible(By locator) {
+        if (driver == null || wait == null) {
+            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
+        }
+        try {
+            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            Assert.assertNotNull(element, "Element should be visible: " + locator);
+            System.out.println("✓ Element verified visible: " + locator);
+        } catch (Exception e) {
+            System.err.println("Element not visible: " + locator + " - " + e.getMessage());
+            takeScreenshot("element_not_visible_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
+            throw new AssertionError("Element not visible: " + locator, e);
+        }
+    }
+    
+    protected void verifyTextPresent(String text) {
+        if (driver == null) {
+            throw new RuntimeException("WebDriver is not initialized");
+        }
+        try {
+            String pageSource = driver.getPageSource();
+            Assert.assertTrue(pageSource.contains(text), "Text should be present on page: " + text);
+            System.out.println("✓ Text verified present: " + text);
+        } catch (Exception e) {
+            System.err.println("Text not found on page: " + text);
+            takeScreenshot("text_not_found_" + text.replaceAll("[^a-zA-Z0-9]", "_"));
+            throw new AssertionError("Text not present: " + text, e);
+        }
+    }
+    
+    protected void clickElement(By locator) {
+        if (driver == null || wait == null) {
+            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
+        }
+        try {
+            WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+            element.click();
+            System.out.println("✓ Clicked element: " + locator);
+        } catch (Exception e) {
+            System.err.println("Failed to click element: " + locator + " - " + e.getMessage());
+            takeScreenshot("click_failed_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
+            throw new RuntimeException("Failed to click element: " + locator, e);
+        }
+    }
+    
+    protected void enterText(By locator, String text) {
+        if (driver == null || wait == null) {
+            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
+        }
+        try {
+            WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(locator));
+            element.clear();
+            element.sendKeys(text);
+            System.out.println("✓ Entered text '" + text + "' into element: " + locator);
+        } catch (Exception e) {
+            System.err.println("Failed to enter text into element: " + locator + " - " + e.getMessage());
+            takeScreenshot("text_entry_failed_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
+            throw new RuntimeException("Failed to enter text: " + locator, e);
+        }
+    }
+    
     protected void takeScreenshot(String testName) {
         if (driver == null) {
             System.err.println("Cannot take screenshot: WebDriver is null");
@@ -486,7 +548,10 @@ public abstract class BaseTest extends AbstractTestNGSpringContextTests {
       throw new Error("Failed to generate Selenium code")
     }
 
-    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${className}.java`] = seleniumCodeResult
+    const safeTicketKey = testResult.metadata?.ticketKey || "UnknownTicket"
+    const cleanClassName = `${safeTicketKey.replace(/-/g, "_")}_Tests`
+
+    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${cleanClassName}.java`] = seleniumCodeResult
       .replace(
         /public class \w+_Tests \{/,
         `package ${packageName}.tests;
@@ -501,7 +566,7 @@ import org.openqa.selenium.By;
  * Framework: Selenium WebDriver with Spring Boot & TestNG
  * Total Test Cases: ${testResult.testCases?.length || 0}
  */
-public class ${className} extends BaseTest {`,
+public class ${cleanClassName} extends BaseTest {`,
       )
       .replace(/public static void main\$\$String\[\] args\$\$[^}]*?}\s*/m, "")
       .replace(/public void setUp\$\$\$\$[^}]*?}\s*/m, "")
@@ -519,7 +584,7 @@ public class ${className} extends BaseTest {`,
 <suite name="${projectName}" verbose="1">
     <test name="${ticketKey} Tests">
         <classes>
-            <class name="${packageName}.tests.${className}"/>
+            <class name="${packageName}.tests.${cleanClassName}"/>
         </classes>
     </test>
 </suite>`
@@ -558,7 +623,7 @@ ${projectName}/
 ├── src/test/java/                    # Test code
 │   ├── config/TestConfig.java        # WebDriver configuration
 │   ├── BaseTest.java                 # Base test class
-│   └── tests/${className}.java       # Test cases
+│   └── tests/${cleanClassName}.java       # Test cases
 ├── src/test/resources/
 │   ├── testng.xml                    # TestNG configuration
 │   └── application.properties        # Test properties
@@ -581,7 +646,7 @@ app.base.url=http://your-application-url
 ### 3. Run Tests
 
 #### Via IDE:
-- Right-click on \`${className}.java\` → Run
+- Right-click on \`${cleanClassName}.java\` → Run
 - Or right-click on \`testng.xml\` → Run
 
 #### Via Maven:
@@ -591,7 +656,7 @@ mvn clean test
 
 #### Run specific test:
 \`\`\`bash
-mvn test -Dtest=${className}#testMethodName
+mvn test -Dtest=${cleanClassName}#testMethodName
 \`\`\`
 
 ### 4. View Results
@@ -764,12 +829,12 @@ ${(testResult?.testCases || [])
             WebElement addInstrumentLink = findElementSafely(By.xpath("//a[contains(text(), 'Add') and contains(text(), 'Instrument')] | //button[contains(text(), 'Add') and contains(text(), 'Instrument')] | //a[contains(@href, 'add-instrument')] | //a[contains(@href, 'instruments/new')] | //nav//a[contains(text(), 'Instruments')]"));
             
             if (addInstrumentLink != null) {
-                addInstrumentLink.click();
+                clickElement(By.xpath("//a[contains(text(), 'Add') and contains(text(), 'Instrument')] | //button[contains(text(), 'Add') and contains(text(), 'Instrument')] | //a[contains(@href, 'add-instrument')] | //a[contains(@href, 'instruments/new')] | //nav//a[contains(text(), 'Instruments')]"));
                 Thread.sleep(2000); // Wait for page load
                 System.out.println("✓ Navigated to Add Trading Instrument page");
             } else {
                 System.out.println("! Could not find Add Instrument navigation - trying direct URL");
-                driver.get(BASE_URL + "/instruments/add"); // Assuming BASE_URL is accessible or defined in BaseTest
+                driver.get(testConfig.getBaseUrl() + "/instruments/add"); // Assuming BASE_URL is accessible or defined in BaseTest
                 Thread.sleep(2000);
             }`
       } else if (stepLower.includes("enter") && stepLower.includes("symbol")) {
@@ -785,8 +850,7 @@ ${(testResult?.testCases || [])
                                 findElementSafely(By.xpath("//input[@placeholder='Symbol' or @placeholder='Ticker']"));
             
             if (symbolInput != null) {
-                symbolInput.clear();
-                symbolInput.sendKeys(symbol);
+                enterText(By.name(symbolInput.getAttribute("name")), symbol); // Use enterText helper
                 System.out.println("✓ Entered symbol: " + symbol);
             } else {
                 throw new RuntimeException("Could not find symbol input field");
@@ -804,8 +868,7 @@ ${(testResult?.testCases || [])
                                 findElementSafely(By.xpath("//input[@placeholder='Company Name' or @placeholder='Name']"));
 
             if (nameInput != null) {
-                nameInput.clear();
-                nameInput.sendKeys(companyName);
+                enterText(By.name(nameInput.getAttribute("name")), companyName); // Use enterText helper
                 System.out.println("✓ Entered company name: " + companyName);
             } else {
                 throw new RuntimeException("Could not find company name input field");
@@ -838,7 +901,7 @@ ${(testResult?.testCases || [])
                 // Try radio buttons if dropdown not found
                 WebElement typeRadio = findElementSafely(By.xpath("//input[@type='radio' and (@value='" + instrumentType.toLowerCase() + "' or contains(@id, '" + instrumentType.toLowerCase() + "'))]"));
                 if (typeRadio != null) {
-                    typeRadio.click();
+                    clickElement(By.xpath("//input[@type='radio' and (@value='" + instrumentType.toLowerCase() + "' or contains(@id, '" + instrumentType.toLowerCase() + "'))]")); // Use clickElement helper
                     System.out.println("✓ Selected instrument type via radio: " + instrumentType);
                 } else {
                     System.out.println("! Instrument type selector not found - continuing with test");
@@ -855,8 +918,7 @@ ${(testResult?.testCases || [])
                                   findElementSafely(By.name("trading_hours"));
             
             if (hoursInput != null) {
-                hoursInput.clear();
-                hoursInput.sendKeys(tradingHours);
+                enterText(By.name(hoursInput.getAttribute("name")), tradingHours); // Use enterText helper
                 System.out.println("✓ Set trading hours: " + tradingHours);
             } else {
                 System.out.println("! Trading hours field not found - may be optional");
@@ -867,7 +929,7 @@ ${(testResult?.testCases || [])
             WebElement addButton = findElementSafely(By.xpath("//button[contains(text(), 'Add Instrument')] | //button[contains(text(), 'Add')] | //button[contains(text(), 'Save')] | //button[contains(text(), 'Create')] | //button[@type='submit'] | //input[@type='submit']"));
             
             if (addButton != null) {
-                addButton.click();
+                clickElement(By.xpath("//button[contains(text(), 'Add Instrument')] | //button[contains(text(), 'Add')] | //button[contains(text(), 'Save')] | //button[contains(text(), 'Create')] | //button[@type='submit'] | //input[@type='submit']")); // Use clickElement helper
                 Thread.sleep(3000); // Wait for form submission and potential redirect
                 System.out.println("✓ Clicked Add Instrument button");
             } else {
@@ -1108,232 +1170,234 @@ ${testResult.testCases
     URL.revokeObjectURL(url)
   }
 
-  const downloadSelenium = () => {
-    if (generatedTests.length === 0) return
+  // The following function was duplicated and caused a linting error.
+  // The first definition is kept, and this one is removed.
+  // const downloadSelenium = () => {
+  //   if (generatedTests.length === 0) return
 
-    const generateSeleniumCode = (test: any) => {
-      const className = `${test.title.replace(/[^a-zA-Z0-9]/g, "")}Test`
+  //   const generateSeleniumCode = (test: any) => {
+  //     const className = `${test.title.replace(/[^a-zA-Z0-9]/g, "")}Test`
 
-      let testMethods = ""
+  //     let testMethods = ""
 
-      // Generate different test methods based on selected test types
-      testTypes.forEach((type) => {
-        switch (type) {
-          case "functional":
-            testMethods += `
-    @Test
-    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Functional() {
-        System.out.println("Starting functional test: ${test.title}");
-        
-        // Navigate to application
-        driver.get("${appConfig.applicationUrl}");
-        
-        // Perform functional test steps
-        ${test.steps
-          .map((step: string, index: number) => {
-            if (step.toLowerCase().includes("click") || step.toLowerCase().includes("button")) {
-              const elementName = step.match(/click\s+(?:on\s+)?(?:the\s+)?([^.]+)/i)?.[1] || "button"
-              return `        // Step ${index + 1}: ${step}
-        WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//button[contains(text(),'${elementName}')]"));
-        ${elementName.replace(/\s+/g, "")}Element.click();
-        Thread.sleep(1000);`
-            } else if (
-              step.toLowerCase().includes("enter") ||
-              step.toLowerCase().includes("input") ||
-              step.toLowerCase().includes("fill")
-            ) {
-              const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
-              const fieldName = fieldMatch?.[1] || "field"
-              return `        // Step ${index + 1}: ${step}
-        WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
-        ${fieldName.replace(/\s+/g, "")}Field.clear();
-        ${fieldName.replace(/\s+/g, "")}Field.sendKeys("Test Data ${index + 1}");`
-            } else if (step.toLowerCase().includes("verify") || step.toLowerCase().includes("check")) {
-              const elementMatch = step.match(/(?:verify|check)\s+(?:that\s+)?([^.]+)/i)
-              const elementName = elementMatch?.[1] || "element"
-              return `        // Step ${index + 1}: ${step}
-        WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//*[contains(text(),'${elementName}')]"));
-        Assert.assertTrue("${elementName} should be visible", ${elementName.replace(/\s+/g, "")}Element.isDisplayed());`
-            } else {
-              return `        // Step ${index + 1}: ${step}
-        // Custom implementation needed for: ${step}`
-            }
-          })
-          .join("\n")}
-        
-        System.out.println("Functional test completed successfully");
-    }`
-            break
+  //     // Generate different test methods based on selected test types
+  //     testTypes.forEach((type) => {
+  //       switch (type) {
+  //         case "functional":
+  //           testMethods += `
+  //   @Test
+  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Functional() {
+  //       System.out.println("Starting functional test: ${test.title}");
 
-          case "ui":
-            testMethods += `
-    @Test
-    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}UI() {
-        System.out.println("Starting UI test: ${test.title}");
-        
-        driver.get("${appConfig.applicationUrl}");
-        
-        // UI-specific validations
-        Assert.assertTrue("Page title should be present", !driver.getTitle().isEmpty());
-        
-        // Check responsive design
-        driver.manage().window().setSize(new Dimension(1920, 1080));
-        Thread.sleep(500);
-        driver.manage().window().setSize(new Dimension(768, 1024));
-        Thread.sleep(500);
-        driver.manage().window().maximize();
-        
-        System.out.println("UI test completed successfully");
-    }`
-            break
+  //       // Navigate to application
+  //       driver.get("${appConfig.applicationUrl}");
 
-          case "edgecase":
-            testMethods += `
-    @Test
-    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}EdgeCases() {
-        System.out.println("Starting edge case test: ${test.title}");
-        
-        driver.get("${appConfig.applicationUrl}");
-        
-        // Test with empty inputs
-        ${test.steps
-          .filter((step: string) => step.toLowerCase().includes("enter") || step.toLowerCase().includes("input"))
-          .map((step: string, index: number) => {
-            const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
-            const fieldName = fieldMatch?.[1] || "field"
-            return `        // Edge case: Empty ${fieldName}
-        WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
-        ${fieldName.replace(/\s+/g, "")}Field.clear();
-        ${fieldName.replace(/\s+/g, "")}Field.sendKeys("");`
-          })
-          .join("\n")}
-        
-        // Test with invalid data
-        // Test with maximum length inputs
-        // Test boundary conditions
-        
-        System.out.println("Edge case test completed successfully");
-    }`
-            break
+  //       // Perform functional test steps
+  //       ${test.steps
+  //         .map((step: string, index: number) => {
+  //           if (step.toLowerCase().includes("click") || step.toLowerCase().includes("button")) {
+  //             const elementName = step.match(/click\s+(?:on\s+)?(?:the\s+)?([^.]+)/i)?.[1] || "button"
+  //             return `        // Step ${index + 1}: ${step}
+  //       WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//button[contains(text(),'${elementName}')]"));
+  //       ${elementName.replace(/\s+/g, "")}Element.click();
+  //       Thread.sleep(1000);`
+  //           } else if (
+  //             step.toLowerCase().includes("enter") ||
+  //             step.toLowerCase().includes("input") ||
+  //             step.toLowerCase().includes("fill")
+  //           ) {
+  //             const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
+  //             const fieldName = fieldMatch?.[1] || "field"
+  //             return `        // Step ${index + 1}: ${step}
+  //       WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
+  //       ${fieldName.replace(/\s+/g, "")}Field.clear();
+  //       ${fieldName.replace(/\s+/g, "")}Field.sendKeys("Test Data ${index + 1}");`
+  //           } else if (step.toLowerCase().includes("verify") || step.toLowerCase().includes("check")) {
+  //             const elementMatch = step.match(/(?:verify|check)\s+(?:that\s+)?([^.]+)/i)
+  //             const elementName = elementMatch?.[1] || "element"
+  //             return `        // Step ${index + 1}: ${step}
+  //       WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//*[contains(text(),'${elementName}')]"));
+  //       Assert.assertTrue("${elementName} should be visible", ${elementName.replace(/\s+/g, "")}Element.isDisplayed());`
+  //           } else {
+  //             return `        // Step ${index + 1}: ${step}
+  //       // Custom implementation needed for: ${step}`
+  //           }
+  //         })
+  //         .join("\n")}
 
-          case "performance":
-            testMethods += `
-    @Test
-    public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Performance() {
-        System.out.println("Starting performance test: ${test.title}");
-        
-        long startTime = System.currentTimeMillis();
-        
-        driver.get("${appConfig.applicationUrl}");
-        
-        long pageLoadTime = System.currentTimeMillis() - startTime;
-        Assert.assertTrue("Page should load within 5 seconds", pageLoadTime < 5000);
-        
-        // Measure action performance
-        ${test.steps
-          .slice(0, Math.ceil((test.steps.length * testCoverage) / 100))
-          .map((step: string, index: number) => {
-            return `        // Performance test for: ${step}
-        long actionStart = System.currentTimeMillis();
-        // Perform action here
-        long actionTime = System.currentTimeMillis() - actionStart;
-        System.out.println("Action ${index + 1} took: " + actionTime + "ms");`
-          })
-          .join("\n")}
-        
-        System.out.println("Performance test completed successfully");
-    }`
-            break
-        }
-      })
+  //       System.out.println("Functional test completed successfully");
+  //   }`
+  //             break
 
-      return `package com.testautomation;
+  //         case "ui":
+  //           testMethods += `
+  //   @Test
+  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}UI() {
+  //       System.out.println("Starting UI test: ${test.title}");
 
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.By;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.Dimension;
-import org.testng.Assert;
-import org.testng.annotations.*;
-import java.time.Duration;
+  //       driver.get("${appConfig.applicationUrl}");
 
-/**
- * Automated Test Suite for: ${test.title}
- * Generated from JIRA: ${test.jiraKey}
- * Framework: ${selectedFramework.toUpperCase()}
- * Test Types: ${testTypes.join(", ")}
- * Coverage: ${testCoverage}%
- * Environment: ${appConfig.environment}
- * Application URL: ${appConfig.applicationUrl}
- */
-public class ${className} {
-    private WebDriver driver;
-    private WebDriverWait wait;
-    
-    @BeforeMethod
-    public void setUp() {
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=false"); // Set to true for headless mode
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--window-size=1920,1080");
-        
-        driver = new ChromeDriver(options);
-        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-    }
-    
-    @AfterMethod
-    public void tearDown() {
-        if (driver != null) {
-            driver.quit();
-        }
-    }
-    
-    private WebElement waitForElement(By locator) {
-        return wait.until(ExpectedConditions.elementToBeClickable(locator));
-    }
-    
-    private void takeScreenshot(String testName) {
-        // Screenshot implementation
-        System.out.println("Screenshot taken for: " + testName);
-    }
-    ${testMethods}
-    
-    // Main method for standalone execution
-    public static void main(String[] args) {
-        ${className} testSuite = new ${className}();
-        
-        try {
-            testSuite.setUp();
-            ${testTypes.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
-            System.out.println("All tests completed successfully!");
-        } catch (Exception e) {
-            System.err.println("Test execution failed: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            testSuite.tearDown();
-        }
-    }
-}`
-    }
+  //       // UI-specific validations
+  //       Assert.assertTrue("Page title should be present", !driver.getTitle().isEmpty());
 
-    const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
+  //       // Check responsive design
+  //       driver.manage().window().setSize(new Dimension(1920, 1080));
+  //       Thread.sleep(500);
+  //       driver.manage().window().setSize(new Dimension(768, 1024));
+  //       Thread.sleep(500);
+  //       driver.manage().window().maximize();
 
-    const blob = new Blob([allTestCode], { type: "text/java" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${selectedFramework}_test_suite_${testTypes.join("_")}_${testCoverage}percent.java`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+  //       System.out.println("UI test completed successfully");
+  //   }`
+  //             break
+
+  //         case "edgecase":
+  //           testMethods += `
+  //   @Test
+  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}EdgeCases() {
+  //       System.out.println("Starting edge case test: ${test.title}");
+
+  //       driver.get("${appConfig.applicationUrl}");
+
+  //       // Test with empty inputs
+  //       ${test.steps
+  //         .filter((step: string) => step.toLowerCase().includes("enter") || step.toLowerCase().includes("input"))
+  //         .map((step: string, index: number) => {
+  //           const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
+  //           const fieldName = fieldMatch?.[1] || "field"
+  //           return `        // Edge case: Empty ${fieldName}
+  //       WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
+  //       ${fieldName.replace(/\s+/g, "")}Field.clear();
+  //       ${fieldName.replace(/\s+/g, "")}Field.sendKeys("");`
+  //         })
+  //         .join("\n")}
+
+  //       // Test with invalid data
+  //       // Test with maximum length inputs
+  //       // Test boundary conditions
+
+  //       System.out.println("Edge case test completed successfully");
+  //   }`
+  //             break
+
+  //         case "performance":
+  //           testMethods += `
+  //   @Test
+  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Performance() {
+  //       System.out.println("Starting performance test: ${test.title}");
+
+  //       long startTime = System.currentTimeMillis();
+
+  //       driver.get("${appConfig.applicationUrl}");
+
+  //       long pageLoadTime = System.currentTimeMillis() - startTime;
+  //       Assert.assertTrue("Page should load within 5 seconds", pageLoadTime < 5000);
+
+  //       // Measure action performance
+  //       ${test.steps
+  //         .slice(0, Math.ceil((test.steps.length * testCoverage) / 100))
+  //         .map((step: string, index: number) => {
+  //           return `        // Performance test for: ${step}
+  //       long actionStart = System.currentTimeMillis();
+  //       // Perform action here
+  //       long actionTime = System.currentTimeMillis() - actionStart;
+  //       System.out.println("Action ${index + 1} took: " + actionTime + "ms");`
+  //         })
+  //         .join("\n")}
+
+  //       System.out.println("Performance test completed successfully");
+  //   }`
+  //             break
+  //       }
+  //     })
+
+  //     return `package com.testautomation;
+
+  // import org.openqa.selenium.WebDriver;
+  // import org.openqa.selenium.WebElement;
+  // import org.openqa.selenium.By;
+  // import org.openqa.selenium.chrome.ChromeDriver;
+  // import org.openqa.selenium.chrome.ChromeOptions;
+  // import org.openqa.selenium.support.ui.WebDriverWait;
+  // import org.openqa.selenium.support.ui.ExpectedConditions;
+  // import org.openqa.selenium.Dimension;
+  // import org.testng.Assert;
+  // import org.testng.annotations.*;
+  // import java.time.Duration;
+
+  // /**
+  //  * Automated Test Suite for: ${test.title}
+  //  * Generated from JIRA: ${test.jiraKey}
+  //  * Framework: ${selectedFramework.toUpperCase()}
+  //  * Test Types: ${testTypes.join(", ")}
+  //  * Coverage: ${testCoverage}%
+  //  * Environment: ${appConfig.environment}
+  //  * Application URL: ${appConfig.applicationUrl}
+  //  */
+  // public class ${className} {
+  //     private WebDriver driver;
+  //     private WebDriverWait wait;
+
+  //     @BeforeMethod
+  //     public void setUp() {
+  //         ChromeOptions options = new ChromeOptions();
+  //         options.addArguments("--headless=false"); // Set to true for headless mode
+  //         options.addArguments("--no-sandbox");
+  //         options.addArguments("--disable-dev-shm-usage");
+  //         options.addArguments("--window-size=1920,1080");
+
+  //         driver = new ChromeDriver(options);
+  //         wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+  //         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+  //     }
+
+  //     @AfterMethod
+  //     public void tearDown() {
+  //         if (driver != null) {
+  //             driver.quit();
+  //         }
+  //     }
+
+  //     private WebElement waitForElement(By locator) {
+  //         return wait.until(ExpectedConditions.elementToBeClickable(locator));
+  //     }
+
+  //     private void takeScreenshot(String testName) {
+  //         // Screenshot implementation
+  //         System.out.println("Screenshot taken for: " + testName);
+  //     }
+  //     ${testMethods}
+
+  //     // Main method for standalone execution
+  //     public static void main(String[] args) {
+  //         ${className} testSuite = new ${className}();
+
+  //         try {
+  //             testSuite.setUp();
+  //             ${testTypes.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
+  //             System.out.println("All tests completed successfully!");
+  //         } catch (Exception e) {
+  //             System.err.println("Test execution failed: " + e.getMessage());
+  //             e.printStackTrace();
+  //         } finally {
+  //             testSuite.tearDown();
+  //         }
+  //     }
+  // }`
+  //   }
+
+  //   const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
+
+  //   const blob = new Blob([allTestCode], { type: "text/java" })
+  //   const url = URL.createObjectURL(blob)
+  //   const a = document.createElement("a")
+  //   a.href = url
+  //   a.download = `${selectedFramework}_test_suite_${testTypes.join("_")}_${testCoverage}percent.java`
+  //   document.body.appendChild(a)
+  //   a.click()
+  //   document.body.removeChild(a)
+  //   URL.revokeObjectURL(url)
+  // }
 
   const generateTestCases = async () => {
     console.log("[v0] Starting test generation...")
