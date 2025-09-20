@@ -1331,11 +1331,15 @@ public class ${className} {
                     <div key={index} className="bg-white rounded-lg shadow p-6">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h3 className="text-lg font-semibold text-blue-600">{result.metadata.ticketKey}</h3>
-                          <p className="text-gray-600">{result.ticket?.summary}</p>
+                          <h3 className="text-lg font-semibold text-blue-600">
+                            {result.metadata?.ticketKey || `Test Suite ${index + 1}`}
+                          </h3>
+                          <p className="text-gray-600">{result.ticket?.summary || "No summary available"}</p>
                           <p className="text-sm text-gray-500 mt-1">
-                            Generated {result.testCases.length} test cases on{" "}
-                            {new Date(result.metadata.generatedAt).toLocaleString()}
+                            Generated {result.testCases?.length || 0} test cases on{" "}
+                            {result.metadata?.generatedAt
+                              ? new Date(result.metadata.generatedAt).toLocaleString()
+                              : "Unknown date"}
                           </p>
                         </div>
                         <div className="flex space-x-2">
