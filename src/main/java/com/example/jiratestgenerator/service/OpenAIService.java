@@ -42,11 +42,15 @@ public class OpenAIService {
      * Generate test project based on JIRA ticket acceptance criteria
      */
     public GeneratedTestProject generateTestProject(JiraTicket jiraTicket, String language) {
-        logger.info("Generating {} test project for JIRA ticket: {}", language, jiraTicket.getKey());
+        logger.info("Generating test code for: {}", jiraTicket.getKey());
+        logger.info("Language: {}", language);
+        logger.info("Description length: {}", jiraTicket.getDescription() != null ? jiraTicket.getDescription().length() : 0);
         
         try {
             String prompt = buildPrompt(jiraTicket, language);
             String response = callOpenAI(prompt);
+            
+            logger.info("Generated code length: {}", response.length());
             
             return parseOpenAIResponse(response, jiraTicket.getKey(), language);
             
@@ -121,7 +125,7 @@ public class OpenAIService {
         requestBody.put("messages", new Object[]{
             Map.of("role", "user", "content", prompt)
         });
-        requestBody.put("max_tokens", 4000);
+        requestBody.put("max_tokens", 8000);
         requestBody.put("temperature", 0.1);
         
         try {
@@ -138,7 +142,11 @@ public class OpenAIService {
             
             // Parse the response to extract the content
             JsonNode jsonResponse = objectMapper.readTree(result);
-            return jsonResponse.path("choices").get(0).path("message").path("content").asText();
+            String content = jsonResponse.path("choices").get(0).path("message").path("content").asText();
+            
+            logger.debug("Extracted content length: {}", content.length());
+            
+            return content;
             
         } catch (Exception e) {
             logger.error("Error calling OpenAI API: ", e);
@@ -152,14 +160,25 @@ public class OpenAIService {
             
             // Clean the response - remove markdown formatting if present
             String cleanedResponse = response.trim();
-            if (cleanedResponse.startsWith("```json")) {
+            if (cleanedResponse.startsWith("\`\`\`json")) {
                 cleanedResponse = cleanedResponse.substring(7);
             }
-            if (cleanedResponse.endsWith("```")) {
+            if (cleanedResponse.endsWith("\`\`\`")) {
                 cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length() - 3);
             }
             
-            JsonNode jsonResponse = objectMapper.readTree(cleanedResponse);
+            JsonNode jsonResponse;
+            try {
+                jsonResponse = objectMapper.readTree(cleanedResponse);
+            } catch (Exception e) {
+                logger.warn("Failed to parse as JSON, using fallback project. Response: {}", cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
+                return generateFallbackProject(new JiraTicket() {{
+                    setKey(ticketKey);
+                    setSummary("Generated from OpenAI response");
+                    setDescription(cleanedResponse);
+                }}, language);
+            }
+            
             JsonNode filesNode = jsonResponse.path("files");
             
             Map<String, String> files = new HashMap<>();
@@ -167,12 +186,25 @@ public class OpenAIService {
                 files.put(entry.getKey(), entry.getValue().asText());
             });
             
+            if (files.isEmpty()) {
+                logger.warn("No files found in OpenAI response, using fallback");
+                return generateFallbackProject(new JiraTicket() {{
+                    setKey(ticketKey);
+                    setSummary("Generated from OpenAI response");
+                    setDescription("No files in response");
+                }}, language);
+            }
+            
             return new GeneratedTestProject(files, ticketKey + "-tests", language);
             
         } catch (Exception e) {
             logger.error("Error parsing OpenAI response: ", e);
             logger.debug("Raw response: {}", response);
-            throw new RuntimeException("Failed to parse OpenAI response", e);
+            return generateFallbackProject(new JiraTicket() {{
+                setKey(ticketKey);
+                setSummary("Fallback project");
+                setDescription("Error parsing OpenAI response");
+            }}, language);
         }
     }
     
@@ -198,27 +230,62 @@ public class OpenAIService {
     private String generateFallbackPom() {
         return """
             <?xml version="1.0" encoding="UTF-8"?>
-            <project xmlns="http://maven.apache.org/POM/4.0.0">
+            <project xmlns="http://maven.apache.org/POM/4.0.0"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                     http://maven.apache.org/xsd/maven-4.0.0.xsd">
                 <modelVersion>4.0.0</modelVersion>
                 <groupId>com.test</groupId>
                 <artifactId>api-tests</artifactId>
                 <version>1.0.0</version>
+                <packaging>jar</packaging>
+                
                 <properties>
                     <maven.compiler.source>17</maven.compiler.source>
                     <maven.compiler.target>17</maven.compiler.target>
+                    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
                 </properties>
+                
                 <dependencies>
+                    <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter</artifactId>
+                        <version>3.1.0</version>
+                    </dependency>
                     <dependency>
                         <groupId>io.rest-assured</groupId>
                         <artifactId>rest-assured</artifactId>
                         <version>5.3.0</version>
+                        <scope>test</scope>
                     </dependency>
                     <dependency>
                         <groupId>org.testng</groupId>
                         <artifactId>testng</artifactId>
                         <version>7.8.0</version>
+                        <scope>test</scope>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.seleniumhq.selenium</groupId>
+                        <artifactId>selenium-java</artifactId>
+                        <version>4.11.0</version>
+                        <scope>test</scope>
                     </dependency>
                 </dependencies>
+                
+                <build>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-maven-plugin</artifactId>
+                            <version>3.1.0</version>
+                        </plugin>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-surefire-plugin</artifactId>
+                            <version>3.0.0</version>
+                        </plugin>
+                    </plugins>
+                </build>
             </project>
             """;
     }
