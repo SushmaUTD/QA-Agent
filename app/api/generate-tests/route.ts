@@ -141,14 +141,25 @@ function parseTestCasesFromText(lines: string[], ticketKey: string) {
   let testCounter = 1
 
   for (const line of lines) {
-    if (line.includes("Test Case") || line.includes("TC_")) {
+    const cleanLine = line.trim()
+
+    if (cleanLine.includes("Test Case") || cleanLine.includes("TC_")) {
       if (currentTest) testCases.push(currentTest)
+
+      // Extract clean title from the line
+      let title = cleanLine
+        .replace(/Test Case \d+:?/i, "")
+        .replace(/TC_\w+_\d+:?/i, "")
+        .replace(/["']/g, "") // Remove quotes
+        .trim()
+
+      if (!title) {
+        title = `Test Case for ${ticketKey}`
+      }
+
       currentTest = {
         id: `TC_${ticketKey}_${String(testCounter).padStart(3, "0")}`,
-        title: line
-          .replace(/Test Case \d+:?/i, "")
-          .replace(/TC_\w+_\d+:?/i, "")
-          .trim(),
+        title: title,
         priority: "Medium",
         type: "Functional",
         preconditions: [],
@@ -157,28 +168,56 @@ function parseTestCasesFromText(lines: string[], ticketKey: string) {
         testData: "",
       }
       testCounter++
-    } else if (currentTest) {
-      if (line.toLowerCase().includes("priority:")) {
-        currentTest.priority = line.split(":")[1]?.trim() || "Medium"
-      } else if (line.toLowerCase().includes("type:")) {
-        currentTest.type = line.split(":")[1]?.trim() || "Functional"
-      } else if (line.toLowerCase().includes("precondition")) {
-        currentTest.preconditions.push(line.replace(/precondition:?/i, "").trim())
-      } else if (line.toLowerCase().includes("step") || /^\d+\./.test(line)) {
-        currentTest.steps.push(
-          line
-            .replace(/step \d+:?/i, "")
-            .replace(/^\d+\./, "")
-            .trim(),
-        )
-      } else if (line.toLowerCase().includes("expected")) {
-        currentTest.expectedResults = line.replace(/expected:?/i, "").trim()
+    } else if (currentTest && cleanLine) {
+      // Clean the line of JSON-like formatting
+      const cleanedLine = cleanLine
+        .replace(/^["']\w*["']:\s*["']/, "") // Remove JSON key prefixes
+        .replace(/["'],?$/, "") // Remove trailing quotes and commas
+        .replace(/\\"/g, '"') // Unescape quotes
+        .trim()
+
+      if (cleanLine.toLowerCase().includes("priority:")) {
+        const priority = cleanedLine.split(":")[1]?.trim() || "Medium"
+        currentTest.priority = priority.replace(/["']/g, "")
+      } else if (cleanLine.toLowerCase().includes("type:")) {
+        const type = cleanedLine.split(":")[1]?.trim() || "Functional"
+        currentTest.type = type.replace(/["']/g, "")
+      } else if (cleanLine.toLowerCase().includes("precondition")) {
+        const precondition = cleanedLine.replace(/precondition:?/i, "").trim()
+        if (precondition && precondition !== "[" && precondition !== "]") {
+          currentTest.preconditions.push(precondition)
+        }
+      } else if (cleanLine.toLowerCase().includes("step") || /^\d+\./.test(cleanLine)) {
+        const step = cleanedLine
+          .replace(/step \d+:?/i, "")
+          .replace(/^\d+\./, "")
+          .trim()
+        if (step && step !== "[" && step !== "]") {
+          currentTest.steps.push(step)
+        }
+      } else if (cleanLine.toLowerCase().includes("expected")) {
+        const expected = cleanedLine.replace(/expected:?/i, "").trim()
+        if (expected) {
+          currentTest.expectedResults = expected
+        }
+      } else if (cleanLine.toLowerCase().includes("test data")) {
+        const testData = cleanedLine.replace(/test data:?/i, "").trim()
+        if (testData) {
+          currentTest.testData = testData
+        }
       }
     }
   }
 
   if (currentTest) testCases.push(currentTest)
-  return testCases.length > 0 ? testCases : generateFallbackTests()
+
+  // If parsing failed, return fallback tests
+  if (testCases.length === 0 || testCases.some((tc) => !tc.title || tc.title.includes('"'))) {
+    console.log("[v0] Text parsing produced invalid results, using fallback")
+    return generateFallbackTests({ key: ticketKey }, {})
+  }
+
+  return testCases
 }
 
 function generateFallbackTests(ticket?: any, settings?: any) {
