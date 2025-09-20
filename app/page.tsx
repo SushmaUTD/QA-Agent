@@ -468,7 +468,13 @@ public abstract class BaseTest extends AbstractTestNGSpringContextTests {
 }`
 
     // 5. Main Test Class with actual test methods
-    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${className}.java`] = generateSeleniumCode(testResult)
+    const seleniumCodeResult = generateSeleniumCode(testResult)
+    if (!seleniumCodeResult) {
+      console.error("[v0] generateSeleniumCode returned undefined")
+      throw new Error("Failed to generate Selenium code")
+    }
+
+    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${className}.java`] = seleniumCodeResult
       .replace(
         /public class \w+_Tests \{/,
         `package ${packageName}.tests;
@@ -485,16 +491,16 @@ import org.openqa.selenium.By;
  */
 public class ${className} extends BaseTest {`,
       )
-      .replace(/public static void main$$String\[\] args$$[\s\S]*?}\s*}/m, "")
-      .replace(/public void setUp$$$$[\s\S]*?}\s*/m, "")
-      .replace(/public void tearDown$$$$[\s\S]*?}\s*/m, "")
-      .replace(/private void takeScreenshot[\s\S]*?}\s*/m, "")
-      .replace(/private void waitAndClick[\s\S]*?}\s*/m, "")
-      .replace(/private void waitAndSendKeys[\s\S]*?}\s*/m, "")
-      .replace(/private boolean isElementPresent[\s\S]*?}\s*/m, "")
+      .replace(/public static void main\$\$String\[\] args\$\$[^}]*?}\s*}/m, "")
+      .replace(/public void setUp\$\$\$\$[^}]*?}\s*/m, "")
+      .replace(/public void tearDown\$\$\$\$[^}]*?}\s*/m, "")
+      .replace(/private void takeScreenshot[^}]*?}\s*/m, "")
+      .replace(/private void waitAndClick[^}]*?}\s*/m, "")
+      .replace(/private void waitAndSendKeys[^}]*?}\s*/m, "")
+      .replace(/private boolean isElementPresent[^}]*?}\s*/m, "")
       .replace(/public void test/g, "@Test\n    public void test")
-      .replace(/driver\.get$$BASE_URL$$;/g, "navigateToApp();")
-      .replace(/Thread\.sleep$$\d+$$;/g, "waitForPageLoad();")
+      .replace(/driver\.get\$\$BASE_URL\$\$;/g, "navigateToApp();")
+      .replace(/Thread\.sleep\$\$\d+\$\$;/g, "waitForPageLoad();")
 
     // 6. TestNG configuration
     files["src/test/resources/testng.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
@@ -641,7 +647,7 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
 
   const generateSeleniumCode = (testResult: TestGenerationResult): string => {
     const ticketKey = testResult.metadata?.ticketKey || "UnknownTicket"
-    const safeTicketKey = typeof ticketKey === "string" ? ticketKey : String(ticketKey)
+    const safeTicketKey = ticketKey ? String(ticketKey) : "UnknownTicket"
     const className = `${safeTicketKey.replace(/-/g, "_")}_Tests`
 
     let seleniumCode = `import org.openqa.selenium.WebDriver;
