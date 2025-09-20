@@ -93,19 +93,26 @@ export default function JiraTestGenerator() {
     }
   }
 
-  const downloadTests = () => {
+  const downloadTests = async () => {
     if (!generatedTests) return
 
-    // Create a simple text file with all the generated code
-    const content = generatedTests.files
-      .map((file: any) => `// File: ${file.path}\n${file.content}\n\n`)
-      .join("\n" + "=".repeat(80) + "\n\n")
+    // Dynamically import JSZip
+    const JSZip = (await import("jszip")).default
+    const zip = new JSZip()
 
-    const blob = new Blob([content], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
+    // Add each file to the ZIP with proper directory structure
+    generatedTests.files.forEach((file: any) => {
+      zip.file(file.path, file.content)
+    })
+
+    // Generate the ZIP file
+    const content = await zip.generateAsync({ type: "blob" })
+
+    // Create download link
+    const url = URL.createObjectURL(content)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${selectedTicket?.key || "tests"}-${testLanguage}.txt`
+    a.download = `${selectedTicket?.key || "tests"}-${testLanguage}-project.zip`
     a.click()
     URL.revokeObjectURL(url)
   }
