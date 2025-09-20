@@ -641,7 +641,8 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
 
   const generateSeleniumCode = (testResult: TestGenerationResult): string => {
     const ticketKey = testResult.metadata?.ticketKey || "UnknownTicket"
-    const className = `${ticketKey.replace(/-/g, "_")}_Tests`
+    const safeTicketKey = typeof ticketKey === "string" ? ticketKey : String(ticketKey)
+    const className = `${safeTicketKey.replace(/-/g, "_")}_Tests`
 
     let seleniumCode = `import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
