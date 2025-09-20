@@ -26,7 +26,7 @@
         <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">JIRA Test Generator</h1>
-            <p class="text-lg text-gray-600">Generate API test projects from JIRA acceptance criteria</p>
+            <p class="text-lg text-gray-600">Generate AI-powered test projects from JIRA acceptance criteria</p>
         </div>
 
         <!-- Main Content -->
@@ -68,7 +68,7 @@
                     </select>
                 </div>
 
-                <!-- Added test scenario selection options -->
+                <!-- Test scenario selection options -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Test Scenarios to Include:</label>
                     <div class="space-y-2">
@@ -127,9 +127,11 @@
         let selectedTicket = null;
         let generatedProject = null;
 
+        console.log('[v0] JIRA Test Generator initialized');
+
         // Load JIRA tickets
         document.getElementById('loadTicketsBtn').addEventListener('click', async () => {
-            console.log('[v0] JIRA Connect button clicked');
+            console.log('[v0] Load tickets button clicked');
             try {
                 console.log('[v0] Making API call to /api/jira-tickets');
                 const response = await fetch('/api/jira-tickets');
@@ -181,7 +183,7 @@
                     </div>
                 `;
                 
-                ticketCard.addEventListener('click', () => selectTicket(ticket));
+                ticketCard.addEventListener('click', () => selectTicket(ticket, ticketCard));
                 ticketsList.appendChild(ticketCard);
             });
         }
@@ -197,8 +199,9 @@
         }
 
         // Select ticket
-        function selectTicket(ticket) {
+        function selectTicket(ticket, ticketElement) {
             selectedTicket = ticket;
+            console.log('[v0] Selected ticket:', ticket.key);
             
             // Update selected ticket display
             const ticketDetails = document.getElementById('ticketDetails');
@@ -224,7 +227,7 @@
             document.querySelectorAll('#ticketsList > div').forEach(card => {
                 card.classList.remove('bg-blue-50', 'border-blue-300');
             });
-            event.currentTarget.classList.add('bg-blue-50', 'border-blue-300');
+            ticketElement.classList.add('bg-blue-50', 'border-blue-300');
         }
 
         // Generate test project
@@ -322,12 +325,22 @@
                 document.getElementById('downloadBtn').classList.remove('hidden');
                 document.getElementById('projectPreviewSection').classList.remove('hidden');
                 
-                alert(`✅ Test project generated successfully!\n\nProject: ${generatedProject.projectName || selectedTicket.key + '-tests'}\nLanguage: ${generatedProject.language || language}\nFiles: ${fileCount}`);
+                alert(`✅ Test project generated successfully!
+
+Project: ${generatedProject.projectName || selectedTicket.key + '-tests'}
+Language: ${generatedProject.language || language}
+Files: ${fileCount}
+
+You can now download the ZIP file!`);
                 
             } catch (error) {
                 console.error('[v0] Error generating test project:', error);
                 const errorMsg = error.message || 'Unknown error occurred';
-                alert(`❌ Error generating tests for ${selectedTicket.key}:\n\n${errorMsg}\n\nPlease check the console for more details.`);
+                alert(`❌ Error generating tests for ${selectedTicket.key}:
+
+${errorMsg}
+
+Please check the console for more details.`);
             } finally {
                 document.getElementById('loadingIndicator').classList.add('hidden');
             }
@@ -446,12 +459,21 @@
                 }, 100);
                 
                 console.log('[v0] Download completed successfully:', filename);
-                alert(`✅ Download completed!\n\nFile: ${filename}\nSize: ${(blob.size / 1024).toFixed(1)} KB`);
+                alert(`✅ Download completed!
+
+File: ${filename}
+Size: ${(blob.size / 1024).toFixed(1)} KB
+
+The test project has been downloaded to your computer!`);
                 
             } catch (error) {
                 console.error('[v0] Error downloading test project:', error);
                 const errorMsg = error.message || 'Unknown download error occurred';
-                alert(`❌ Error downloading test project:\n\n${errorMsg}\n\nPlease check the console for more details.`);
+                alert(`❌ Error downloading test project:
+
+${errorMsg}
+
+Please check the console for more details.`);
             } finally {
                 document.getElementById('loadingIndicator').classList.add('hidden');
             }
