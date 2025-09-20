@@ -857,7 +857,13 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
 
   const generateTestSteps = (testCase: any, ticket: any): string => {
     const steps = testCase.steps || []
-    const testData = testCase.testData ? JSON.parse(testCase.testData) : {}
+    let testData = {}
+    try {
+      testData = testCase.testData ? JSON.parse(testCase.testData) : {}
+    } catch (error) {
+      console.log("[v0] Failed to parse testData JSON, using empty object:", testCase.testData)
+      testData = {}
+    }
 
     if (steps.length === 0) {
       return `
