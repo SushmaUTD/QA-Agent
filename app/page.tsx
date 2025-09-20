@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import JSZip from "jszip"
 
 interface JiraTicket {
   id: string
@@ -59,7 +60,6 @@ export default function JiraTestGenerator() {
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Renamed state variables to match the updates
   const [testTypes, setTestTypes] = useState<string[]>(["functional"])
   const [testCoverage, setTestCoverage] = useState(100)
   const [selectedFramework, setSelectedFramework] = useState("selenium")
@@ -120,9 +120,9 @@ export default function JiraTestGenerator() {
             ticket,
             appConfig,
             settings: {
-              coverageLevel: 75,
-              testTypes: ["Functional", "UI", "Edge Case"],
-              framework: "selenium",
+              coverageLevel: testCoverage,
+              testTypes,
+              framework: selectedFramework,
             },
           }),
         })
@@ -136,7 +136,7 @@ export default function JiraTestGenerator() {
             metadata: result.metadata || {
               ticketKey: ticket.key,
               generatedAt: new Date().toISOString(),
-              settings: { coverageLevel: 75, testTypes: ["Functional", "UI", "Edge Case"], framework: "selenium" },
+              settings: { coverageLevel: testCoverage, testTypes, framework: selectedFramework },
               totalTests: result.testCases.length,
               source: "jira",
             },
@@ -199,17 +199,14 @@ export default function JiraTestGenerator() {
   const generateSpringBootProject = (testResult: TestGenerationResult, ticketKey: string) => {
     const projectName = "qa_agent"
     const packageName = `com.testing.qaagent`
-    const className = "InstrumentTests"
 
-    // Create project files
     const files: { [key: string]: string } = {}
 
-    // 1. pom.xml - Maven configuration with all dependencies
     files["pom.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.testing</groupId>
@@ -237,48 +234,35 @@ export default function JiraTestGenerator() {
     </parent>
 
     <dependencies>
-        <!-- Spring Boot Starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
-
-        <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- Selenium WebDriver -->
         <dependency>
             <groupId>org.seleniumhq.selenium</groupId>
             <artifactId>selenium-java</artifactId>
             <version>\${selenium.version}</version>
         </dependency>
-
-        <!-- WebDriverManager for automatic driver management -->
         <dependency>
             <groupId>io.github.bonigarcia</groupId>
             <artifactId>webdrivermanager</artifactId>
             <version>5.6.2</version>
         </dependency>
-
-        <!-- TestNG -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>\${testng.version}</version>
         </dependency>
-
-        <!-- Apache Commons IO for file operations -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.11.0</version>
         </dependency>
-
-        <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -291,7 +275,6 @@ export default function JiraTestGenerator() {
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -306,7 +289,6 @@ export default function JiraTestGenerator() {
     </build>
 </project>`
 
-    // 2. Main Application class
     files[`src/main/java/${packageName.replace(/\./g, "/")}/Application.java`] = `package ${packageName};
 
 import org.springframework.boot.SpringApplication;
@@ -319,7 +301,6 @@ public class Application {
     }
 }`
 
-    // 3. Base Test Configuration
     files[`src/test/java/${packageName.replace(/\./g, "/")}/config/TestConfig.java`] = `package ${packageName}.config;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
@@ -352,7 +333,6 @@ public class TestConfig {
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--disable-web-security");
         options.addArguments("--allow-running-insecure-content");
-        // Remove the next line to run in headed mode
         options.addArguments("--headless");
         
         WebDriver driver = new ChromeDriver(options);
@@ -372,203 +352,32 @@ public class TestConfig {
     }
 }`
 
-    // 4. Base Test Class
-    files[`src/test/java/${packageName.replace(/\./g, "/")}/BaseTest.java`] = `package ${packageName};
-
-import ${packageName}.config.TestConfig;
-import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.Keys;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.Assert;
-import org.apache.commons.io.FileUtils;
-
-import java.io.File;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
-@SpringBootTest
-public class BaseTest extends AbstractTestNGSpringContextTests {
-
-    @Autowired
-    protected WebDriver driver;
-
-    @Autowired
-    protected WebDriverWait wait;
-
-    @Autowired
-    protected TestConfig testConfig;
-
-    @BeforeMethod
-    public void setUp() {
-        try {
-            if (driver != null) {
-                driver.get(testConfig.getBaseUrl());
-                System.out.println("Navigated to: " + testConfig.getBaseUrl());
-            } else {
-                throw new RuntimeException("WebDriver is null - check configuration");
-            }
-        } catch (Exception e) {
-            System.err.println("Setup failed: " + e.getMessage());
-            throw e;
-        }
-    }
-
-    @AfterMethod
-    public void tearDown() {
-        try {
-            if (driver != null) {
-                driver.quit();
-            }
-        } catch (Exception e) {
-            System.err.println("TearDown failed: " + e.getMessage());
-        }
-    }
-
-    protected void clickElement(By locator) {
-        try {
-            WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
-            element.click();
-            System.out.println("Clicked element: " + locator);
-        } catch (Exception e) {
-            takeScreenshot("click_failed_" + System.currentTimeMillis());
-            throw new RuntimeException("Failed to click element: " + locator, e);
-        }
-    }
-
-    protected void enterText(By locator, String text) {
-        try {
-            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-            element.clear();
-            element.sendKeys(text);
-            System.out.println("Entered text '" + text + "' in element: " + locator);
-        } catch (Exception e) {
-            takeScreenshot("enter_text_failed_" + System.currentTimeMillis());
-            throw new RuntimeException("Failed to enter text in element: " + locator, e);
-        }
-    }
-
-    protected void verifyElementVisible(By locator) {
-        try {
-            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-            Assert.assertTrue(element.isDisplayed(), "Element should be visible: " + locator);
-            System.out.println("Verified element is visible: " + locator);
-        } catch (Exception e) {
-            takeScreenshot("verify_visible_failed_" + System.currentTimeMillis());
-            throw new RuntimeException("Element not visible: " + locator, e);
-        }
-    }
-
-    protected void verifyTextPresent(By locator, String expectedText) {
-        try {
-            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-            String actualText = element.getText();
-            Assert.assertTrue(actualText.contains(expectedText), 
-                "Expected text '" + expectedText + "' not found. Actual text: '" + actualText + "'");
-            System.out.println("Verified text '" + expectedText + "' is present");
-        } catch (Exception e) {
-            takeScreenshot("verify_text_failed_" + System.currentTimeMillis());
-            throw new RuntimeException("Text verification failed for: " + locator, e);
-        }
-    }
-
-    protected void takeScreenshot(String fileName) {
-        try {
-            if (driver != null) {
-                TakesScreenshot screenshot = (TakesScreenshot) driver;
-                File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
-                File destFile = new File("screenshots/" + fileName + ".png");
-                destFile.getParentFile().mkdirs();
-                FileUtils.copyFile(sourceFile, destFile);
-                System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to take screenshot: " + e.getMessage());
-        }
-    }
-}`
-
-    // 5. Main Test Class with actual test methods
     const seleniumCodeResult = generateSeleniumCode(testResult)
-    if (!seleniumCodeResult) {
-      console.error("[v0] generateSeleniumCode returned undefined")
-      throw new Error("Failed to generate Selenium code")
+    if (seleniumCodeResult) {
+      const safeTicketKey = testResult.metadata?.ticketKey || "UnknownTicket"
+      const cleanClassName = `${safeTicketKey.replace(/-/g, "_")}_Tests`
+      files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${cleanClassName}.java`] = seleniumCodeResult
     }
 
-    const safeTicketKey = testResult.metadata?.ticketKey || "UnknownTicket"
-    const cleanClassName = `${safeTicketKey.replace(/-/g, "_")}_Tests`
-
-    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${cleanClassName}.java`] = seleniumCodeResult
-      .replace(
-        /public class \w+_Tests \{/,
-        `package ${packageName}.tests;
-
-import ${packageName}.BaseTest;
-import org.testng.annotations.Test;
-import org.openqa.selenium.By;
-
-/**
- * Automated Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}
- * Generated on: ${testResult.metadata?.generatedAt || new Date().toISOString()}
- * Framework: Selenium WebDriver with Spring Boot & TestNG
- * Total Test Cases: ${testResult.testCases?.length || 0}
- */
-public class ${cleanClassName} extends BaseTest {`,
-      )
-      .replace(/public static void main\$\$String\[\] args\$\$[^}]*?}\s*/m, "")
-      .replace(/public void setUp\$\$\$\$[^}]*?}\s*/m, "")
-      .replace(/public void tearDown\$\$\$\$[^}]*?}\s*/m, "")
-      .replace(/private void takeScreenshot[^}]*?}\s*/m, "")
-      .replace(/private void waitAndClick[^}]*?}\s*/m, "")
-      .replace(/private void waitAndSendKeys[^}]*?}\s*/m, "")
-      .replace(/private boolean isElementPresent[^}]*?}\s*/m, "")
-      .replace(/public void test/g, "@Test\n    public void test")
-      .replace(/driver\.get\$\$BASE_URL\$\$;/g, "navigateToApp();")
-      .replace(/Thread\.sleep\$\$\d+\$\$;/g, "waitForPageLoad();")
-
-    // 6. TestNG configuration
     files["src/test/resources/testng.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
 <suite name="${projectName}" verbose="1">
     <test name="${ticketKey} Tests">
         <classes>
-            <class name="${packageName}.tests.${cleanClassName}"/>
+            <class name="${packageName}.tests.GeneratedTests"/>
         </classes>
     </test>
 </suite>`
 
-    // 7. Application properties
-    files["src/test/resources/application.properties"] = `# Application Configuration
-app.base.url=${appConfig.applicationUrl || "http://localhost:3000"}
-
-# Logging Configuration
+    files["src/test/resources/application.properties"] =
+      `app.base.url=${appConfig.applicationUrl || "http://localhost:3000"}
 logging.level.root=INFO
 logging.level.${packageName}=DEBUG
-
-# Test Configuration
 test.timeout=30
 test.screenshot.enabled=true
-
-# WebDriver Configuration
 webdriver.chrome.headless=true
 webdriver.timeout.implicit=10
 webdriver.timeout.explicit=15`
 
-    // 8. README.md with instructions
     files["README.md"] = `# ${projectName.toUpperCase()} - Selenium Test Suite
 
 ## Overview
@@ -582,21 +391,6 @@ Automated test suite for **${testResult.ticket?.summary || "JIRA Ticket"}** (${t
 - Java 11 or higher
 - Maven 3.6 or higher
 - Chrome browser installed
-
-## Project Structure
-\`\`\`
-${projectName}/
-├── pom.xml                           # Maven dependencies
-├── src/main/java/                    # Main application code
-├── src/test/java/                    # Test code
-│   ├── config/TestConfig.java        # WebDriver configuration
-│   ├── BaseTest.java                 # Base test class
-│   └── tests/${cleanClassName}.java       # Test cases
-├── src/test/resources/
-│   ├── testng.xml                    # TestNG configuration
-│   └── application.properties        # Test properties
-└── README.md                         # This file
-\`\`\`
 
 ## How to Run
 
@@ -614,17 +408,12 @@ app.base.url=http://your-application-url
 ### 3. Run Tests
 
 #### Via IDE:
-- Right-click on \`${cleanClassName}.java\` → Run
+- Right-click on test class → Run
 - Or right-click on \`testng.xml\` → Run
 
 #### Via Maven:
 \`\`\`bash
 mvn clean test
-\`\`\`
-
-#### Run specific test:
-\`\`\`bash
-mvn test -Dtest=${cleanClassName}#testMethodName
 \`\`\`
 
 ### 4. View Results
@@ -634,51 +423,19 @@ mvn test -Dtest=${cleanClassName}#testMethodName
 ## Test Cases Included
 ${testResult.testCases?.map((tc: any, i: number) => `${i + 1}. **${tc.title}** (${tc.priority} priority)`).join("\n") || "No test cases available"}
 
-## Configuration Options
-
-### Browser Settings
-Edit \`TestConfig.java\` to modify browser options:
-- Remove \`--headless\` to see browser actions
-- Change window size, add extensions, etc.
-
-### Timeouts
-Adjust timeouts in \`TestConfig.java\`:
-- Implicit wait: Currently 10 seconds
-- Explicit wait: Currently 15 seconds
-
-## Troubleshooting
-
-### Common Issues:
-1. **ChromeDriver not found**: WebDriverManager handles this automatically
-2. **Tests fail**: Check application URL in properties file
-3. **Screenshots not saving**: Ensure write permissions in project directory
-
-### Debug Mode:
-Set logging level to DEBUG in \`application.properties\`:
-\`\`\`properties
-logging.level.${packageName}=DEBUG
-\`\`\`
-
 ## Support
 Generated by JIRA Test Case Generator
 For issues, check the application logs and screenshots in the \`screenshots/\` directory.
 `
 
-    // Create and download ZIP file
     createZipDownload(files, `${projectName}.zip`)
   }
 
   const createZipDownload = async (files: { [key: string]: string }, filename: string) => {
-    // Import JSZip dynamically
-    const JSZip = (await import("jszip")).default
     const zip = new JSZip()
-
-    // Add all files to ZIP
     Object.entries(files).forEach(([path, content]) => {
       zip.file(path, content)
     })
-
-    // Generate ZIP and download
     const zipBlob = await zip.generateAsync({ type: "blob" })
     const url = URL.createObjectURL(zipBlob)
     const a = document.createElement("a")
@@ -690,1206 +447,468 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
     URL.revokeObjectURL(url)
   }
 
-  const generateSeleniumCode = (testResult: TestGenerationResult): string => {
-    const ticketKey = testResult.metadata?.ticketKey || "UnknownTicket"
-    const safeTicketKey = ticketKey ? String(ticketKey) : "UnknownTicket"
-    const className = `${safeTicketKey.replace(/-/g, "_")}_Tests`
-    const packageName = `com.testing.qaagent` // Defined here to fix undeclared variable error
+  const generateSeleniumCode = (testResult: any) => {
+    if (!testResult || !testResult.testCases) {
+      return undefined
+    }
 
-    const seleniumCode = `package ${packageName}.tests;
+    const applicationUrl = appConfig.applicationUrl || "http://localhost:3000"
 
-import ${packageName}.BaseTest;
+    return `package com.testing.qaagent.tests;
+
 import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.interactions.Actions;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.Test;
-import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterMethod;
 
-import java.util.List;
+@SpringBootTest
+public class GeneratedTests extends AbstractTestNGSpringContextTests {
 
-public class ${className} extends BaseTest {
+    @Autowired
+    private WebDriver driver;
 
-    @Test(description = "Add new stock trading instrument")
-    public void testAddInstrument() {
+    @Autowired
+    private WebDriverWait wait;
+
+    @BeforeMethod
+    public void setUp() {
+        driver.get("${applicationUrl}");
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+
+    @Test(description = "Generated Test")
+    public void testGenerated() {
         try {
-            System.out.println("Starting test: Add new stock trading instrument");
+            System.out.println("Starting generated test");
             
-            // Navigate to home page
-            driver.get(testConfig.getBaseUrl());
-            Thread.sleep(2000);
+            WebElement addButton = wait.until(ExpectedConditions.elementToBeClickable(
+                By.xpath("//button[contains(text(), 'Add')]")));
+            addButton.click();
             
-            // Look for Add Instrument button - trying multiple selectors for top right corner
-            By addInstrumentButton = By.xpath(
-                "//button[contains(text(), 'Add Instrument')] | " +
-                "//a[contains(text(), 'Add Instrument')] | " +
-                "//button[contains(@class, 'add') and contains(text(), 'Instrument')] | " +
-                "//div[contains(@class, 'top') or contains(@class, 'header')]//button[contains(text(), 'Add')] | " +
-                "//nav//button[contains(text(), 'Add')] | " +
-                "//button[@id='add-instrument'] | " +
-                "//a[@href*='add-instrument'] | " +
-                "//button[contains(@aria-label, 'Add Instrument')]"
-            );
+            WebElement symbolField = wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.xpath("//input[@name='symbol']")));
+            symbolField.clear();
+            symbolField.sendKeys("AAPL");
             
-            System.out.println("Looking for Add Instrument button...");
-            clickElement(addInstrumentButton);
+            WebElement companyField = wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.xpath("//input[@name='companyName']")));
+            companyField.clear();
+            companyField.sendKeys("Apple Inc.");
             
-            // Wait for form to load
-            Thread.sleep(1000);
+            WebElement submitButton = wait.until(ExpectedConditions.elementToBeClickable(
+                By.xpath("//button[@type='submit']")));
+            submitButton.click();
             
-            // Fill instrument details - using flexible selectors
-            By symbolField = By.xpath(
-                "//input[@name='symbol'] | " +
-                "//input[@placeholder*='symbol' or @placeholder*='Symbol'] | " +
-                "//input[@id='symbol'] | " +
-                "//label[contains(text(), 'Symbol')]//following::input[1]"
-            );
-            enterText(symbolField, "AAPL");
+            WebElement successMessage = wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.xpath("//*[contains(text(), 'successfully')]")));
             
-            By nameField = By.xpath(
-                "//input[@name='name'] | " +
-                "//input[@placeholder*='name' or @placeholder*='Name'] | " +
-                "//input[@id='name'] | " +
-                "//label[contains(text(), 'Name')]//following::input[1]"
-            );
-            enterText(nameField, "Apple Inc.");
-            
-            By typeField = By.xpath(
-                "//select[@name='type'] | " +
-                "//select[@id='type'] | " +
-                "//label[contains(text(), 'Type')]//following::select[1]"
-            );
-            
-            // Handle dropdown selection
-            WebElement typeElement = wait.until(ExpectedConditions.elementToBeClickable(typeField));
-            Select typeSelect = new Select(typeElement);
-            typeSelect.selectByVisibleText("Stock");
-            
-            // Submit form
-            By submitButton = By.xpath(
-                "//button[@type='submit'] | " +
-                "//button[contains(text(), 'Save')] | " +
-                "//button[contains(text(), 'Add')] | " +
-                "//button[contains(text(), 'Create')] | " +
-                "//input[@type='submit']"
-            );
-            clickElement(submitButton);
-            
-            // Verify success
-            Thread.sleep(2000);
-            By successMessage = By.xpath(
-                "//*[contains(text(), 'success') or contains(text(), 'Success')] | " +
-                "//*[contains(text(), 'added') or contains(text(), 'Added')] | " +
-                "//*[contains(text(), 'created') or contains(text(), 'Created')] | " +
-                "//div[contains(@class, 'success') or contains(@class, 'alert-success')]"
-            );
-            
-            verifyElementVisible(successMessage);
-            System.out.println("Test completed successfully: Add new stock trading instrument");
+            System.out.println("Test passed: Successfully added instrument");
             
         } catch (Exception e) {
-            takeScreenshot("test_add_instrument_failed");
             System.err.println("Test failed: " + e.getMessage());
             throw e;
         }
     }
 }`
-
-    return seleniumCode
   }
 
-  const generateTestSteps = (testCase: any, ticket: any): string => {
-    const steps = testCase.steps || []
-    let testData = {}
-    try {
-      testData = testCase.testData ? JSON.parse(testCase.testData) : {}
-    } catch (error) {
-      console.log("[v0] Failed to parse testData JSON, using empty object:", testCase.testData)
-      testData = {}
-    }
+  const generateCypressCode = (testResult: TestGenerationResult): string => {
+    const { testCases, ticket } = testResult
+    const applicationUrl = appConfig.applicationUrl || "http://localhost:3000"
 
-    if (steps.length === 0) {
-      return `// No test steps provided`
-    }
+    let cypressCode = `// Cypress Test Suite for ${ticket?.summary || "JIRA Ticket"}
+// Generated on: ${new Date().toISOString()}
 
-    let testStepsCode = ""
-
-    steps.forEach((step: string, index: number) => {
-      const stepLower = step.toLowerCase()
-
-      if (stepLower.includes("navigate") && stepLower.includes("add") && stepLower.includes("instrument")) {
-        testStepsCode += `
-            // Navigate to Add Trading Instrument page
-            System.out.println("Looking for Add Instrument button...");
-            
-            // Try multiple selectors for Add Instrument button (top right corner)
-            WebElement addInstrumentButton = findElementSafely(By.xpath(
-                "//button[contains(text(), 'Add Instrument')] | " +
-                "//a[contains(text(), 'Add Instrument')] | " +
-                "//button[contains(text(), 'Add')] | " +
-                "//a[contains(text(), 'Add')] | " +
-                "//*[@class='btn' and contains(text(), 'Add')] | " +
-                "//*[contains(@class, 'add-btn')] | " +
-                "//*[contains(@class, 'btn-primary') and contains(text(), 'Add')]"
-            ));
-            
-            if (addInstrumentButton != null) {
-                clickElement(addInstrumentButton);
-                Thread.sleep(2000); // Wait for page load
-                System.out.println("✓ Successfully clicked Add Instrument button");
-            } else {
-                System.out.println("! Add Instrument button not found, trying direct navigation...");
-                driver.get(driver.getCurrentUrl() + "/add-instrument");
-                Thread.sleep(2000);
-            }`
-      } else if (stepLower.includes("enter") && stepLower.includes("symbol")) {
-        const symbol = (testData as any)?.symbol || "AAPL"
-        testStepsCode += `
-            // Enter stock symbol
-            System.out.println("Entering stock symbol: ${symbol}");
-            WebElement symbolField = findElementSafely(By.xpath(
-                "//input[@name='symbol'] | " +
-                "//input[@id='symbol'] | " +
-                "//input[contains(@placeholder, 'symbol')] | " +
-                "//input[contains(@placeholder, 'Symbol')] | " +
-                "//input[@type='text'][1]"
-            ));
-            
-            if (symbolField != null) {
-                enterText(symbolField, "${symbol}");
-                System.out.println("✓ Entered stock symbol: ${symbol}");
-            } else {
-                throw new RuntimeException("Could not find symbol input field");
-            }`
-      } else if (stepLower.includes("enter") && stepLower.includes("company")) {
-        const companyName = (testData as any)?.companyName || "Apple Inc."
-        testStepsCode += `
-            // Enter company name
-            System.out.println("Entering company name: ${companyName}");
-            WebElement companyField = findElementSafely(By.xpath(
-                "//input[@name='companyName'] | " +
-                "//input[@name='company'] | " +
-                "//input[@id='companyName'] | " +
-                "//input[@id='company'] | " +
-                "//input[contains(@placeholder, 'company')] | " +
-                "//input[contains(@placeholder, 'Company')] | " +
-                "//input[@type='text'][2]"
-            ));
-            
-            if (companyField != null) {
-                enterText(companyField, "${companyName}");
-                System.out.println("✓ Entered company name: ${companyName}");
-            } else {
-                throw new RuntimeException("Could not find company name input field");
-            }`
-      } else if (stepLower.includes("select") && stepLower.includes("type")) {
-        const instrumentType = (testData as any)?.type || "Stock"
-        testStepsCode += `
-            // Select instrument type
-            System.out.println("Selecting instrument type: ${instrumentType}");
-            WebElement typeDropdown = findElementSafely(By.xpath(
-                "//select[@name='type'] | " +
-                "//select[@name='instrumentType'] | " +
-                "//select[@id='type'] | " +
-                "//select[@id='instrumentType'] | " +
-                "//select[contains(@class, 'type')]"
-            ));
-            
-            if (typeDropdown != null) {
-                Select select = new Select(typeDropdown);
-                select.selectByVisibleText("${instrumentType}");
-                System.out.println("✓ Selected instrument type: ${instrumentType}");
-            } else {
-                System.out.println("! Instrument type dropdown not found - may be optional");
-            }`
-      } else if (stepLower.includes("click") && stepLower.includes("add instrument")) {
-        testStepsCode += `
-            // Click Add Instrument submit button
-            System.out.println("Looking for submit button...");
-            WebElement submitButton = findElementSafely(By.xpath(
-                "//button[contains(text(), 'Add Instrument')] | " +
-                "//button[contains(text(), 'Save')] | " +
-                "//button[contains(text(), 'Create')] | " +
-                "//button[contains(text(), 'Submit')] | " +
-                "//button[@type='submit'] | " +
-                "//input[@type='submit'] | " +
-                "//*[contains(@class, 'btn-primary')]"
-            ));
-            
-            if (submitButton != null) {
-                clickElement(submitButton);
-                Thread.sleep(3000); // Wait for form submission
-                System.out.println("✓ Successfully submitted the form");
-            } else {
-                throw new RuntimeException("Could not find submit button");
-            }`
-      } else if (stepLower.includes("verify") || stepLower.includes("check")) {
-        testStepsCode += `
-            // Verification: ${step}
-            System.out.println("Performing verification...");
-            
-            // Check for success message or new instrument in list
-            WebElement successIndicator = findElementSafely(By.xpath(
-                "//*[contains(text(), 'successfully')] | " +
-                "//*[contains(text(), 'Success')] | " +
-                "//*[contains(text(), 'added')] | " +
-                "//*[contains(@class, 'success')] | " +
-                "//*[contains(@class, 'alert-success')] | " +
-                "//table//td[contains(text(), 'AAPL')] | " +
-                "//div[contains(@class, 'instrument-list')]//div[contains(text(), 'AAPL')]"
-            ));
-            
-            if (successIndicator != null) {
-                System.out.println("✓ Verification passed: " + successIndicator.getText());
-            } else {
-                System.out.println("! Verification warning: Success indicator not found, but no error occurred");
-            }`
-      }
-    })
-
-    return testStepsCode
-  }
-
-  const generateRealSeleniumVerification = (testCase: TestCase, ticket?: JiraTicket) => {
-    const expectedResult = testCase.expectedResults.toLowerCase()
-    const ticketSummary = ticket?.summary?.toLowerCase() || ""
-
-    if (ticketSummary.includes("add") || ticketSummary.includes("create") || ticketSummary.includes("new")) {
-      if (ticketSummary.includes("instrument")) {
-        return `            // Verify new instrument was added successfully
-            Thread.sleep(2000); // Wait for save operation
-            try {
-                verifyTextPresent("successfully");
-                System.out.println("✓ Success message found");
-            } catch (Exception e) {
-                // Alternative: check if we're redirected to list page
-                if (driver.getCurrentUrl().contains("list") || driver.getCurrentUrl().contains("instruments")) {
-                    System.out.println("✓ Redirected to instruments list");
-                } else {
-                    // Check for the newly added instrument in the page
-                    verifyElementVisible(By.xpath("//td[contains(text(), 'Test Instrument')] | //div[contains(text(), 'Test Instrument')]"));
-                    System.out.println("✓ New instrument visible in list");
-                }
-            }`
-      } else {
-        return `            // Verify item was created successfully
-            Thread.sleep(2000);
-            try {
-                verifyTextPresent("success");
-                System.out.println("✓ Success message displayed");
-            } catch (Exception e) {
-                // Check for redirect or new item in list
-                verifyElementVisible(By.xpath("//div[contains(@class, 'success')] | //div[contains(text(), 'created')]"));
-                System.out.println("✓ Creation confirmed");
-            }`
-      }
-    } else if (expectedResult.includes("login") || expectedResult.includes("authenticated")) {
-      return `            // Verify successful login
-            wait.until(ExpectedConditions.urlContains("dashboard"));
-            verifyElementVisible(By.xpath("//div[contains(@class, 'user-menu')] | //button[contains(text(), 'Logout')] | //span[contains(text(), 'Welcome')]"));
-            System.out.println("✓ User successfully logged in");`
-    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
-      return `            // Verify error is displayed
-            verifyElementVisible(By.xpath("//div[contains(@class, 'error')] | //div[contains(@class, 'alert-danger')]"));
-            verifyTextPresent("error");
-            System.out.println("✓ Error message displayed as expected");`
-    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
-      return `            // Verify page redirection
-            wait.until(ExpectedConditions.not(ExpectedConditions.urlToBe(driver.getCurrentUrl())));
-            System.out.println("✓ Page redirected successfully to: " + driver.getCurrentUrl());`
-    } else if (
-      expectedResult.includes("display") ||
-      expectedResult.includes("show") ||
-      expectedResult.includes("visible")
-    ) {
-      return `            // Verify content is displayed
-            verifyElementVisible(By.xpath("//div[contains(@class, 'content')] | //main | //section"));
-            System.out.println("✓ Content displayed successfully");
-            
-            // Take screenshot of final result
-            takeScreenshot("test_result_success");`
-    } else {
-      return `            // Generic verification: ${testCase.expectedResults}
-            // Verify page is functional and no errors occurred
-            verifyElementVisible(By.tagName("body"));
-            
-            // Check that no error messages are present
-            List<WebElement> errorElements = driver.findElements(By.xpath("//div[contains(@class, 'error')] | //div[contains(text(), 'Error')]"));
-            if (errorElements.size() > 0) {
-                throw new RuntimeException("Unexpected error found on page");
-            }
-            
-            System.out.println("✓ Test completed successfully - no errors detected");
-            takeScreenshot("test_completion");`
-    }
-  }
-
-  const generateCypressCode = (testResult: TestGenerationResult) => {
-    const ticketKey = testResult?.metadata?.ticketKey || "UnknownTicket"
-    const generatedAt = testResult?.metadata?.generatedAt || new Date().toISOString()
-
-    return `// Cypress tests for ${ticketKey}
-// Generated on ${new Date(generatedAt).toLocaleString()}
-// Application: ${appConfig.applicationUrl} (${appConfig.environment})
-
-describe('${testResult.ticket?.summary || "Test Suite"}', () => {
-  const BASE_URL = '${appConfig.applicationUrl}';
-  const ENVIRONMENT = '${appConfig.environment}';
-
+describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', () => {
   beforeEach(() => {
-    cy.visit(BASE_URL);
-    cy.viewport(1920, 1080);
+    cy.visit('${applicationUrl}');
   });
 
-${testResult.testCases
-  .map(
-    (testCase, index) => `
-  it('${testCase.title}', () => {
-    // Priority: ${testCase.priority} | Type: ${testCase.type}
+`
+
+    testCases.forEach((testCase) => {
+      cypressCode += `  it('${testCase.title}', () => {
+    // Test: ${testCase.title}
+    // Priority: ${testCase.priority}
+    // Type: ${testCase.type}
     
-    ${generateCypressSteps(testCase)}
+    ${testCase.steps.map((step: string) => `    // ${step}`).join("\n")}
+    
+    // Add your Cypress commands here
+    cy.get('[data-testid="add-instrument"]').click();
+    cy.get('[name="symbol"]').type('AAPL');
+    cy.get('[name="companyName"]').type('Apple Inc.');
+    cy.get('[name="type"]').select('Stock');
+    cy.get('[type="submit"]').click();
     
     // Verify expected result: ${testCase.expectedResults}
-    ${generateCypressVerification(testCase)}
+    cy.contains('successfully').should('be.visible');
   });
-`,
-  )
-  .join("")}
-});`
-  }
 
-  // Helper function to generate Cypress test steps
-  const generateCypressSteps = (testCase: TestCase) => {
-    return testCase.steps
-      .map((step, stepIndex) => {
-        const stepLower = step.toLowerCase()
+`
+    })
 
-        if (stepLower.includes("click") || stepLower.includes("select")) {
-          if (stepLower.includes("button")) {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('button').contains('Submit').click();`
-          } else if (stepLower.includes("link")) {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('a').contains('Link Text').click();`
-          } else {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('[data-testid="element"]').click();`
-          }
-        } else if (stepLower.includes("enter") || stepLower.includes("input") || stepLower.includes("type")) {
-          if (stepLower.includes("email")) {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('input[type="email"]').type('test@example.com');`
-          } else if (stepLower.includes("password")) {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('input[type="password"]').type('testPassword123');`
-          } else {
-            return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('input').type('test data');`
-          }
-        } else if (stepLower.includes("navigate") || stepLower.includes("go to")) {
-          return `    // Step ${stepIndex + 1}: ${step}
-    cy.visit(BASE_URL + '/target-page');`
-        } else if (stepLower.includes("wait") || stepLower.includes("load")) {
-          return `    // Step ${stepIndex + 1}: ${step}
-    cy.wait(2000);`
-        } else {
-          return `    // Step ${stepIndex + 1}: ${step}
-    cy.get('body').should('be.visible');`
-        }
-      })
-      .join("\n")
-  }
+    cypressCode += `});`
 
-  // Helper function to generate Cypress verification
-  const generateCypressVerification = (testCase: TestCase) => {
-    const expectedResult = testCase.expectedResults.toLowerCase()
-
-    if (expectedResult.includes("success") || expectedResult.includes("successful")) {
-      return `    cy.contains('Success').should('be.visible');
-    cy.get('.success-message').should('be.visible');`
-    } else if (expectedResult.includes("error") || expectedResult.includes("fail")) {
-      return `    cy.contains('Error').should('be.visible');
-    cy.get('.error-message').should('be.visible');`
-    } else if (expectedResult.includes("redirect") || expectedResult.includes("navigate")) {
-      return `    cy.url().should('include', '/expected-page');`
-    } else if (expectedResult.includes("display") || expectedResult.includes("show")) {
-      return `    cy.get('[data-testid="result"]').should('be.visible');`
-    } else {
-      return `    // Verify: ${testCase.expectedResults}
-    cy.get('body').should('be.visible');
-    cy.get('body').should('not.contain', 'error');`
-    }
-  }
-
-  const downloadAllTests = () => {
-    if (generatedTests.length === 0) {
-      alert("No test cases to download")
-      return
-    }
-
-    const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
-    const testTypeString = Array.isArray(testTypes) && testTypes.length > 0 ? testTypes.join("_") : "AllTypes"
-    const frameworkString = selectedFramework || "selenium"
-    const percentageString = testCoverage || 75
-
-    const blob = new Blob([allTestCode], { type: "text/java" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${frameworkString}_test_suite_${testTypeString}_${percentageString}percent.java`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  // The following function was duplicated and caused a linting error.
-  // The first definition is kept, and this one is removed.
-  // const downloadSelenium = () => {
-  //   if (generatedTests.length === 0) return
-
-  //   const generateSeleniumCode = (test: any) => {
-  //     const className = `${test.title.replace(/[^a-zA-Z0-9]/g, "")}Test`
-
-  //     let testMethods = ""
-
-  //     // Generate different test methods based on selected test types
-  //     testTypes.forEach((type) => {
-  //       switch (type) {
-  //         case "functional":
-  //           testMethods += `
-  //   @Test
-  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Functional() {
-  //       System.out.println("Starting functional test: ${test.title}");
-
-  //       // Navigate to application
-  //       driver.get("${appConfig.applicationUrl}");
-
-  //       // Perform functional test steps
-  //       ${test.steps
-  //         .map((step: string, index: number) => {
-  //           if (step.toLowerCase().includes("click") || step.toLowerCase().includes("button")) {
-  //             const elementName = step.match(/click\s+(?:on\s+)?(?:the\s+)?([^.]+)/i)?.[1] || "button"
-  //             return `        // Step ${index + 1}: ${step}
-  //       WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//button[contains(text(),'${elementName}')]"));
-  //       ${elementName.replace(/\s+/g, "")}Element.click();
-  //       Thread.sleep(1000);`
-  //           } else if (
-  //             step.toLowerCase().includes("enter") ||
-  //             step.toLowerCase().includes("input") ||
-  //             step.toLowerCase().includes("fill")
-  //           ) {
-  //             const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
-  //             const fieldName = fieldMatch?.[1] || "field"
-  //             return `        // Step ${index + 1}: ${step}
-  //       WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
-  //       ${fieldName.replace(/\s+/g, "")}Field.clear();
-  //       ${fieldName.replace(/\s+/g, "")}Field.sendKeys("Test Data ${index + 1}");`
-  //           } else if (step.toLowerCase().includes("verify") || step.toLowerCase().includes("check")) {
-  //             const elementMatch = step.match(/(?:verify|check)\s+(?:that\s+)?([^.]+)/i)
-  //             const elementName = elementMatch?.[1] || "element"
-  //             return `        // Step ${index + 1}: ${step}
-  //       WebElement ${elementName.replace(/\s+/g, "")}Element = waitForElement(By.xpath("//*[contains(text(),'${elementName}')]"));
-  //       Assert.assertTrue("${elementName} should be visible", ${elementName.replace(/\s+/g, "")}Element.isDisplayed());`
-  //           } else {
-  //             return `        // Step ${index + 1}: ${step}
-  //       // Custom implementation needed for: ${step}`
-  //           }
-  //         })
-  //         .join("\n")}
-
-  //       System.out.println("Functional test completed successfully");
-  //   }`
-  //             break
-
-  //         case "ui":
-  //           testMethods += `
-  //   @Test
-  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}UI() {
-  //       System.out.println("Starting UI test: ${test.title}");
-
-  //       driver.get("${appConfig.applicationUrl}");
-
-  //       // UI-specific validations
-  //       Assert.assertTrue("Page title should be present", !driver.getTitle().isEmpty());
-
-  //       // Check responsive design
-  //       driver.manage().window().setSize(new Dimension(1920, 1080));
-  //       Thread.sleep(500);
-  //       driver.manage().window().setSize(new Dimension(768, 1024));
-  //       Thread.sleep(500);
-  //       driver.manage().window().maximize();
-
-  //       System.out.println("UI test completed successfully");
-  //   }`
-  //             break
-
-  //         case "edgecase":
-  //           testMethods += `
-  //   @Test
-  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}EdgeCases() {
-  //       System.out.println("Starting edge case test: ${test.title}");
-
-  //       driver.get("${appConfig.applicationUrl}");
-
-  //       // Test with empty inputs
-  //       ${test.steps
-  //         .filter((step: string) => step.toLowerCase().includes("enter") || step.toLowerCase().includes("input"))
-  //         .map((step: string, index: number) => {
-  //           const fieldMatch = step.match(/(?:enter|input|fill)\s+(?:in\s+)?(?:the\s+)?([^.]+)/i)
-  //           const fieldName = fieldMatch?.[1] || "field"
-  //           return `        // Edge case: Empty ${fieldName}
-  //       WebElement ${fieldName.replace(/\s+/g, "")}Field = waitForElement(By.name("${fieldName.toLowerCase().replace(/\s+/g, "_")}"));
-  //       ${fieldName.replace(/\s+/g, "")}Field.clear();
-  //       ${fieldName.replace(/\s+/g, "")}Field.sendKeys("");`
-  //         })
-  //         .join("\n")}
-
-  //       // Test with invalid data
-  //       // Test with maximum length inputs
-  //       // Test boundary conditions
-
-  //       System.out.println("Edge case test completed successfully");
-  //   }`
-  //             break
-
-  //         case "performance":
-  //           testMethods += `
-  //   @Test
-  //   public void test${test.title.replace(/[^a-zA-Z0-9]/g, "")}Performance() {
-  //       System.out.println("Starting performance test: ${test.title}");
-
-  //       long startTime = System.currentTimeMillis();
-
-  //       driver.get("${appConfig.applicationUrl}");
-
-  //       long pageLoadTime = System.currentTimeMillis() - startTime;
-  //       Assert.assertTrue("Page should load within 5 seconds", pageLoadTime < 5000);
-
-  //       // Measure action performance
-  //       ${test.steps
-  //         .slice(0, Math.ceil((test.steps.length * testCoverage) / 100))
-  //         .map((step: string, index: number) => {
-  //           return `        // Performance test for: ${step}
-  //       long actionStart = System.currentTimeMillis();
-  //       // Perform action here
-  //       long actionTime = System.currentTimeMillis() - actionStart;
-  //       System.out.println("Action ${index + 1} took: " + actionTime + "ms");`
-  //         })
-  //         .join("\n")}
-
-  //       System.out.println("Performance test completed successfully");
-  //   }`
-  //             break
-  //       }
-  //     })
-
-  //     return `package com.testautomation;
-
-  // import org.openqa.selenium.WebDriver;
-  // import org.openqa.selenium.WebElement;
-  // import org.openqa.selenium.By;
-  // import org.openqa.selenium.chrome.ChromeDriver;
-  // import org.openqa.selenium.chrome.ChromeOptions;
-  // import org.openqa.selenium.support.ui.WebDriverWait;
-  // import org.openqa.selenium.support.ui.ExpectedConditions;
-  // import org.openqa.selenium.Dimension;
-  // import org.testng.Assert;
-  // import org.testng.annotations.*;
-  // import java.time.Duration;
-
-  // /**
-  //  * Automated Test Suite for: ${test.title}
-  //  * Generated from JIRA: ${test.jiraKey}
-  //  * Framework: ${selectedFramework.toUpperCase()}
-  //  * Test Types: ${testTypes.join(", ")}
-  //  * Coverage: ${testCoverage}%
-  //  * Environment: ${appConfig.environment}
-  //  * Application URL: ${appConfig.applicationUrl}
-  //  */
-  // public class ${className} {
-  //     private WebDriver driver;
-  //     private WebDriverWait wait;
-
-  //     @BeforeMethod
-  //     public void setUp() {
-  //         ChromeOptions options = new ChromeOptions();
-  //         options.addArguments("--headless=false"); // Set to true for headless mode
-  //         options.addArguments("--no-sandbox");
-  //         options.addArguments("--disable-dev-shm-usage");
-  //         options.addArguments("--window-size=1920,1080");
-
-  //         driver = new ChromeDriver(options);
-  //         wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-  //         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-  //     }
-
-  //     @AfterMethod
-  //     public void tearDown() {
-  //         if (driver != null) {
-  //             driver.quit();
-  //         }
-  //     }
-
-  //     private WebElement waitForElement(By locator) {
-  //         return wait.until(ExpectedConditions.elementToBeClickable(locator));
-  //     }
-
-  //     private void takeScreenshot(String testName) {
-  //         // Screenshot implementation
-  //         System.out.println("Screenshot taken for: " + testName);
-  //     }
-  //     ${testMethods}
-
-  //     // Main method for standalone execution
-  //     public static void main(String[] args) {
-  //         ${className} testSuite = new ${className}();
-
-  //         try {
-  //             testSuite.setUp();
-  //             ${testTypes.map((type) => `testSuite.test${test.title.replace(/[^a-zA-Z0-9]/g, "")}${type.charAt(0).toUpperCase() + type.slice(1)}();`).join("\n            ")}
-  //             System.out.println("All tests completed successfully!");
-  //         } catch (Exception e) {
-  //             System.err.println("Test execution failed: " + e.getMessage());
-  //             e.printStackTrace();
-  //         } finally {
-  //             testSuite.tearDown();
-  //         }
-  //     }
-  // }`
-  //   }
-
-  //   const allTestCode = generatedTests.map(generateSeleniumCode).join("\n\n")
-
-  //   const blob = new Blob([allTestCode], { type: "text/java" })
-  //   const url = URL.createObjectURL(blob)
-  //   const a = document.createElement("a")
-  //   a.href = url
-  //   a.download = `${selectedFramework}_test_suite_${testTypes.join("_")}_${testCoverage}percent.java`
-  //   document.body.appendChild(a)
-  //   a.click()
-  //   document.body.removeChild(a)
-  //   URL.revokeObjectURL(url)
-  // }
-
-  const generateTestCases = async () => {
-    console.log("[v0] Starting test generation...")
-    console.log("[v0] Selected tickets:", selectedTickets)
-
-    if (selectedTickets.length === 0) {
-      alert("Please select at least one ticket to generate tests for.")
-      return
-    }
-
-    setIsGenerating(true)
-    setGeneratedTests([]) // Clear previous results
-
-    try {
-      // Fetch the full ticket objects for the selected IDs
-      const selectedTicketObjects = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
-
-      const response = await fetch("/api/generate-tests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tickets: selectedTicketObjects, // Send the full ticket objects
-          appConfig, // Include appConfig here
-          settings: {
-            coverageLevel: testCoverage, // Use testCoverage for coverageLevel
-            testTypes: testTypes,
-            framework: selectedFramework,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-      console.log("[v0] API response:", data)
-
-      if (data.success && data.testCases) {
-        const formattedResults = [
-          {
-            testCases: data.testCases,
-            metadata: {
-              ticketKey: selectedTickets[0] || "UNKNOWN",
-              generatedAt: new Date().toISOString(),
-              settings: {},
-              totalTests: data.testCases.length,
-              source: "jira" as const,
-            },
-          },
-        ]
-        setGeneratedTests(formattedResults)
-        setActiveSection("test-results")
-      } else {
-        throw new Error(data.error || "Unknown error during test generation.")
-      }
-    } catch (error) {
-      console.error("[v0] Error generating tests:", error)
-      alert(`Error generating tests: ${error.message}`)
-    } finally {
-      setIsGenerating(false)
-    }
+    return cypressCode
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex h-screen">
-        {/* Dark Navy Blue Sidebar */}
-        <div className="w-64 bg-slate-900 text-white flex flex-col">
-          <div className="p-6 border-b border-slate-700">
-            <h1 className="text-xl font-bold">QA Test Generator</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">JIRA Test Case Generator</h1>
+            <p className="text-lg text-gray-600">Generate comprehensive test cases from JIRA tickets</p>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
-            <button
-              onClick={() => setActiveSection("ai-config")}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${
-                activeSection === "ai-config" ? "bg-blue-600" : "hover:bg-slate-800"
-              }`}
-            >
-              🤖 AI Configuration
-            </button>
+          <div className="flex justify-center mb-8">
+            <div className="bg-white rounded-lg p-1 shadow-sm border">
+              <button
+                onClick={() => setActiveSection("ai-config")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeSection === "ai-config" ? "bg-blue-500 text-white" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                AI Configuration
+              </button>
+              <button
+                onClick={() => setActiveSection("jira-config")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeSection === "jira-config" ? "bg-blue-500 text-white" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                JIRA Configuration
+              </button>
+              <button
+                onClick={() => setActiveSection("app-config")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeSection === "app-config" ? "bg-blue-500 text-white" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                App Configuration
+              </button>
+              <button
+                onClick={() => setActiveSection("tickets")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeSection === "tickets" ? "bg-blue-500 text-white" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Tickets & Tests
+              </button>
+            </div>
+          </div>
 
-            <button
-              onClick={() => setActiveSection("test-generator")}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${
-                activeSection === "test-generator" ? "bg-blue-600" : "hover:bg-slate-800"
-              }`}
-            >
-              🧪 Test Generator
-            </button>
-
-            <button
-              onClick={() => setActiveSection("test-results")}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${
-                activeSection === "test-results" ? "bg-blue-600" : "hover:bg-slate-800"
-              }`}
-            >
-              📊 Test Results
-            </button>
-
-            <button
-              onClick={() => setActiveSection("ci-cd")}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${
-                activeSection === "ci-cd" ? "bg-blue-600" : "hover:bg-slate-800"
-              }`}
-            >
-              🚀 CI/CD Integration
-            </button>
-
-            <button
-              onClick={() => setActiveSection("analytics")}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${
-                activeSection === "analytics" ? "bg-blue-600" : "hover:bg-slate-800"
-              }`}
-            >
-              📈 Analytics
-            </button>
-          </nav>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          <header className="bg-white border-b border-gray-200 p-6">
-            <h2 className="text-2xl font-semibold text-gray-900">
-              {activeSection === "ai-config" && "AI Configuration"}
-              {activeSection === "test-generator" && "Test Generator"}
-              {activeSection === "test-results" && "Test Results"}
-              {activeSection === "ci-cd" && "CI/CD Integration"}
-              {activeSection === "analytics" && "Analytics"}
-            </h2>
-          </header>
-
-          <main className="flex-1 p-6 overflow-auto">
-            {activeSection === "ai-config" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-4">Default JIRA Configuration</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
-                      <input
-                        type="text"
-                        value={jiraConfig.url}
-                        onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
-                        placeholder="https://your-domain.atlassian.net"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                      <input
-                        type="email"
-                        value={jiraConfig.email}
-                        onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
-                        placeholder="your-email@company.com"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
-                      <input
-                        type="password"
-                        value={jiraConfig.apiToken}
-                        onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
-                        placeholder="Your JIRA API Token"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
-                      <input
-                        type="text"
-                        value={jiraConfig.projectKey}
-                        onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
-                        placeholder="KAN"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
+          {activeSection === "ai-config" && (
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">AI Configuration</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
+                  <div className="space-y-2">
+                    {["functional", "ui", "integration", "edge-case", "performance", "security"].map((type) => (
+                      <label key={type} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={testTypes.includes(type)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTestTypes([...testTypes, type])
+                            } else {
+                              setTestTypes(testTypes.filter((t) => t !== type))
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700 capitalize">{type.replace("-", " ")}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-4">Default Application Configuration</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
-                      <input
-                        type="text"
-                        value={appConfig.applicationUrl}
-                        onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                        placeholder="https://your-app.com"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
-                      <select
-                        value={appConfig.environment}
-                        onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="staging">Staging</option>
-                        <option value="production">Production</option>
-                        <option value="development">Development</option>
-                      </select>
-                    </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Test Coverage: {testCoverage}%</label>
+                  <input
+                    type="range"
+                    min="25"
+                    max="100"
+                    step="25"
+                    value={testCoverage}
+                    onChange={(e) => setTestCoverage(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
                   </div>
                 </div>
               </div>
-            )}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Testing Framework</label>
+                <select
+                  value={selectedFramework}
+                  onChange={(e) => setSelectedFramework(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="selenium">Selenium WebDriver</option>
+                  <option value="cypress">Cypress</option>
+                  <option value="playwright">Playwright</option>
+                </select>
+              </div>
+            </div>
+          )}
 
-            {activeSection === "test-generator" && (
-              <div className="space-y-6">
-                {!isConnected ? (
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h3 className="text-lg font-semibold mb-4">Connect to JIRA</h3>
-                    <p className="text-gray-600 mb-4">
-                      Connect to your JIRA instance to fetch real tickets for test generation.
-                    </p>
-                    <button
-                      onClick={handleJiraConnect}
-                      disabled={
-                        isConnecting ||
-                        !jiraConfig.url ||
-                        !jiraConfig.email ||
-                        !jiraConfig.apiToken ||
-                        !jiraConfig.projectKey
-                      }
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isConnecting ? "Connecting..." : "Connect to JIRA"}
-                    </button>
-                    {(!jiraConfig.url || !jiraConfig.email || !jiraConfig.apiToken || !jiraConfig.projectKey) && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        Please configure your JIRA settings in AI Configuration first.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">
-                          Select JIRA Tickets ({tickets.length} found from {jiraConfig.projectKey})
-                        </h3>
-                        <button
-                          onClick={() => setIsConnected(false)}
-                          className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          🔄 Reconnect
-                        </button>
-                      </div>
-                      <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {tickets.map((ticket) => (
-                          <div
-                            key={ticket.id}
-                            className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTickets.includes(ticket.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedTickets([...selectedTickets, ticket.id])
-                                } else {
-                                  setSelectedTickets(selectedTickets.filter((id) => id !== ticket.id))
-                                }
-                              }}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium text-blue-600">{ticket.key}</span>
-                                <span
-                                  className={`px-2 py-1 text-xs rounded-full ${
-                                    ticket.status === "QA Ready"
-                                      ? "bg-green-100 text-green-800"
-                                      : ticket.status === "Dev In Progess"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-blue-100 text-blue-800"
-                                  }`}
-                                >
-                                  {ticket.status}
-                                </span>
-                                <span
-                                  className={`px-2 py-1 text-xs rounded-full ${
-                                    ticket.priority === "High"
-                                      ? "bg-red-100 text-red-800"
-                                      : ticket.priority === "Medium"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-green-100 text-green-800"
-                                  }`}
-                                >
-                                  {ticket.priority}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-600 mt-1">{ticket.summary}</p>
-                              <p className="text-xs text-gray-500">Assigned to: {ticket.assignee}</p>
-                            </div>
+          {activeSection === "jira-config" && (
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">JIRA Configuration</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">JIRA URL</label>
+                  <input
+                    type="url"
+                    value={jiraConfig.url}
+                    onChange={(e) => setJiraConfig({ ...jiraConfig, url: e.target.value })}
+                    placeholder="https://your-company.atlassian.net"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={jiraConfig.email}
+                    onChange={(e) => setJiraConfig({ ...jiraConfig, email: e.target.value })}
+                    placeholder="your-email@company.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">API Token</label>
+                  <input
+                    type="password"
+                    value={jiraConfig.apiToken}
+                    onChange={(e) => setJiraConfig({ ...jiraConfig, apiToken: e.target.value })}
+                    placeholder="Your JIRA API token"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Project Key</label>
+                  <input
+                    type="text"
+                    value={jiraConfig.projectKey}
+                    onChange={(e) => setJiraConfig({ ...jiraConfig, projectKey: e.target.value })}
+                    placeholder="PROJ"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="mt-6">
+                <button
+                  onClick={handleJiraConnect}
+                  disabled={isConnecting || !jiraConfig.url || !jiraConfig.email || !jiraConfig.apiToken}
+                  className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isConnecting ? "Connecting..." : "Connect to JIRA"}
+                </button>
+                {isConnected && <span className="ml-3 text-green-600 font-medium">✓ Connected</span>}
+              </div>
+            </div>
+          )}
+
+          {activeSection === "app-config" && (
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Application Configuration</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Application URL</label>
+                  <input
+                    type="url"
+                    value={appConfig.applicationUrl}
+                    onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
+                    placeholder="https://your-app.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Environment</label>
+                  <select
+                    value={appConfig.environment}
+                    onChange={(e) => setAppConfig({ ...appConfig, environment: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="development">Development</option>
+                    <option value="staging">Staging</option>
+                    <option value="production">Production</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "tickets" && (
+            <div className="space-y-6">
+              {isConnected && tickets.length > 0 && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">JIRA Tickets</h2>
+                  <div className="space-y-3">
+                    {tickets.map((ticket) => (
+                      <div key={ticket.id} className="flex items-center p-3 border rounded-lg">
+                        <input
+                          type="checkbox"
+                          checked={selectedTickets.includes(ticket.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTickets([...selectedTickets, ticket.id])
+                            } else {
+                              setSelectedTickets(selectedTickets.filter((id) => id !== ticket.id))
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="ml-3 flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-blue-600">{ticket.key}</span>
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                ticket.priority === "High"
+                                  ? "bg-red-100 text-red-800"
+                                  : ticket.priority === "Medium"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-green-100 text-green-800"
+                              }`}
+                            >
+                              {ticket.priority}
+                            </span>
+                            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                              {ticket.status}
+                            </span>
                           </div>
-                        ))}
-                      </div>
-
-                      {selectedTickets.length > 0 && (
-                        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                          <p className="text-sm text-blue-800 mb-3">
-                            {selectedTickets.length} ticket(s) selected for test generation
-                          </p>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            {/* Test Type Selection */}
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
-                              <div className="space-y-2">
-                                {["functional", "ui", "edgecase", "performance"].map((type) => (
-                                  <label key={type} className="flex items-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={testTypes.includes(type)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setTestTypes([...testTypes, type])
-                                        } else {
-                                          setTestTypes(testTypes.filter((t) => t !== type))
-                                        }
-                                      }}
-                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    />
-                                    <span className="ml-2 text-sm text-gray-700 capitalize">{type}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Test Percentage */}
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Coverage (%)</label>
-                              <input
-                                type="range"
-                                min="10"
-                                max="100"
-                                step="10"
-                                value={testCoverage}
-                                onChange={(e) => setTestCoverage(Number(e.target.value))}
-                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                              />
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>10%</span>
-                                <span className="font-medium text-blue-600">{testCoverage}%</span>
-                                <span>100%</span>
-                              </div>
-                            </div>
-
-                            {/* Framework Selection */}
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Test Framework</label>
-                              <select
-                                value={selectedFramework}
-                                onChange={(e) => setSelectedFramework(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              >
-                                <option value="selenium">Selenium (Java)</option>
-                                <option value="cypress">Cypress (JavaScript)</option>
-                                <option value="playwright">Playwright (TypeScript)</option>
-                                <option value="testng">TestNG (Java)</option>
-                                <option value="junit">JUnit (Java)</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={generateTestCases}
-                            disabled={isGenerating || !Array.isArray(testTypes) || testTypes.length === 0}
-                            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isGenerating
-                              ? "🔄 Generating..."
-                              : `🚀 Generate ${Array.isArray(testTypes) ? testTypes.join(", ") : "Tests"} Tests (${testCoverage}%)`}
-                          </button>
+                          <h3 className="font-medium text-gray-900 mt-1">{ticket.summary}</h3>
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{ticket.description}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+                  <div className="mt-6">
+                    <button
+                      onClick={generateTestCasesOld}
+                      disabled={isGenerating || selectedTickets.length === 0}
+                      className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      {isGenerating ? "Generating..." : `Generate Test Cases (${selectedTickets.length})`}
+                    </button>
+                  </div>
+                </div>
+              )}
 
-            {activeSection === "test-results" && (
-              <div className="space-y-6">
-                {generatedTests.length > 0 ? (
-                  generatedTests.map((result, index) => {
-                    const testCases = result.testCases || []
-
-                    return (
-                      <div key={index} className="bg-white rounded-lg shadow p-6">
-                        <div className="flex justify-between items-start mb-4">
+              {generatedTests.length > 0 && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">Generated Test Cases</h2>
+                  <div className="space-y-6">
+                    {generatedTests.map((testResult, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
                           <div>
-                            <h3 className="text-lg font-semibold text-blue-600">
-                              {result?.metadata?.ticketKey || `Test Suite ${index + 1}`}
+                            <h3 className="font-semibold text-lg text-gray-900">
+                              {testResult.ticket?.key} - {testResult.ticket?.summary}
                             </h3>
-                            <p className="text-gray-600">{result?.ticket?.summary || "No summary available"}</p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              Generated {result?.testCases?.length || 0} test cases on{" "}
-                              {result?.metadata?.generatedAt
-                                ? new Date(result.metadata.generatedAt).toLocaleString()
-                                : "Unknown date"}
-                            </p>
+                            <p className="text-sm text-gray-600">{testResult.testCases.length} test cases generated</p>
                           </div>
                           <div className="flex space-x-2">
                             <button
-                              onClick={() => downloadTestCases("selenium", result)}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                              onClick={() => downloadTestCases("selenium", testResult)}
+                              className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
                             >
-                              📥 Selenium
+                              Download Selenium
                             </button>
                             <button
-                              onClick={() => downloadTestCases("cypress", result)}
-                              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
+                              onClick={() => downloadTestCases("cypress", testResult)}
+                              className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
                             >
-                              📥 Cypress
+                              Download Cypress
                             </button>
                             <button
-                              onClick={() => downloadTestCases("json", result)}
-                              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm"
+                              onClick={() => downloadTestCases("json", testResult)}
+                              className="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600"
                             >
-                              📥 JSON
+                              Download JSON
                             </button>
                           </div>
                         </div>
-
-                        <div className="space-y-4">
-                          {Array.isArray(testCases) ? (
-                            testCases.map((testCase, testIndex) => (
-                              <div key={testIndex} className="border rounded-lg p-4 bg-gray-50">
-                                <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-medium text-gray-900">
-                                    {testCase.TestCaseID || testCase.id || `Test Case ${testIndex + 1}`}
-                                  </h4>
+                        <div className="space-y-2">
+                          {testResult.testCases.map((testCase, tcIndex) => (
+                            <div key={tcIndex} className="bg-gray-50 p-3 rounded">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium text-gray-900">{testCase.title}</h4>
+                                <div className="flex space-x-2">
                                   <span
-                                    className={`px-2 py-1 rounded text-xs font-medium ${
-                                      (testCase.Priority || testCase.priority) === "High"
+                                    className={`px-2 py-1 text-xs rounded-full ${
+                                      testCase.priority === "High"
                                         ? "bg-red-100 text-red-800"
-                                        : (testCase.Priority || testCase.priority) === "Medium"
+                                        : testCase.priority === "Medium"
                                           ? "bg-yellow-100 text-yellow-800"
                                           : "bg-green-100 text-green-800"
                                     }`}
                                   >
-                                    {testCase.Priority || testCase.priority || "Medium"}
+                                    {testCase.priority}
+                                  </span>
+                                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                    {testCase.type}
                                   </span>
                                 </div>
-                                <p className="text-gray-700 mb-2">{testCase.Title || testCase.title || "No title"}</p>
-                                <div className="text-sm text-gray-600">
-                                  <p>
-                                    <strong>Type:</strong> {testCase.Type || testCase.type || "Functional"}
-                                  </p>
-                                  <p>
-                                    <strong>Preconditions:</strong>{" "}
-                                    {testCase.Preconditions || testCase.preconditions || "None specified"}
-                                  </p>
-                                  <div>
-                                    <strong>Steps:</strong>
-                                    <ol className="list-decimal list-inside mt-1">
-                                      {Array.isArray(testCase.TestSteps || testCase.steps) ? (
-                                        (testCase.TestSteps || testCase.steps).map(
-                                          (step: string, stepIndex: number) => <li key={stepIndex}>{step}</li>,
-                                        )
-                                      ) : (
-                                        <li>No steps defined</li>
-                                      )}
-                                    </ol>
-                                  </div>
-                                  <p>
-                                    <strong>Expected Results:</strong>{" "}
-                                    {testCase.ExpectedResults ||
-                                      testCase.expectedResults ||
-                                      "No expected results defined"}
-                                  </p>
-                                </div>
                               </div>
-                            ))
-                          ) : (
-                            <div className="text-gray-500">No test cases available</div>
-                          )}
+                              <p className="text-sm text-gray-600 mt-1">{testCase.expectedResults}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    )
-                  })
-                ) : (
-                  <div className="bg-white rounded-lg shadow p-6 text-center">
-                    <div className="text-gray-400 text-6xl mb-4">🧪</div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No test results yet</h3>
-                    <p className="text-gray-600">Generate some test cases first to see them here!</p>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
-
-            {activeSection === "ci-cd" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-4">CI/CD Integration</h3>
-                  <p className="text-gray-600">Configure your CI/CD pipeline integration here.</p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeSection === "analytics" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-4">Analytics</h3>
-                  <p className="text-gray-600">View your test generation analytics here.</p>
+              {!isConnected && (
+                <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+                  <div className="text-gray-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No JIRA Connection</h3>
+                  <p className="text-gray-600 mb-4">
+                    Connect to JIRA to start generating test cases from your tickets.
+                  </p>
+                  <button
+                    onClick={() => setActiveSection("jira-config")}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                  >
+                    Configure JIRA
+                  </button>
                 </div>
-              </div>
-            )}
-          </main>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
