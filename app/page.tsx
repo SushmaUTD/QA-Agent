@@ -1236,8 +1236,19 @@ public class ${className} {
       console.log("[v0] API response:", data)
 
       if (data.success && data.testCases) {
-        // The API should now return an array of TestGenerationResult objects
-        setGeneratedTests(data.testCases)
+        const formattedResults = [
+          {
+            testCases: data.testCases,
+            metadata: {
+              ticketKey: selectedTickets[0] || "UNKNOWN",
+              generatedAt: new Date().toISOString(),
+              settings: {},
+              totalTests: data.testCases.length,
+              source: "jira" as const,
+            },
+          },
+        ]
+        setGeneratedTests(formattedResults)
         setActiveSection("test-results")
       } else {
         throw new Error(data.error || "Unknown error during test generation.")
@@ -1578,15 +1589,7 @@ public class ${className} {
               <div className="space-y-6">
                 {generatedTests.length > 0 ? (
                   generatedTests.map((result, index) => {
-                    if (!result || !Array.isArray(result.testCases) || result.testCases.length === 0) {
-                      console.error("[v0] Invalid result at index", index, result)
-                      return (
-                        <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <p className="text-red-600">Invalid test result at index {index}</p>
-                          <pre className="text-xs text-red-500 mt-2">{JSON.stringify(result, null, 2)}</pre>
-                        </div>
-                      )
-                    }
+                    const testCases = result.testCases || []
 
                     return (
                       <div key={index} className="bg-white rounded-lg shadow p-6">
@@ -1626,8 +1629,8 @@ public class ${className} {
                         </div>
 
                         <div className="space-y-4">
-                          {Array.isArray(result.testCases) ? (
-                            result.testCases.map((testCase, testIndex) => (
+                          {Array.isArray(testCases) ? (
+                            testCases.map((testCase, testIndex) => (
                               <div key={testIndex} className="border rounded-lg p-4 bg-gray-50">
                                 <div className="flex justify-between items-start mb-2">
                                   <h4 className="font-medium text-gray-900">
