@@ -155,6 +155,47 @@ export default function JiraTestGenerator() {
     }
   }
 
+  const generateCypressCode = (testResult: TestGenerationResult): string => {
+    const { testCases, ticket } = testResult
+    const applicationUrl = appConfig.applicationUrl || "http://localhost:3000"
+
+    let cypressCode = `// Cypress Test Suite for ${ticket?.summary || "JIRA Ticket"}
+// Generated on: ${new Date().toISOString()}
+
+describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', () => {
+  beforeEach(() => {
+    cy.visit('${applicationUrl}');
+  });
+
+`
+
+    testCases.forEach((testCase) => {
+      cypressCode += `  it('${testCase.title}', () => {
+    // Test: ${testCase.title}
+    // Priority: ${testCase.priority}
+    // Type: ${testCase.type}
+    
+    ${testCase.steps.map((step: string) => `    // ${step}`).join("\n")}
+    
+    // Add your Cypress commands here
+    cy.get('[data-testid="add-instrument"]').click();
+    cy.get('[name="symbol"]').type('AAPL');
+    cy.get('[name="companyName"]').type('Apple Inc.');
+    cy.get('[name="type"]').select('Stock');
+    cy.get('[type="submit"]').click();
+    
+    // Verify expected result: ${testCase.expectedResults}
+    cy.contains('successfully').should('be.visible');
+  });
+
+`
+    })
+
+    cypressCode += `});`
+
+    return cypressCode
+  }
+
   const downloadTestCases = (format: "selenium" | "cypress" | "json", testResult: TestGenerationResult) => {
     console.log("[v0] Downloading tests for:", testResult)
     console.log("[v0] Test result metadata:", testResult?.metadata)
@@ -530,17 +571,32 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
     }
 
     private WebElement findClickableElementWithMultipleSelectors(String... selectors) {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20)); // Increased wait time to 20 seconds
+        
         for (String selector : selectors) {
             try {
+                System.out.println("[v0] Trying selector: " + selector);
+                
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(selector)));
+                
                 WebElement element = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(selector)));
-                System.out.println("Found clickable element using selector: " + selector);
-                return element;
-            } catch (TimeoutException e) {
-                System.out.println("Clickable selector failed: " + selector);
+                
+                if (element != null && element.isDisplayed() && element.isEnabled()) {
+                    System.out.println("[v0] Successfully found clickable element with selector: " + selector);
+                    return element;
+                }
+            } catch (Exception e) {
+                System.out.println("[v0] Selector failed: " + selector + " - " + e.getMessage());
                 continue;
             }
         }
-        throw new NoSuchElementException("Could not find clickable element with any of the provided selectors");
+        
+        System.out.println("[v0] All selectors failed. Current page title: " + driver.getTitle());
+        System.out.println("[v0] Current URL: " + driver.getCurrentUrl());
+        
+        takeScreenshot("element_not_found_" + System.currentTimeMillis());
+        
+        throw new RuntimeException("Could not find clickable element with any of the provided selectors");
     }
 
     private void takeScreenshot(String testName) {
@@ -561,12 +617,13 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
         try {
             System.out.println("Starting Add Instrument test");
             
-            // Find and click the Add Instrument button using multiple selectors
             WebElement addInstrumentButton = findClickableElementWithMultipleSelectors(
                 "//button[contains(text(), 'Add Instrument')]",
-                "//button[contains(text(), '+ Add Instrument')]",
-                "//button[contains(@class, 'add') and contains(text(), 'Instrument')]",
-                "//*[contains(text(), 'Add Instrument')]",
+                "//button[contains(., 'Add Instrument')]",
+                "//*[@role='button' and contains(text(), 'Add Instrument')]",
+                "//button[contains(@class, 'bg-blue') or contains(@class, 'btn-primary')]//text()[contains(., 'Add Instrument')]/parent::*",
+                "//div[contains(@class, 'top') or contains(@class, 'header')]//button[contains(text(), 'Add')]",
+                "//*[contains(text(), 'Add Instrument') and (name()='button' or @role='button')]",
                 "//button[contains(@aria-label, 'Add Instrument')]",
                 "//a[contains(@href, 'add') and contains(text(), 'Instrument')]"
             );
@@ -675,49 +732,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
             Assert.fail("Test failed: " + e.getMessage());
         }
     }
-}
-`
-  }
-
-  const generateCypressCode = (testResult: TestGenerationResult): string => {
-    const { testCases, ticket } = testResult
-    const applicationUrl = appConfig.applicationUrl || "http://localhost:3000"
-
-    let cypressCode = `// Cypress Test Suite for ${ticket?.summary || "JIRA Ticket"}
-// Generated on: ${new Date().toISOString()}
-
-describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', () => {
-  beforeEach(() => {
-    cy.visit('${applicationUrl}');
-  });
-
-`
-
-    testCases.forEach((testCase) => {
-      cypressCode += `  it('${testCase.title}', () => {
-    // Test: ${testCase.title}
-    // Priority: ${testCase.priority}
-    // Type: ${testCase.type}
-    
-    ${testCase.steps.map((step: string) => `    // ${step}`).join("\n")}
-    
-    // Add your Cypress commands here
-    cy.get('[data-testid="add-instrument"]').click();
-    cy.get('[name="symbol"]').type('AAPL');
-    cy.get('[name="companyName"]').type('Apple Inc.');
-    cy.get('[name="type"]').select('Stock');
-    cy.get('[type="submit"]').click();
-    
-    // Verify expected result: ${testCase.expectedResults}
-    cy.contains('successfully').should('be.visible');
-  });
-
-`
-    })
-
-    cypressCode += `});`
-
-    return cypressCode
+}`
   }
 
   return (
