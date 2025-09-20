@@ -15,6 +15,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/test-generation")
 @CrossOrigin(origins = "*")
@@ -32,7 +34,7 @@ public class TestGenerationController {
      * Generate test project based on JIRA ticket
      */
     @PostMapping("/generate")
-    public ResponseEntity<GeneratedTestProject> generateTests(@Valid @RequestBody TestGenerationRequest request) {
+    public ResponseEntity<?> generateTests(@Valid @RequestBody TestGenerationRequest request) {
         logger.info("Generating tests for JIRA ticket: {} in language: {}", 
                    request.getJiraTicket().getKey(), request.getLanguage());
         
@@ -46,7 +48,12 @@ public class TestGenerationController {
             
         } catch (Exception e) {
             logger.error("Error generating tests: ", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                .body(Map.of(
+                    "error", "Failed to generate test project",
+                    "message", e.getMessage() != null ? e.getMessage() : "Unknown error",
+                    "timestamp", System.currentTimeMillis()
+                ));
         }
     }
     
@@ -54,7 +61,7 @@ public class TestGenerationController {
      * Download generated test project as ZIP
      */
     @PostMapping("/download")
-    public ResponseEntity<ByteArrayResource> downloadTestProject(@Valid @RequestBody TestGenerationRequest request) {
+    public ResponseEntity<?> downloadTestProject(@Valid @RequestBody TestGenerationRequest request) {
         logger.info("Downloading test project for JIRA ticket: {} in language: {}", 
                    request.getJiraTicket().getKey(), request.getLanguage());
         
@@ -79,7 +86,13 @@ public class TestGenerationController {
                 
         } catch (Exception e) {
             logger.error("Error downloading test project: ", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                    "error", "Failed to download test project",
+                    "message", e.getMessage() != null ? e.getMessage() : "Unknown error",
+                    "timestamp", System.currentTimeMillis()
+                ));
         }
     }
     
