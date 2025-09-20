@@ -259,7 +259,7 @@
                 
                 console.log('[v0] Request body:', requestBody);
                 
-                const response = await fetch('/api/test-generation/generate', {
+                const response = await fetch('/api/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -393,7 +393,7 @@
                 
                 console.log('[v0] Download request body:', requestBody);
                 
-                const response = await fetch('/api/test-generation/download', {
+                const response = await fetch('/api/download', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
