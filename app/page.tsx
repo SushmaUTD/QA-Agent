@@ -462,12 +462,24 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.TimeoutException;
+import org.openqa.selenium.NoSuchElementException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.Test;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.AfterMethod;
+import org.testng.Assert;
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
 
 @SpringBootTest
 public class GeneratedTests extends AbstractTestNGSpringContextTests {
@@ -480,7 +492,18 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
 
     @BeforeMethod
     public void setUp() {
+        System.out.println("Navigating to: ${applicationUrl}");
         driver.get("${applicationUrl}");
+        
+        // Wait for page to load completely
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+        
+        // Additional wait for dynamic content
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @AfterMethod
@@ -490,40 +513,170 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
         }
     }
 
-    @Test(description = "Generated Test")
-    public void testGenerated() {
+    private WebElement findElementWithMultipleSelectors(String... selectors) {
+        for (String selector : selectors) {
+            try {
+                WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(selector)));
+                if (element.isDisplayed()) {
+                    System.out.println("Found element using selector: " + selector);
+                    return element;
+                }
+            } catch (TimeoutException e) {
+                System.out.println("Selector failed: " + selector);
+                continue;
+            }
+        }
+        throw new NoSuchElementException("Could not find element with any of the provided selectors");
+    }
+
+    private WebElement findClickableElementWithMultipleSelectors(String... selectors) {
+        for (String selector : selectors) {
+            try {
+                WebElement element = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(selector)));
+                System.out.println("Found clickable element using selector: " + selector);
+                return element;
+            } catch (TimeoutException e) {
+                System.out.println("Clickable selector failed: " + selector);
+                continue;
+            }
+        }
+        throw new NoSuchElementException("Could not find clickable element with any of the provided selectors");
+    }
+
+    private void takeScreenshot(String testName) {
         try {
-            System.out.println("Starting generated test");
+            TakesScreenshot screenshot = (TakesScreenshot) driver;
+            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
+            File destFile = new File("screenshots/" + testName + "_" + System.currentTimeMillis() + ".png");
+            destFile.getParentFile().mkdirs();
+            FileUtils.copyFile(sourceFile, destFile);
+            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+        } catch (IOException e) {
+            System.err.println("Failed to take screenshot: " + e.getMessage());
+        }
+    }
+
+    @Test(description = "Test Add Instrument Functionality")
+    public void testAddInstrument() {
+        try {
+            System.out.println("Starting Add Instrument test");
             
-            WebElement addButton = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//button[contains(text(), 'Add')]")));
-            addButton.click();
+            // Find and click the Add Instrument button using multiple selectors
+            WebElement addInstrumentButton = findClickableElementWithMultipleSelectors(
+                "//button[contains(text(), 'Add Instrument')]",
+                "//button[contains(text(), '+ Add Instrument')]",
+                "//button[contains(@class, 'add') and contains(text(), 'Instrument')]",
+                "//*[contains(text(), 'Add Instrument')]",
+                "//button[contains(@aria-label, 'Add Instrument')]",
+                "//a[contains(@href, 'add') and contains(text(), 'Instrument')]"
+            );
             
-            WebElement symbolField = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//input[@name='symbol']")));
+            System.out.println("Clicking Add Instrument button");
+            addInstrumentButton.click();
+            
+            // Wait for form to appear
+            System.out.println("Waiting for add instrument form");
+            WebElement form = wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.xpath("//form | //div[contains(@class, 'form') or contains(@class, 'modal')]")
+            ));
+            
+            // Find symbol/ticker input field
+            WebElement symbolField = findElementWithMultipleSelectors(
+                "//input[@name='symbol']",
+                "//input[@name='ticker']",
+                "//input[@placeholder*='symbol' or @placeholder*='Symbol']",
+                "//input[@placeholder*='ticker' or @placeholder*='Ticker']",
+                "//label[contains(text(), 'Symbol')]/following-sibling::input",
+                "//label[contains(text(), 'Ticker')]/following-sibling::input"
+            );
+            
+            System.out.println("Entering symbol: AAPL");
             symbolField.clear();
             symbolField.sendKeys("AAPL");
             
-            WebElement companyField = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//input[@name='companyName']")));
+            // Find company name field
+            WebElement companyField = findElementWithMultipleSelectors(
+                "//input[@name='companyName']",
+                "//input[@name='company']",
+                "//input[@name='name']",
+                "//input[@placeholder*='company' or @placeholder*='Company']",
+                "//input[@placeholder*='name' or @placeholder*='Name']",
+                "//label[contains(text(), 'Company')]/following-sibling::input",
+                "//label[contains(text(), 'Name')]/following-sibling::input"
+            );
+            
+            System.out.println("Entering company name: Apple Inc.");
             companyField.clear();
             companyField.sendKeys("Apple Inc.");
             
-            WebElement submitButton = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//button[@type='submit']")));
+            // Try to find and set asset class if available
+            try {
+                WebElement assetClassField = findElementWithMultipleSelectors(
+                    "//select[@name='assetClass']",
+                    "//select[@name='type']",
+                    "//select[@name='class']",
+                    "//input[@name='assetClass']",
+                    "//input[@name='type']"
+                );
+                
+                if (assetClassField.getTagName().equals("select")) {
+                    Select select = new Select(assetClassField);
+                    select.selectByVisibleText("Equity");
+                    System.out.println("Selected asset class: Equity");
+                } else {
+                    assetClassField.clear();
+                    assetClassField.sendKeys("Equity");
+                    System.out.println("Entered asset class: Equity");
+                }
+            } catch (NoSuchElementException e) {
+                System.out.println("Asset class field not found, skipping");
+            }
+            
+            // Find and click submit button
+            WebElement submitButton = findClickableElementWithMultipleSelectors(
+                "//button[@type='submit']",
+                "//button[contains(text(), 'Add')]",
+                "//button[contains(text(), 'Save')]",
+                "//button[contains(text(), 'Submit')]",
+                "//button[contains(text(), 'Create')]",
+                "//input[@type='submit']"
+            );
+            
+            System.out.println("Clicking submit button");
             submitButton.click();
             
-            WebElement successMessage = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//*[contains(text(), 'successfully')]")));
+            // Wait for success indication
+            System.out.println("Waiting for success confirmation");
+            WebElement successElement = wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.xpath("//*[contains(text(), 'success') or contains(text(), 'Success') or " +
+                        "contains(text(), 'added') or contains(text(), 'Added') or " +
+                        "contains(text(), 'created') or contains(text(), 'Created')]")
+            ));
             
-            System.out.println("Test passed: Successfully added instrument");
+            System.out.println("Success message found: " + successElement.getText());
+            
+            // Verify the instrument appears in the table
+            try {
+                WebElement instrumentInTable = wait.until(ExpectedConditions.presenceOfElementLocated(
+                    By.xpath("//td[contains(text(), 'AAPL')] | //tr[contains(., 'AAPL')] | " +
+                            "//*[contains(text(), 'Apple Inc.')]")
+                ));
+                System.out.println("Verified: Instrument AAPL found in table");
+            } catch (TimeoutException e) {
+                System.out.println("Warning: Could not verify instrument in table, but success message was shown");
+            }
+            
+            System.out.println("Test PASSED: Successfully added instrument AAPL");
             
         } catch (Exception e) {
-            System.err.println("Test failed: " + e.getMessage());
-            throw e;
+            System.err.println("Test FAILED: " + e.getMessage());
+            takeScreenshot("testAddInstrument_failed");
+            e.printStackTrace();
+            Assert.fail("Test failed: " + e.getMessage());
         }
     }
-}`
+}
+`
   }
 
   const generateCypressCode = (testResult: TestGenerationResult): string => {
