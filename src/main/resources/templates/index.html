@@ -131,8 +131,8 @@
         document.getElementById('loadTicketsBtn').addEventListener('click', async () => {
             console.log('[v0] JIRA Connect button clicked');
             try {
-                console.log('[v0] Making API call to /api/jira/tickets');
-                const response = await fetch('/api/jira/tickets');
+                console.log('[v0] Making API call to /api/jira-tickets');
+                const response = await fetch('/api/jira-tickets');
                 console.log('[v0] API Response status:', response.status);
                 
                 if (!response.ok) {
