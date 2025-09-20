@@ -102,15 +102,32 @@
 
         // Load JIRA tickets
         document.getElementById('loadTicketsBtn').addEventListener('click', async () => {
+            console.log('[v0] JIRA Connect button clicked');
             try {
+                console.log('[v0] Making API call to /api/jira/tickets');
                 const response = await fetch('/api/jira/tickets');
-                const tickets = await response.json();
+                console.log('[v0] API Response status:', response.status);
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('[v0] API Response data:', data);
+                
+                // Handle both direct array and wrapped response
+                const tickets = Array.isArray(data) ? data : (data.tickets || data);
+                
+                if (!Array.isArray(tickets)) {
+                    throw new Error('Invalid response format: expected array of tickets');
+                }
+                
+                console.log('[v0] Successfully loaded', tickets.length, 'tickets from JIRA');
                 displayTickets(tickets);
                 document.getElementById('ticketsContainer').classList.remove('hidden');
             } catch (error) {
-                console.error('Error loading tickets:', error);
-                alert('Error loading JIRA tickets');
+                console.error('[v0] Error loading tickets:', error);
+                alert(`Error loading JIRA tickets: ${error.message || error}`);
             }
         });
 
@@ -188,6 +205,8 @@
             }
 
             const language = document.getElementById('languageSelect').value;
+            console.log('[v0] Generating test code for:', selectedTicket.key);
+            console.log('[v0] Language:', language);
             
             document.getElementById('loadingIndicator').classList.remove('hidden');
             
@@ -203,19 +222,29 @@
                     })
                 });
 
+                console.log('[v0] Generate response status:', response.status);
+
                 if (!response.ok) {
-                    throw new Error('Failed to generate test project');
+                    const errorText = await response.text();
+                    console.error('[v0] Generate error response:', errorText);
+                    throw new Error(`Failed to generate test project: ${response.status} - ${errorText}`);
                 }
 
                 generatedProject = await response.json();
+                console.log('[v0] Generated project:', generatedProject);
+                
+                if (!generatedProject || !generatedProject.files) {
+                    throw new Error('Invalid project structure received');
+                }
+                
                 displayProjectPreview(generatedProject);
                 
                 document.getElementById('downloadBtn').classList.remove('hidden');
                 document.getElementById('projectPreviewSection').classList.remove('hidden');
                 
             } catch (error) {
-                console.error('Error generating test project:', error);
-                alert('Error generating test project: ' + error.message);
+                console.error('[v0] Error generating test project:', error);
+                alert(`Error generating tests for ${selectedTicket.key}: ${error.message || error}`);
             } finally {
                 document.getElementById('loadingIndicator').classList.add('hidden');
             }
@@ -269,6 +298,7 @@
             }
 
             const language = document.getElementById('languageSelect').value;
+            console.log('[v0] Downloading test project for:', selectedTicket.key);
             
             try {
                 const response = await fetch('/api/test-generation/download', {
@@ -282,11 +312,17 @@
                     })
                 });
 
+                console.log('[v0] Download response status:', response.status);
+
                 if (!response.ok) {
-                    throw new Error('Failed to download test project');
+                    const errorText = await response.text();
+                    console.error('[v0] Download error response:', errorText);
+                    throw new Error(`Failed to download test project: ${response.status} - ${errorText}`);
                 }
 
                 const blob = await response.blob();
+                console.log('[v0] Downloaded blob size:', blob.size);
+                
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -296,9 +332,11 @@
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
                 
+                console.log('[v0] Download completed successfully');
+                
             } catch (error) {
-                console.error('Error downloading test project:', error);
-                alert('Error downloading test project: ' + error.message);
+                console.error('[v0] Error downloading test project:', error);
+                alert(`Error downloading test project: ${error.message || error}`);
             }
         });
 
