@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateText } from "ai"
+import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
+import { z } from "zod"
 
 export async function POST(request: NextRequest) {
   let ticket = {}
@@ -45,6 +46,25 @@ export async function POST(request: NextRequest) {
       ...settings,
     }
 
+    const testCaseSchema = z.object({
+      testCases: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          priority: z.enum(["High", "Medium", "Low"]),
+          type: z.string(),
+          endpoint: z.string(),
+          httpMethod: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
+          requestBody: z.any().nullable(),
+          expectedStatusCode: z.number(),
+          expectedResponse: z.string(),
+          preconditions: z.array(z.string()),
+          steps: z.array(z.string()),
+          validationPoints: z.array(z.string()),
+        }),
+      ),
+    })
+
     const prompt = `You are an expert API testing engineer. Analyze this JIRA ticket and extract specific API contract details to generate comprehensive API test cases:
 
 **Ticket:** ${ticket.summary}
@@ -87,51 +107,16 @@ For each test case, provide:
 - Test Steps (API call sequence)
 - Validation Points
 
-**CRITICAL: Use the EXACT API endpoints, request formats, and response structures mentioned in the Acceptance Criteria. Do not use generic or placeholder values.**
+**CRITICAL: Use the EXACT API endpoints, request formats, and response structures mentioned in the Acceptance Criteria. Do not use generic or placeholder values.**`
 
-Return the response as a JSON array of test case objects with these additional API-specific fields:
-- endpoint: string
-- httpMethod: string  
-- requestBody: object or null
-- expectedStatusCode: number
-- expectedResponse: object or string`
-
-    const { text } = await generateText({
+    const { object } = await generateObject({
       model: openai("gpt-4o-mini"),
       prompt,
+      schema: testCaseSchema,
       temperature: 0.7,
     })
 
-    // Parse the AI response and structure it
-    let testCases
-    try {
-      let cleanedText = text.trim()
-
-      // Remove markdown code blocks more thoroughly
-      cleanedText = cleanedText.replace(/```json\s*/gi, "")
-      cleanedText = cleanedText.replace(/```\s*/g, "")
-
-      // Remove any leading/trailing text that might not be JSON
-      const jsonStart = cleanedText.indexOf("[")
-      const jsonEnd = cleanedText.lastIndexOf("]")
-
-      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-        cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1)
-      }
-
-      console.log("[v0] Attempting to parse cleaned JSON:", cleanedText.substring(0, 200) + "...")
-
-      const rawTestCases = JSON.parse(cleanedText)
-      testCases = Array.isArray(rawTestCases) ? rawTestCases.map(normalizeTestCase) : [normalizeTestCase(rawTestCases)]
-
-      console.log("[v0] Successfully parsed", testCases.length, "test cases from AI response")
-    } catch (parseError) {
-      console.log("[v0] JSON parsing failed:", parseError.message)
-      console.log("[v0] Raw AI response:", text.substring(0, 500) + "...")
-
-      testCases = parseTestCasesFromText(text, ticket.key)
-      console.log("[v0] Fallback parsing generated", testCases.length, "test cases")
-    }
+    const testCases = object.testCases.map(normalizeTestCase)
 
     console.log("[v0] AI generation successful, generated", testCases.length, "test cases")
 
@@ -186,7 +171,6 @@ function parseTestCasesFromText(text: string, ticketKey: string) {
     for (const line of lines) {
       const trimmedLine = line.trim()
 
-      // Look for test case IDs or titles
       if (trimmedLine.match(/^(TC_|Test Case|Title:|ID:)/i)) {
         if (currentTestCase) {
           testCases.push(normalizeTestCase(currentTestCase))
@@ -206,7 +190,6 @@ function parseTestCasesFromText(text: string, ticketKey: string) {
           validationPoints: [],
         }
       } else if (currentTestCase) {
-        // Add content to current test case
         if (trimmedLine.match(/^(Priority:|Type:|Endpoint:|HTTP Method:|Expected Status Code:)/i)) {
           const value = trimmedLine.split(":")[1]?.trim()
           if (trimmedLine.toLowerCase().includes("priority")) {
@@ -223,7 +206,6 @@ function parseTestCasesFromText(text: string, ticketKey: string) {
         } else if (
           trimmedLine.match(/^(Steps?:|Preconditions?:|Validation Points?:|Expected Response?:|Request Body?:)/i)
         ) {
-          // Handle steps, preconditions, validation points, expected response, request body
           if (trimmedLine.toLowerCase().includes("step")) {
             currentTestCase.steps.push(trimmedLine.replace(/^Steps?:/i, "").trim())
           } else if (trimmedLine.toLowerCase().includes("precondition")) {
@@ -243,7 +225,6 @@ function parseTestCasesFromText(text: string, ticketKey: string) {
       }
     }
 
-    // Add the last test case
     if (currentTestCase) {
       testCases.push(normalizeTestCase(currentTestCase))
     }
@@ -256,7 +237,6 @@ function parseTestCasesFromText(text: string, ticketKey: string) {
     console.log("[v0] Text parsing also failed:", textParseError.message)
   }
 
-  // If all parsing fails, use fallback with proper ticket context
   console.log("[v0] Using fallback tests for ticket:", ticketKey)
   return generateFallbackTests({ key: ticketKey }, {})
 }
@@ -265,7 +245,6 @@ function generateFallbackTests(ticket?: any, settings?: any) {
   const ticketKey = ticket?.key || "DEMO"
   const ticketSummary = ticket?.summary || "Add New Trading Instrument"
 
-  // Generate realistic test cases for trading instrument functionality
   const tradingInstrumentTests = [
     {
       id: `TC_${ticketKey}_001`,
