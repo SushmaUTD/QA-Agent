@@ -2,7 +2,39 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { testSuite, ciConfig, appConfig } = await request.json()
+    const body = await request.json().catch(() => ({}))
+    const { testSuite, ciConfig, appConfig } = body
+
+    // Validate required fields
+    if (!testSuite) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "testSuite is required",
+        },
+        { status: 400 },
+      )
+    }
+
+    if (!ciConfig || !ciConfig.provider) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "ciConfig with provider is required",
+        },
+        { status: 400 },
+      )
+    }
+
+    if (!appConfig) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "appConfig is required",
+        },
+        { status: 400 },
+      )
+    }
 
     // Generate unique run ID
     const runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -34,11 +66,21 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("CI execution error:", error)
-    return NextResponse.json({ success: false, error: "Failed to execute tests in CI" }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to execute tests in CI",
+      },
+      { status: 500 },
+    )
   }
 }
 
 function generateWorkflowFile(testSuite: any, ciConfig: any, appConfig: any, runId: string) {
+  if (!ciConfig || !ciConfig.provider) {
+    throw new Error("ciConfig with provider is required")
+  }
+
   let workflowContent = ""
   if (ciConfig.provider === "github-actions") {
     workflowContent = `
@@ -55,7 +97,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: ${ciConfig.timeout}
+    timeout-minutes: ${ciConfig.timeout || 30}
     
     steps:
     - uses: actions/checkout@v4
@@ -79,9 +121,9 @@ EOF
     - name: Run tests
       run: npx cypress run --spec "cypress/e2e/generated/*.cy.js"
       env:
-        APP_URL: ${appConfig.applicationUrl}
-        TEST_USERNAME: ${appConfig.loginUsername}
-        TEST_PASSWORD: ${appConfig.loginPassword}
+        APP_URL: ${appConfig.applicationUrl || "http://localhost:3000"}
+        TEST_USERNAME: ${appConfig.loginUsername || ""}
+        TEST_PASSWORD: ${appConfig.loginPassword || ""}
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -100,7 +142,7 @@ EOF
           
           const comment = \`## 🤖 Automated Test Results
           
-**Test Suite:** ${testSuite.metadata.ticketKey || "PR-" + testSuite.metadata.prNumber}
+**Test Suite:** ${testSuite.metadata?.ticketKey || "PR-" + testSuite.metadata?.prNumber || "Unknown"}
 **Status:** \${results.status === 'passed' ? '✅ PASSED' : '❌ FAILED'}
 **Total Tests:** \${results.total}
 **Passed:** \${results.passed}
