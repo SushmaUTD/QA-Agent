@@ -86,17 +86,32 @@ Return the response as a JSON array of test case objects.`
     // Parse the AI response and structure it
     let testCases
     try {
-      const cleanedText = text
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim()
+      let cleanedText = text.trim()
+
+      // Remove markdown code blocks more thoroughly
+      cleanedText = cleanedText.replace(/```json\s*/gi, "")
+      cleanedText = cleanedText.replace(/```\s*/g, "")
+
+      // Remove any leading/trailing text that might not be JSON
+      const jsonStart = cleanedText.indexOf("[")
+      const jsonEnd = cleanedText.lastIndexOf("]")
+
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1)
+      }
+
+      console.log("[v0] Attempting to parse cleaned JSON:", cleanedText.substring(0, 200) + "...")
+
       const rawTestCases = JSON.parse(cleanedText)
       testCases = Array.isArray(rawTestCases) ? rawTestCases.map(normalizeTestCase) : [normalizeTestCase(rawTestCases)]
+
+      console.log("[v0] Successfully parsed", testCases.length, "test cases from AI response")
     } catch (parseError) {
-      console.log("[v0] JSON parsing failed, using text parsing fallback")
-      // If AI doesn't return valid JSON, create structured response
-      const lines = text.split("\n").filter((line) => line.trim())
-      testCases = parseTestCasesFromText(lines, ticket.key)
+      console.log("[v0] JSON parsing failed:", parseError.message)
+      console.log("[v0] Raw AI response:", text.substring(0, 500) + "...")
+
+      testCases = parseTestCasesFromText(text, ticket.key)
+      console.log("[v0] Fallback parsing generated", testCases.length, "test cases")
     }
 
     console.log("[v0] AI generation successful, generated", testCases.length, "test cases")
@@ -113,7 +128,9 @@ Return the response as a JSON array of test case objects.`
       },
     })
   } catch (error) {
-    console.error("Test generation error:", error)
+    console.error("Test generation error:", error.message || error)
+    console.error("Error stack:", error.stack)
+
     const safeSettings = {
       coverageLevel: settings?.coverageLevel || "Basic",
       testTypes: Array.isArray(settings?.testTypes) ? settings.testTypes : ["Functional"],
@@ -121,23 +138,86 @@ Return the response as a JSON array of test case objects.`
       ...settings,
     }
 
-    return NextResponse.json({
+    const fallbackResponse = {
       success: true,
       testCases: generateFallbackTests(ticket, safeSettings),
       metadata: {
-        ticketKey: ticket.key || "ERROR",
+        ticketKey: ticket?.key || "ERROR",
         generatedAt: new Date().toISOString(),
         settings: safeSettings,
         totalTests: generateFallbackTests(ticket, safeSettings).length,
         usingFallback: true,
-        error: "AI generation failed, using fallback",
+        error: `AI generation failed: ${error.message || "Unknown error"}`,
       },
-    })
+    }
+
+    console.log("[v0] Returning fallback response with", fallbackResponse.testCases.length, "test cases")
+    return NextResponse.json(fallbackResponse)
   }
 }
 
-function parseTestCasesFromText(lines: string[], ticketKey: string) {
-  // If text parsing fails, immediately use fallback with proper ticket context
+function parseTestCasesFromText(text: string, ticketKey: string) {
+  console.log("[v0] Attempting to parse test cases from text response")
+
+  try {
+    const lines = text.split("\n").filter((line) => line.trim())
+    const testCases = []
+    let currentTestCase = null
+
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+
+      // Look for test case IDs or titles
+      if (trimmedLine.match(/^(TC_|Test Case|Title:|ID:)/i)) {
+        if (currentTestCase) {
+          testCases.push(normalizeTestCase(currentTestCase))
+        }
+        currentTestCase = {
+          id: `TC_${ticketKey}_${String(testCases.length + 1).padStart(3, "0")}`,
+          title: trimmedLine.replace(/^(TC_.*?:|Test Case.*?:|Title:|ID:)/i, "").trim(),
+          priority: "Medium",
+          type: "Functional",
+          preconditions: [],
+          steps: [],
+          expectedResults: "",
+          testData: "",
+        }
+      } else if (currentTestCase) {
+        // Add content to current test case
+        if (trimmedLine.match(/^(Priority:|Type:)/i)) {
+          const value = trimmedLine.split(":")[1]?.trim()
+          if (trimmedLine.toLowerCase().includes("priority")) {
+            currentTestCase.priority = value || "Medium"
+          } else if (trimmedLine.toLowerCase().includes("type")) {
+            currentTestCase.type = value || "Functional"
+          }
+        } else if (trimmedLine.match(/^(Steps?:|Preconditions?:|Expected)/i)) {
+          // Handle steps, preconditions, expected results
+          if (trimmedLine.toLowerCase().includes("step")) {
+            currentTestCase.steps.push(trimmedLine.replace(/^Steps?:/i, "").trim())
+          } else if (trimmedLine.toLowerCase().includes("precondition")) {
+            currentTestCase.preconditions.push(trimmedLine.replace(/^Preconditions?:/i, "").trim())
+          } else if (trimmedLine.toLowerCase().includes("expected")) {
+            currentTestCase.expectedResults = trimmedLine.replace(/^Expected.*?:/i, "").trim()
+          }
+        }
+      }
+    }
+
+    // Add the last test case
+    if (currentTestCase) {
+      testCases.push(normalizeTestCase(currentTestCase))
+    }
+
+    if (testCases.length > 0) {
+      console.log("[v0] Successfully parsed", testCases.length, "test cases from text")
+      return testCases
+    }
+  } catch (textParseError) {
+    console.log("[v0] Text parsing also failed:", textParseError.message)
+  }
+
+  // If all parsing fails, use fallback with proper ticket context
   console.log("[v0] Using fallback tests for ticket:", ticketKey)
   return generateFallbackTests({ key: ticketKey }, {})
 }
