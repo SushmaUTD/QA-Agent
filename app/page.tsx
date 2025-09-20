@@ -164,17 +164,18 @@ export default function JiraTestGenerator() {
       return
     }
 
+    const ticketKey = testResult.metadata.ticketKey || "UnknownTicket"
+
+    if (format === "selenium") {
+      generateSpringBootProject(testResult, ticketKey)
+      return
+    }
+
     let content: string
     let filename: string
     let mimeType: string
 
-    const ticketKey = testResult.metadata.ticketKey || "UnknownTicket"
-
-    if (format === "selenium") {
-      content = generateSeleniumCode(testResult)
-      filename = `${ticketKey}_selenium_tests.java`
-      mimeType = "text/java"
-    } else if (format === "cypress") {
+    if (format === "cypress") {
       content = generateCypressCode(testResult)
       filename = `${ticketKey}_cypress_tests.js`
       mimeType = "text/javascript"
@@ -186,6 +187,449 @@ export default function JiraTestGenerator() {
 
     const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const generateSpringBootProject = (testResult: TestGenerationResult, ticketKey: string) => {
+    const projectName = `${ticketKey.toLowerCase().replace(/-/g, "_")}_selenium_tests`
+    const packageName = `com.testing.${projectName}`
+    const className = `${ticketKey.replace(/-/g, "_")}_Tests`
+
+    // Create project files
+    const files: { [key: string]: string } = {}
+
+    // 1. pom.xml - Maven configuration with all dependencies
+    files["pom.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.testing</groupId>
+    <artifactId>${projectName}</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>${projectName}</name>
+    <description>Selenium Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}</description>
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <selenium.version>4.15.0</selenium.version>
+        <testng.version>7.8.0</testng.version>
+        <spring.boot.version>3.1.5</spring.boot.version>
+    </properties>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.5</version>
+        <relativePath/>
+    </parent>
+
+    <dependencies>
+        <!-- Spring Boot Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Selenium WebDriver -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>\${selenium.version}</version>
+        </dependency>
+
+        <!-- WebDriverManager for automatic driver management -->
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>5.6.2</version>
+        </dependency>
+
+        <!-- TestNG -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>\${testng.version}</version>
+        </dependency>
+
+        <!-- Apache Commons IO for file operations -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M9</version>
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
+                    </suiteXmlFiles>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>`
+
+    // 2. Main Application class
+    files[`src/main/java/${packageName.replace(/\./g, "/")}/Application.java`] = `package ${packageName};
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+}`
+
+    // 3. Base Test Configuration
+    files[`src/test/java/${packageName.replace(/\./g, "/")}/config/TestConfig.java`] = `package ${packageName}.config;
+
+import io.github.bonigarcia.wdm.WebDriverManager;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Scope;
+
+import java.time.Duration;
+
+@Configuration
+public class TestConfig {
+    
+    @Value("\${app.base.url:http://localhost:3000}")
+    private String baseUrl;
+    
+    @Bean
+    @Scope("prototype")
+    public WebDriver webDriver() {
+        WebDriverManager.chromedriver().setup();
+        
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080");
+        // Remove the next line to run in headed mode
+        options.addArguments("--headless");
+        
+        WebDriver driver = new ChromeDriver(options);
+        driver.manage().window().maximize();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        
+        return driver;
+    }
+    
+    @Bean
+    public WebDriverWait webDriverWait(WebDriver webDriver) {
+        return new WebDriverWait(webDriver, Duration.ofSeconds(15));
+    }
+    
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+}`
+
+    // 4. Base Test Class
+    files[`src/test/java/${packageName.replace(/\./g, "/")}/BaseTest.java`] = `package ${packageName};
+
+import ${packageName}.config.TestConfig;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+@SpringBootTest(classes = TestConfig.class)
+public abstract class BaseTest extends AbstractTestNGSpringContextTests {
+    
+    @Autowired
+    protected TestConfig testConfig;
+    
+    protected WebDriver driver;
+    protected WebDriverWait wait;
+    
+    @BeforeMethod
+    public void setUp() {
+        driver = testConfig.webDriver();
+        wait = testConfig.webDriverWait(driver);
+        System.out.println("Test setup completed - WebDriver initialized");
+    }
+    
+    @AfterMethod
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+            System.out.println("Test teardown completed - WebDriver closed");
+        }
+    }
+    
+    protected void navigateToApp() {
+        driver.get(testConfig.getBaseUrl());
+        waitForPageLoad();
+    }
+    
+    protected void waitForPageLoad() {
+        wait.until(webDriver -> ((JavascriptExecutor) webDriver)
+            .executeScript("return document.readyState").equals("complete"));
+    }
+    
+    protected void waitAndClick(By locator) {
+        WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+        element.click();
+    }
+    
+    protected void waitAndSendKeys(By locator, String text) {
+        WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        element.clear();
+        element.sendKeys(text);
+    }
+    
+    protected boolean isElementPresent(By locator) {
+        try {
+            driver.findElement(locator);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    protected void takeScreenshot(String testName) {
+        try {
+            TakesScreenshot screenshot = (TakesScreenshot) driver;
+            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
+            
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            File destFile = new File("screenshots/" + testName + "_" + timestamp + ".png");
+            
+            // Create screenshots directory if it doesn't exist
+            destFile.getParentFile().mkdirs();
+            
+            FileUtils.copyFile(sourceFile, destFile);
+            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+        } catch (IOException e) {
+            System.err.println("Failed to take screenshot: " + e.getMessage());
+        }
+    }
+}`
+
+    // 5. Main Test Class with actual test methods
+    files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${className}.java`] = generateSeleniumCode(testResult)
+      .replace(
+        /public class \w+_Tests \{/,
+        `package ${packageName}.tests;
+
+import ${packageName}.BaseTest;
+import org.testng.annotations.Test;
+import org.openqa.selenium.By;
+
+/**
+ * Automated Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}
+ * Generated on: ${testResult.metadata?.generatedAt || new Date().toISOString()}
+ * Framework: Selenium WebDriver with Spring Boot & TestNG
+ * Total Test Cases: ${testResult.testCases?.length || 0}
+ */
+public class ${className} extends BaseTest {`,
+      )
+      .replace(/public static void main$$String\[\] args$$[\s\S]*?}\s*}/m, "")
+      .replace(/public void setUp$$$$[\s\S]*?}\s*/m, "")
+      .replace(/public void tearDown$$$$[\s\S]*?}\s*/m, "")
+      .replace(/private void takeScreenshot[\s\S]*?}\s*/m, "")
+      .replace(/private void waitAndClick[\s\S]*?}\s*/m, "")
+      .replace(/private void waitAndSendKeys[\s\S]*?}\s*/m, "")
+      .replace(/private boolean isElementPresent[\s\S]*?}\s*/m, "")
+      .replace(/public void test/g, "@Test\n    public void test")
+      .replace(/driver\.get$$BASE_URL$$;/g, "navigateToApp();")
+      .replace(/Thread\.sleep$$\d+$$;/g, "waitForPageLoad();")
+
+    // 6. TestNG configuration
+    files["src/test/resources/testng.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
+<suite name="${projectName}" verbose="1">
+    <test name="${ticketKey} Tests">
+        <classes>
+            <class name="${packageName}.tests.${className}"/>
+        </classes>
+    </test>
+</suite>`
+
+    // 7. Application properties
+    files["src/test/resources/application.properties"] = `# Application Configuration
+app.base.url=http://localhost:3000
+
+# Logging Configuration
+logging.level.root=INFO
+logging.level.${packageName}=DEBUG
+
+# Test Configuration
+spring.main.web-application-type=none`
+
+    // 8. README.md with instructions
+    files["README.md"] = `# ${projectName.toUpperCase()} - Selenium Test Suite
+
+## Overview
+Automated test suite for **${testResult.ticket?.summary || "JIRA Ticket"}** (${ticketKey})
+
+- **Framework**: Selenium WebDriver with Spring Boot & TestNG
+- **Generated**: ${new Date().toLocaleString()}
+- **Total Test Cases**: ${testResult.testCases?.length || 0}
+
+## Prerequisites
+- Java 11 or higher
+- Maven 3.6 or higher
+- Chrome browser installed
+
+## Project Structure
+\`\`\`
+${projectName}/
+├── pom.xml                           # Maven dependencies
+├── src/main/java/                    # Main application code
+├── src/test/java/                    # Test code
+│   ├── config/TestConfig.java        # WebDriver configuration
+│   ├── BaseTest.java                 # Base test class
+│   └── tests/${className}.java       # Test cases
+├── src/test/resources/
+│   ├── testng.xml                    # TestNG configuration
+│   └── application.properties        # Test properties
+└── README.md                         # This file
+\`\`\`
+
+## How to Run
+
+### 1. Import into IDE
+- Open your IDE (IntelliJ IDEA, Eclipse, VS Code)
+- Import as Maven project
+- Wait for dependencies to download
+
+### 2. Update Configuration
+Edit \`src/test/resources/application.properties\`:
+\`\`\`properties
+app.base.url=http://your-application-url
+\`\`\`
+
+### 3. Run Tests
+
+#### Via IDE:
+- Right-click on \`${className}.java\` → Run
+- Or right-click on \`testng.xml\` → Run
+
+#### Via Maven:
+\`\`\`bash
+mvn clean test
+\`\`\`
+
+#### Run specific test:
+\`\`\`bash
+mvn test -Dtest=${className}#testMethodName
+\`\`\`
+
+### 4. View Results
+- Test results: \`target/surefire-reports/\`
+- Screenshots: \`screenshots/\` (on test failures)
+
+## Test Cases Included
+${testResult.testCases?.map((tc: any, i: number) => `${i + 1}. **${tc.title}** (${tc.priority} priority)`).join("\n") || "No test cases available"}
+
+## Configuration Options
+
+### Browser Settings
+Edit \`TestConfig.java\` to modify browser options:
+- Remove \`--headless\` to see browser actions
+- Change window size, add extensions, etc.
+
+### Timeouts
+Adjust timeouts in \`TestConfig.java\`:
+- Implicit wait: Currently 10 seconds
+- Explicit wait: Currently 15 seconds
+
+## Troubleshooting
+
+### Common Issues:
+1. **ChromeDriver not found**: WebDriverManager handles this automatically
+2. **Tests fail**: Check application URL in properties file
+3. **Screenshots not saving**: Ensure write permissions in project directory
+
+### Debug Mode:
+Set logging level to DEBUG in \`application.properties\`:
+\`\`\`properties
+logging.level.${packageName}=DEBUG
+\`\`\`
+
+## Support
+Generated by JIRA Test Case Generator
+For issues, check the application logs and screenshots in the \`screenshots/\` directory.
+`
+
+    // Create and download ZIP file
+    createZipDownload(files, `${projectName}.zip`)
+  }
+
+  const createZipDownload = async (files: { [key: string]: string }, filename: string) => {
+    // Import JSZip dynamically
+    const JSZip = (await import("jszip")).default
+    const zip = new JSZip()
+
+    // Add all files to ZIP
+    Object.entries(files).forEach(([path, content]) => {
+      zip.file(path, content)
+    })
+
+    // Generate ZIP and download
+    const zipBlob = await zip.generateAsync({ type: "blob" })
+    const url = URL.createObjectURL(zipBlob)
     const a = document.createElement("a")
     a.href = url
     a.download = filename
