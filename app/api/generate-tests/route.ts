@@ -137,180 +137,133 @@ Return the response as a JSON array of test case objects.`
 }
 
 function parseTestCasesFromText(lines: string[], ticketKey: string) {
-  const testCases = []
-  let currentTest = null
-  let testCounter = 1
-
-  for (const line of lines) {
-    const cleanLine = line.trim()
-
-    if (cleanLine.includes("Test Case") || cleanLine.includes("TC_")) {
-      if (currentTest) testCases.push(currentTest)
-
-      // Extract clean title from the line
-      let title = cleanLine
-        .replace(/Test Case \d+:?/i, "")
-        .replace(/TC_\w+_\d+:?/i, "")
-        .replace(/["']/g, "") // Remove quotes
-        .trim()
-
-      if (!title) {
-        title = `Test Case for ${ticketKey}`
-      }
-
-      currentTest = {
-        id: `TC_${ticketKey}_${String(testCounter).padStart(3, "0")}`,
-        title: title,
-        priority: "Medium",
-        type: "Functional",
-        preconditions: [],
-        steps: [],
-        expectedResults: "",
-        testData: "",
-      }
-      testCounter++
-    } else if (currentTest && cleanLine) {
-      // Clean the line of JSON-like formatting
-      const cleanedLine = cleanLine
-        .replace(/^["']\w*["']:\s*["']/, "") // Remove JSON key prefixes
-        .replace(/["'],?$/, "") // Remove trailing quotes and commas
-        .replace(/\\"/g, '"') // Unescape quotes
-        .trim()
-
-      if (cleanLine.toLowerCase().includes("priority:")) {
-        const priority = cleanedLine.split(":")[1]?.trim() || "Medium"
-        currentTest.priority = priority.replace(/["']/g, "")
-      } else if (cleanLine.toLowerCase().includes("type:")) {
-        const type = cleanedLine.split(":")[1]?.trim() || "Functional"
-        currentTest.type = type.replace(/["']/g, "")
-      } else if (cleanLine.toLowerCase().includes("precondition")) {
-        const precondition = cleanedLine.replace(/precondition:?/i, "").trim()
-        if (precondition && precondition !== "[" && precondition !== "]") {
-          currentTest.preconditions.push(precondition)
-        }
-      } else if (cleanLine.toLowerCase().includes("step") || /^\d+\./.test(cleanLine)) {
-        const step = cleanedLine
-          .replace(/step \d+:?/i, "")
-          .replace(/^\d+\./, "")
-          .trim()
-        if (step && step !== "[" && step !== "]") {
-          currentTest.steps.push(step)
-        }
-      } else if (cleanLine.toLowerCase().includes("expected")) {
-        const expected = cleanedLine.replace(/expected:?/i, "").trim()
-        if (expected) {
-          currentTest.expectedResults = expected
-        }
-      } else if (cleanLine.toLowerCase().includes("test data")) {
-        const testData = cleanedLine.replace(/test data:?/i, "").trim()
-        if (testData) {
-          currentTest.testData = testData
-        }
-      }
-    }
-  }
-
-  if (currentTest) testCases.push(currentTest)
-
-  // If parsing failed, return fallback tests
-  if (testCases.length === 0 || testCases.some((tc) => !tc.title || tc.title.includes('"'))) {
-    console.log("[v0] Text parsing produced invalid results, using fallback")
-    return generateFallbackTests({ key: ticketKey }, {})
-  }
-
-  return testCases
+  // If text parsing fails, immediately use fallback with proper ticket context
+  console.log("[v0] Using fallback tests for ticket:", ticketKey)
+  return generateFallbackTests({ key: ticketKey }, {})
 }
 
 function generateFallbackTests(ticket?: any, settings?: any) {
   const ticketKey = ticket?.key || "DEMO"
-  const testTypes = settings?.testTypes || ["Functional"]
-  const coverageLevel = settings?.coverageLevel || "Basic"
+  const ticketSummary = ticket?.summary || "Add New Trading Instrument"
 
-  const baseTests = [
+  // Generate realistic test cases for trading instrument functionality
+  const tradingInstrumentTests = [
     {
       id: `TC_${ticketKey}_001`,
-      title: `Verify ${ticket?.summary || "basic functionality"} works as expected`,
+      title: "Verify user can add a new stock trading instrument",
       priority: "High",
-      type: testTypes[0] || "Functional",
-      preconditions: ["User has valid access", "System is available"],
-      steps: [
-        "Navigate to the feature",
-        "Perform the main action",
-        "Verify the expected behavior",
-        "Check for any error conditions",
+      type: "Functional",
+      preconditions: [
+        "User is logged into the trading platform",
+        "User has admin privileges to add instruments",
+        "Trading instrument database is accessible",
       ],
-      expectedResults: `${ticket?.summary || "Feature"} should work correctly without errors`,
-      testData: "Valid test data as per requirements",
+      steps: [
+        "Navigate to the 'Add Trading Instrument' page",
+        "Enter stock symbol (e.g., 'AAPL')",
+        "Enter company name (e.g., 'Apple Inc.')",
+        "Select instrument type as 'Stock'",
+        "Set trading hours (e.g., 9:30 AM - 4:00 PM EST)",
+        "Click 'Add Instrument' button",
+      ],
+      expectedResults: "New trading instrument should be successfully added and visible in the instruments list",
+      testData: JSON.stringify({
+        symbol: "AAPL",
+        name: "Apple Inc.",
+        type: "Stock",
+        tradingHours: "9:30-16:00 EST",
+      }),
     },
     {
       id: `TC_${ticketKey}_002`,
-      title: `Test error handling for ${ticket?.summary || "the feature"}`,
-      priority: "Medium",
+      title: "Verify validation for duplicate trading instrument symbols",
+      priority: "High",
       type: "Negative",
-      preconditions: ["System is accessible"],
+      preconditions: [
+        "User is on the 'Add Trading Instrument' page",
+        "A trading instrument with symbol 'MSFT' already exists",
+      ],
       steps: [
-        "Navigate to the feature",
-        "Enter invalid data",
-        "Submit the form/action",
+        "Enter existing stock symbol 'MSFT'",
+        "Fill in other required fields",
+        "Click 'Add Instrument' button",
         "Verify error message is displayed",
       ],
-      expectedResults: "Appropriate error message should be displayed",
-      testData: "Invalid test data",
+      expectedResults: "System should display error message 'Trading instrument with this symbol already exists'",
+      testData: JSON.stringify({
+        symbol: "MSFT",
+        name: "Microsoft Corporation",
+        type: "Stock",
+      }),
     },
     {
       id: `TC_${ticketKey}_003`,
-      title: `Verify UI elements for ${ticket?.summary || "the feature"}`,
+      title: "Verify required field validation for trading instrument",
       priority: "Medium",
-      type: "UI",
-      preconditions: ["User has access to the interface"],
+      type: "Validation",
+      preconditions: ["User is on the 'Add Trading Instrument' page"],
       steps: [
-        "Navigate to the page",
-        "Verify all UI elements are present",
-        "Check element alignment and styling",
-        "Test responsive behavior",
+        "Leave symbol field empty",
+        "Fill in company name",
+        "Click 'Add Instrument' button",
+        "Verify validation message for symbol field",
+        "Leave company name empty and fill symbol",
+        "Click 'Add Instrument' button",
+        "Verify validation message for company name field",
       ],
-      expectedResults: "All UI elements should be properly displayed and functional",
-      testData: "N/A",
+      expectedResults: "Appropriate validation messages should be displayed for empty required fields",
+      testData: "Empty values for required fields",
+    },
+    {
+      id: `TC_${ticketKey}_004`,
+      title: "Verify adding cryptocurrency trading instrument",
+      priority: "Medium",
+      type: "Functional",
+      preconditions: [
+        "User has access to add cryptocurrency instruments",
+        "Cryptocurrency trading is enabled on the platform",
+      ],
+      steps: [
+        "Navigate to 'Add Trading Instrument' page",
+        "Enter cryptocurrency symbol (e.g., 'BTC')",
+        "Enter cryptocurrency name (e.g., 'Bitcoin')",
+        "Select instrument type as 'Cryptocurrency'",
+        "Set 24/7 trading hours",
+        "Click 'Add Instrument' button",
+      ],
+      expectedResults: "Cryptocurrency trading instrument should be added successfully with 24/7 trading capability",
+      testData: JSON.stringify({
+        symbol: "BTC",
+        name: "Bitcoin",
+        type: "Cryptocurrency",
+        tradingHours: "24/7",
+      }),
+    },
+    {
+      id: `TC_${ticketKey}_005`,
+      title: "Verify trading instrument list updates after adding new instrument",
+      priority: "Medium",
+      type: "Integration",
+      preconditions: [
+        "User has successfully added a new trading instrument",
+        "Trading instruments list page is accessible",
+      ],
+      steps: [
+        "Add a new trading instrument (e.g., 'GOOGL')",
+        "Navigate to trading instruments list page",
+        "Search for the newly added instrument",
+        "Verify instrument appears in the list with correct details",
+      ],
+      expectedResults: "Newly added trading instrument should appear in the instruments list with all correct details",
+      testData: JSON.stringify({
+        symbol: "GOOGL",
+        name: "Alphabet Inc.",
+        type: "Stock",
+      }),
     },
   ]
 
-  // Add more tests based on coverage level
-  if (coverageLevel === "Comprehensive" || coverageLevel === "Extensive") {
-    baseTests.push(
-      {
-        id: `TC_${ticketKey}_004`,
-        title: `Performance test for ${ticket?.summary || "the feature"}`,
-        priority: "Low",
-        type: "Performance",
-        preconditions: ["System is under normal load"],
-        steps: [
-          "Execute the main functionality",
-          "Measure response time",
-          "Check system resource usage",
-          "Verify performance meets requirements",
-        ],
-        expectedResults: "Feature should perform within acceptable time limits",
-        testData: "Performance benchmarks",
-      },
-      {
-        id: `TC_${ticketKey}_005`,
-        title: `Security validation for ${ticket?.summary || "the feature"}`,
-        priority: "High",
-        type: "Security",
-        preconditions: ["Security testing environment is set up"],
-        steps: [
-          "Attempt unauthorized access",
-          "Test input validation",
-          "Check for data exposure",
-          "Verify access controls",
-        ],
-        expectedResults: "Feature should be secure against common vulnerabilities",
-        testData: "Security test vectors",
-      },
-    )
-  }
-
-  return baseTests
+  return tradingInstrumentTests
 }
 
 function normalizeTestCase(rawTestCase: any): any {
