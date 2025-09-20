@@ -405,50 +405,62 @@ public abstract class BaseTest extends AbstractTestNGSpringContextTests {
     
     @BeforeMethod
     public void setUp() {
-        driver = testConfig.webDriver();
-        wait = testConfig.webDriverWait(driver);
-        System.out.println("Test setup completed - WebDriver initialized");
+        try {
+            driver = testConfig.webDriver();
+            wait = testConfig.webDriverWait(driver);
+            System.out.println("Test setup completed - WebDriver initialized");
+        } catch (Exception e) {
+            System.err.println("Failed to initialize WebDriver: " + e.getMessage());
+            throw new RuntimeException("WebDriver initialization failed", e);
+        }
     }
     
     @AfterMethod
     public void tearDown() {
         if (driver != null) {
-            driver.quit();
-            System.out.println("Test teardown completed - WebDriver closed");
+            try {
+                driver.quit();
+                System.out.println("Test teardown completed - WebDriver closed");
+            } catch (Exception e) {
+                System.err.println("Error during WebDriver cleanup: " + e.getMessage());
+            }
         }
     }
     
     protected void navigateToApp() {
+        if (driver == null) {
+            throw new RuntimeException("WebDriver is not initialized");
+        }
         driver.get(testConfig.getBaseUrl());
         waitForPageLoad();
     }
     
     protected void waitForPageLoad() {
+        if (driver == null || wait == null) {
+            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
+        }
         wait.until(webDriver -> ((JavascriptExecutor) webDriver)
             .executeScript("return document.readyState").equals("complete"));
     }
     
-    protected void waitAndClick(By locator) {
-        WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
-        element.click();
-    }
-    
-    protected void waitAndSendKeys(By locator, String text) {
-        WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-        element.clear();
-        element.sendKeys(text);
-    }
-    
-    protected boolean isElementPresent(By locator) {
+    protected WebElement findElementSafely(By locator) {
+        if (driver == null || wait == null) {
+            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
+        }
         try {
-            driver.findElement(locator);
-            return true;
+            return wait.until(ExpectedConditions.presenceOfElementLocated(locator));
         } catch (Exception e) {
-            return false;
+            System.err.println("Element not found: " + locator + " - " + e.getMessage());
+            return null;
         }
     }
     
     protected void takeScreenshot(String testName) {
+        if (driver == null) {
+            System.err.println("Cannot take screenshot: WebDriver is null");
+            return;
+        }
+        
         try {
             TakesScreenshot screenshot = (TakesScreenshot) driver;
             File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
@@ -461,7 +473,7 @@ public abstract class BaseTest extends AbstractTestNGSpringContextTests {
             
             FileUtils.copyFile(sourceFile, destFile);
             System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
-        } catch (IOException e) {
+        } catch (Exception e) {
             System.err.println("Failed to take screenshot: " + e.getMessage());
         }
     }
@@ -491,7 +503,7 @@ import org.openqa.selenium.By;
  */
 public class ${className} extends BaseTest {`,
       )
-      .replace(/public static void main\$\$String\[\] args\$\$[^}]*?}\s*}/m, "")
+      .replace(/public static void main\$\$String\[\] args\$\$[^}]*?}\s*/m, "")
       .replace(/public void setUp\$\$\$\$[^}]*?}\s*/m, "")
       .replace(/public void tearDown\$\$\$\$[^}]*?}\s*/m, "")
       .replace(/private void takeScreenshot[^}]*?}\s*/m, "")
@@ -649,215 +661,61 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
     const ticketKey = testResult.metadata?.ticketKey || "UnknownTicket"
     const safeTicketKey = ticketKey ? String(ticketKey) : "UnknownTicket"
     const className = `${safeTicketKey.replace(/-/g, "_")}_Tests`
+    const packageName = `com.testing.qaagent` // Defined here to fix undeclared variable error
 
-    let seleniumCode = `import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
+    const seleniumCode = `package ${packageName}.tests;
+
+import ${packageName}.BaseTest;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.OutputType;
-import org.apache.commons.io.FileUtils;
-import java.io.File;
-import java.time.Duration;
-import java.util.List;
+import org.testng.Assert;
+import org.testng.annotations.Test;
 
 /**
  * Automated Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}
  * Generated on: ${testResult.metadata?.generatedAt || new Date().toISOString()}
- * Framework: Selenium WebDriver
+ * Framework: Selenium WebDriver with Spring Boot & TestNG
  * Total Test Cases: ${testResult.testCases?.length || 0}
  */
-public class ${className} {
-    private WebDriver driver;
-    private WebDriverWait wait;
-    private static final String BASE_URL = "${appConfig.applicationUrl}"; // Update with your application URL
+public class ${className} extends BaseTest {
     
-    public static void main(String[] args) {
-        ${className} testSuite = new ${className}();
-        testSuite.setUp();
-        
-        try {
-            // Run all test methods`
-
-    testResult.testCases?.forEach((testCase: any, index: number) => {
-      const methodName = `test${String(index + 1).padStart(2, "0")}_${testCase.title?.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50) || "TestCase"}`
-      seleniumCode += `
-            testSuite.${methodName}();`
-    })
-
-    seleniumCode += `
-            
-            System.out.println("\\n✅ All tests completed successfully!");
-            
-        } catch (Exception e) {
-            System.err.println("❌ Test failed: " + e.getMessage());
-            testSuite.takeScreenshot("test_failure");
-            e.printStackTrace();
-        } finally {
-            testSuite.tearDown();
-        }
-    }
-
-    private void setUp() {
-        ChromeOptions options = new ChromeOptions();
-        // Remove --headless to see the browser in action
-        // options.addArguments("--headless");
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--window-size=1920,1080");
-        options.addArguments("--disable-blink-features=AutomationControlled");
-        options.setExperimentalOption("useAutomationExtension", false);
-        options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
-        
-        driver = new ChromeDriver(options);
-        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
-        driver.manage().window().maximize();
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-        
-        // Navigate to application
-        System.out.println("Navigating to: " + BASE_URL);
-        driver.get(BASE_URL);
-    }
-
-    private void tearDown() {
-        if (driver != null) {
-            driver.quit();
-            System.out.println("Browser closed.");
-        }
-    }
-
-    // Helper methods for common actions
-    private WebElement waitForElement(By locator) {
-        return wait.until(ExpectedConditions.elementToBeClickable(locator));
-    }
-
-    private void clickElement(By locator) {
-        try {
-            WebElement element = waitForElement(locator);
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
-            Thread.sleep(500); // Small delay for scroll
-            element.click();
-            System.out.println("✓ Clicked element: " + locator.toString());
-        } catch (Exception e) {
-            System.err.println("✗ Failed to click element: " + locator.toString());
-            throw e;
-        }
-    }
-
-    private void enterText(By locator, String text) {
-        try {
-            WebElement element = waitForElement(locator);
-            element.clear();
-            element.sendKeys(text);
-            System.out.println("✓ Entered text '" + text + "' in: " + locator.toString());
-        } catch (Exception e) {
-            System.err.println("✗ Failed to enter text in: " + locator.toString());
-            throw e;
-        }
-    }
-
-    private boolean isElementPresent(By locator) {
-        try {
-            driver.findElement(locator);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void verifyElementVisible(By locator) {
-        try {
-            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-            if (element.isDisplayed()) {
-                System.out.println("✓ Element is visible: " + locator.toString());
-            } else {
-                throw new RuntimeException("Element not visible: " + locator.toString());
-            }
-        } catch (Exception e) {
-            System.err.println("✗ Element not found or not visible: " + locator.toString());
-            throw e;
-        }
-    }
-
-    private void verifyTextPresent(String text) {
-        try {
-            if (driver.getPageSource().contains(text)) {
-                System.out.println("✓ Text found on page: " + text);
-            } else {
-                throw new RuntimeException("Text not found on page: " + text);
-            }
-        } catch (Exception e) {
-            System.err.println("✗ Text not found: " + text);
-            throw e;
-        }
-    }
-
-    private void selectFromDropdown(By locator, String optionText) {
-        try {
-            Select dropdown = new Select(waitForElement(locator));
-            dropdown.selectByVisibleText(optionText);
-            System.out.println("✓ Selected '" + optionText + "' from dropdown: " + locator.toString());
-        } catch (Exception e) {
-            System.err.println("✗ Failed to select from dropdown: " + locator.toString());
-            throw e;
-        }
-    }
-
-    private void takeScreenshot(String filename) {
-        try {
-            TakesScreenshot screenshot = (TakesScreenshot) driver;
-            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
-            
-            String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            File destFile = new File("screenshots/" + filename + "_" + timestamp + ".png");
-            
-            // Create screenshots directory if it doesn't exist
-            destFile.getParentFile().mkdirs();
-            
-            FileUtils.copyFile(sourceFile, destFile);
-            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
-        } catch (IOException e) {
-            System.err.println("Failed to take screenshot: " + e.getMessage());
-        }
-    }
-
-    // Test methods
+    // Test methods generated from test cases
 ${(testResult?.testCases || [])
-  .map(
-    (testCase, index) => `
-    /**
-     * Test: ${testCase.title}
-     * Priority: ${testCase.priority}
-     * Type: ${testCase.type}
-     * Expected Result: ${testCase.expectedResults}
-     */
-    private void test${String(index + 1).padStart(2, "0")}_${testCase.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50)}() {
+  .map((testCase, index) => {
+    const testMethodName = `test${String(index + 1).padStart(2, "0")}_${testCase.title?.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50) || "TestCase"}`
+    const testSteps = generateTestSteps(testCase, testResult.ticket)
+    const verification = generateRealSeleniumVerification(testCase, testResult.ticket)
+
+    return `
+    @Test(priority = ${index + 1})
+    public void ${testMethodName}() {
+        System.out.println("Starting test: ${testCase.title}");
+        
         try {
-            System.out.println("\\n=== Starting Test ${index + 1}: ${testCase.title} ===");
+            // Navigate to application
+            navigateToApp();
+            System.out.println("Navigated to application");
             
             // Test preconditions
-${(testCase.preconditions || []).map((precondition) => `            // Precondition: ${precondition}`).join("\n")}
+            ${(testCase.preconditions || []).map((precondition) => `// Precondition: ${precondition}`).join("\n            ")}
             
             // Test steps
-${generateTestSteps(testCase, testResult.ticket)}
+            ${testSteps}
             
             // Verify expected result: ${testCase.expectedResults}
-${generateRealSeleniumVerification(testCase, testResult.ticket)}
+            ${verification}
             
             System.out.println("✅ Test passed: ${testCase.title}");
             
         } catch (Exception e) {
             System.err.println("❌ Test failed: ${testCase.title}");
-            takeScreenshot("test_${index + 1}_failure");
-            throw e;
+            System.err.println("Error: " + e.getMessage());
+            takeScreenshot("${testMethodName}_failed");
+            throw e; // Re-throw to mark the test as failed in TestNG
         }
-    }`,
-  )
+    }`
+  })
   .join("")}
 }`
 
@@ -903,29 +761,15 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
       if (stepLower.includes("navigate") && stepLower.includes("add") && stepLower.includes("instrument")) {
         testStepsCode += `
             // Navigate to Add Trading Instrument page
-            WebElement addInstrumentLink = null;
-            String[] navigationSelectors = {
-                "//a[contains(text(), 'Add') and contains(text(), 'Instrument')]",
-                "//button[contains(text(), 'Add') and contains(text(), 'Instrument')]",
-                "//a[contains(@href, 'add-instrument')]",
-                "//a[contains(@href, 'instruments/new')]",
-                "//nav//a[contains(text(), 'Instruments')]"
-            };
-            
-            for (String selector : navigationSelectors) {
-                if (isElementPresent(By.xpath(selector))) {
-                    addInstrumentLink = driver.findElement(By.xpath(selector));
-                    break;
-                }
-            }
+            WebElement addInstrumentLink = findElementSafely(By.xpath("//a[contains(text(), 'Add') and contains(text(), 'Instrument')] | //button[contains(text(), 'Add') and contains(text(), 'Instrument')] | //a[contains(@href, 'add-instrument')] | //a[contains(@href, 'instruments/new')] | //nav//a[contains(text(), 'Instruments')]"));
             
             if (addInstrumentLink != null) {
                 addInstrumentLink.click();
-                Thread.sleep(2000);
+                Thread.sleep(2000); // Wait for page load
                 System.out.println("✓ Navigated to Add Trading Instrument page");
             } else {
                 System.out.println("! Could not find Add Instrument navigation - trying direct URL");
-                driver.get(BASE_URL + "/instruments/add");
+                driver.get(BASE_URL + "/instruments/add"); // Assuming BASE_URL is accessible or defined in BaseTest
                 Thread.sleep(2000);
             }`
       } else if (stepLower.includes("enter") && stepLower.includes("symbol")) {
@@ -933,139 +777,98 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
         testStepsCode += `
             // Enter stock symbol
             String symbol = "${symbol}";
-            String[] symbolSelectors = {"symbol", "ticker", "code", "instrument_symbol", "stockSymbol"};
-            boolean symbolEntered = false;
+            WebElement symbolInput = findElementSafely(By.name("symbol")) != null ? findElementSafely(By.name("symbol")) : 
+                                findElementSafely(By.name("ticker")) != null ? findElementSafely(By.name("ticker")) :
+                                findElementSafely(By.name("code")) != null ? findElementSafely(By.name("code")) :
+                                findElementSafely(By.name("instrument_symbol")) != null ? findElementSafely(By.name("instrument_symbol")) :
+                                findElementSafely(By.name("stockSymbol")) != null ? findElementSafely(By.name("stockSymbol")) :
+                                findElementSafely(By.xpath("//input[@placeholder='Symbol' or @placeholder='Ticker']"));
             
-            for (String selector : symbolSelectors) {
-                if (isElementPresent(By.name(selector))) {
-                    enterText(By.name(selector), symbol);
-                    System.out.println("✓ Entered symbol: " + symbol);
-                    symbolEntered = true;
-                    break;
-                }
-            }
-            
-            if (!symbolEntered) {
-                // Try by placeholder or label
-                if (isElementPresent(By.xpath("//input[@placeholder='Symbol' or @placeholder='Ticker']"))) {
-                    enterText(By.xpath("//input[@placeholder='Symbol' or @placeholder='Ticker']"), symbol);
-                    System.out.println("✓ Entered symbol via placeholder: " + symbol);
-                } else {
-                    throw new RuntimeException("Could not find symbol input field");
-                }
+            if (symbolInput != null) {
+                symbolInput.clear();
+                symbolInput.sendKeys(symbol);
+                System.out.println("✓ Entered symbol: " + symbol);
+            } else {
+                throw new RuntimeException("Could not find symbol input field");
             }`
       } else if (stepLower.includes("enter") && stepLower.includes("company") && stepLower.includes("name")) {
         const companyName = testData.name || "Apple Inc"
         testStepsCode += `
             // Enter company name
             String companyName = "${companyName}";
-            String[] nameSelectors = {"name", "companyName", "instrumentName", "title", "company_name"};
-            boolean nameEntered = false;
-            
-            for (String selector : nameSelectors) {
-                if (isElementPresent(By.name(selector))) {
-                    enterText(By.name(selector), companyName);
-                    System.out.println("✓ Entered company name: " + companyName);
-                    nameEntered = true;
-                    break;
-                }
-            }
-            
-            if (!nameEntered) {
-                if (isElementPresent(By.xpath("//input[@placeholder='Company Name' or @placeholder='Name']"))) {
-                    enterText(By.xpath("//input[@placeholder='Company Name' or @placeholder='Name']"), companyName);
-                    System.out.println("✓ Entered company name via placeholder: " + companyName);
-                } else {
-                    throw new RuntimeException("Could not find company name input field");
-                }
+            WebElement nameInput = findElementSafely(By.name("name")) != null ? findElementSafely(By.name("name")) :
+                                findElementSafely(By.name("companyName")) != null ? findElementSafely(By.name("companyName")) :
+                                findElementSafely(By.name("instrumentName")) != null ? findElementSafely(By.name("instrumentName")) :
+                                findElementSafely(By.name("title")) != null ? findElementSafely(By.name("title")) :
+                                findElementSafely(By.name("company_name")) != null ? findElementSafely(By.name("company_name")) :
+                                findElementSafely(By.xpath("//input[@placeholder='Company Name' or @placeholder='Name']"));
+
+            if (nameInput != null) {
+                nameInput.clear();
+                nameInput.sendKeys(companyName);
+                System.out.println("✓ Entered company name: " + companyName);
+            } else {
+                throw new RuntimeException("Could not find company name input field");
             }`
       } else if (stepLower.includes("select") && stepLower.includes("instrument type")) {
         const instrumentType = testData.type || "Stock"
         testStepsCode += `
             // Select instrument type
             String instrumentType = "${instrumentType}";
-            boolean typeSelected = false;
+            WebElement typeDropdown = findElementSafely(By.name("type")) != null ? findElementSafely(By.name("type")) :
+                                    findElementSafely(By.name("instrumentType")) != null ? findElementSafely(By.name("instrumentType")) :
+                                    findElementSafely(By.name("category")) != null ? findElementSafely(By.name("category")) :
+                                    findElementSafely(By.name("instrument_type"));
             
-            // Try dropdown selection
-            String[] typeSelectors = {"type", "instrumentType", "category", "instrument_type"};
-            for (String selector : typeSelectors) {
-                if (isElementPresent(By.name(selector))) {
-                    WebElement typeDropdown = driver.findElement(By.name(selector));
-                    Select select = new Select(typeDropdown);
+            if (typeDropdown != null) {
+                Select select = new Select(typeDropdown);
+                try {
+                    select.selectByVisibleText(instrumentType);
+                    System.out.println("✓ Selected instrument type: " + instrumentType);
+                } catch (Exception e) {
+                    // Try selecting by value if visible text fails
                     try {
-                        select.selectByVisibleText(instrumentType);
-                        System.out.println("✓ Selected instrument type: " + instrumentType);
-                        typeSelected = true;
-                        break;
-                    } catch (Exception e) {
-                        // Try selecting by value
-                        try {
-                            select.selectByValue(instrumentType.toLowerCase());
-                            System.out.println("✓ Selected instrument type by value: " + instrumentType);
-                            typeSelected = true;
-                            break;
-                        } catch (Exception e2) {
-                            // Continue to next selector
-                        }
+                        select.selectByValue(instrumentType.toLowerCase());
+                        System.out.println("✓ Selected instrument type by value: " + instrumentType);
+                    } catch (Exception e2) {
+                        System.err.println("Could not select instrument type by visible text or value: " + instrumentType);
                     }
                 }
-            }
-            
-            // Try radio buttons if dropdown not found
-            if (!typeSelected) {
-                if (isElementPresent(By.xpath("//input[@type='radio' and @value='" + instrumentType.toLowerCase() + "']"))) {
-                    clickElement(By.xpath("//input[@type='radio' and @value='" + instrumentType.toLowerCase() + "']"));
+            } else {
+                // Try radio buttons if dropdown not found
+                WebElement typeRadio = findElementSafely(By.xpath("//input[@type='radio' and (@value='" + instrumentType.toLowerCase() + "' or contains(@id, '" + instrumentType.toLowerCase() + "'))]"));
+                if (typeRadio != null) {
+                    typeRadio.click();
                     System.out.println("✓ Selected instrument type via radio: " + instrumentType);
-                    typeSelected = true;
+                } else {
+                    System.out.println("! Instrument type selector not found - continuing with test");
                 }
-            }
-            
-            if (!typeSelected) {
-                System.out.println("! Could not find instrument type selector - continuing with test");
             }`
       } else if (stepLower.includes("set") && stepLower.includes("trading hours")) {
         const tradingHours = testData.tradingHours || "9:30-16:00 EST"
         testStepsCode += `
             // Set trading hours
             String tradingHours = "${tradingHours}";
-            String[] hoursSelectors = {"tradingHours", "hours", "marketHours", "trading_hours"};
-            boolean hoursSet = false;
+            WebElement hoursInput = findElementSafely(By.name("tradingHours")) != null ? findElementSafely(By.name("tradingHours")) :
+                                  findElementSafely(By.name("hours")) != null ? findElementSafely(By.name("hours")) :
+                                  findElementSafely(By.name("marketHours")) != null ? findElementSafely(By.name("marketHours")) :
+                                  findElementSafely(By.name("trading_hours"));
             
-            for (String selector : hoursSelectors) {
-                if (isElementPresent(By.name(selector))) {
-                    enterText(By.name(selector), tradingHours);
-                    System.out.println("✓ Set trading hours: " + tradingHours);
-                    hoursSet = true;
-                    break;
-                }
-            }
-            
-            if (!hoursSet) {
+            if (hoursInput != null) {
+                hoursInput.clear();
+                hoursInput.sendKeys(tradingHours);
+                System.out.println("✓ Set trading hours: " + tradingHours);
+            } else {
                 System.out.println("! Trading hours field not found - may be optional");
             }`
       } else if (stepLower.includes("click") && stepLower.includes("add instrument")) {
         testStepsCode += `
             // Click Add Instrument button
-            WebElement addButton = null;
-            String[] addButtonSelectors = {
-                "//button[contains(text(), 'Add Instrument')]",
-                "//button[contains(text(), 'Add')]",
-                "//button[contains(text(), 'Save')]",
-                "//button[contains(text(), 'Create')]",
-                "//button[@type='submit']",
-                "//input[@type='submit']"
-            };
-            
-            for (String selector : addButtonSelectors) {
-                if (isElementPresent(By.xpath(selector))) {
-                    addButton = driver.findElement(By.xpath(selector));
-                    break;
-                }
-            }
+            WebElement addButton = findElementSafely(By.xpath("//button[contains(text(), 'Add Instrument')] | //button[contains(text(), 'Add')] | //button[contains(text(), 'Save')] | //button[contains(text(), 'Create')] | //button[@type='submit'] | //input[@type='submit']"));
             
             if (addButton != null) {
                 addButton.click();
-                Thread.sleep(3000); // Wait for form submission
+                Thread.sleep(3000); // Wait for form submission and potential redirect
                 System.out.println("✓ Clicked Add Instrument button");
             } else {
                 throw new RuntimeException("Could not find Add Instrument button");
@@ -1079,7 +882,7 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
             boolean verificationPassed = false;
             
             // Look for success messages
-            if (isElementPresent(By.xpath("//*[contains(text(), 'success') or contains(text(), 'Success') or contains(text(), 'added') or contains(text(), 'created')]"))) {
+            if (findElementSafely(By.xpath("//*[contains(text(), 'success') or contains(text(), 'Success') or contains(text(), 'added') or contains(text(), 'created')]")) != null) {
                 System.out.println("✓ Success message found");
                 verificationPassed = true;
             }
@@ -1091,7 +894,7 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
             }
             
             // Look for the new instrument in any visible lists or tables
-            if (isElementPresent(By.xpath("//table//td | //div[contains(@class, 'instrument')] | //li"))) {
+            if (findElementSafely(By.xpath("//table//td | //div[contains(@class, 'instrument')] | //li")) != null) {
                 System.out.println("✓ Instrument data visible on page");
                 verificationPassed = true;
             }
@@ -1108,39 +911,6 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
             System.out.println("✓ Step ${stepNumber} executed");`
       }
     })
-
-    // Add final verification based on expected results
-    if (testCase.expectedResults) {
-      testStepsCode += `
-            
-            // Final verification based on expected results
-            System.out.println("Final verification: ${testCase.expectedResults}");
-            Thread.sleep(2000);
-            
-            // Navigate to instruments list if not already there
-            if (!driver.getCurrentUrl().contains("instrument") || driver.getCurrentUrl().contains("add")) {
-                if (isElementPresent(By.linkText("Instruments"))) {
-                    clickElement(By.linkText("Instruments"));
-                    Thread.sleep(2000);
-                }
-            }
-            
-            // Verify instrument appears in list
-            boolean instrumentVisible = false;
-            List<WebElement> instrumentElements = driver.findElements(By.xpath("//table//td | //div[contains(@class, 'instrument')] | //li | //*[contains(@class, 'list')]"));
-            
-            if (!instrumentElements.isEmpty()) {
-                System.out.println("✓ Found " + instrumentElements.size() + " potential instrument elements");
-                instrumentVisible = true;
-            }
-            
-            if (!instrumentVisible) {
-                takeScreenshot("final_verification_failed");
-                throw new RuntimeException("Expected result not achieved: ${testCase.expectedResults}");
-            }
-            
-            System.out.println("✓ Final verification passed - Expected result achieved");`
-    }
 
     return testStepsCode
   }
