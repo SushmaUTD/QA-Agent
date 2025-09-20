@@ -965,11 +965,20 @@ public class ${className} {
   }
 
   const generateTestCases = async () => {
-    if (selectedTickets.length === 0) return
+    console.log("[v0] Starting test generation...")
+    console.log("[v0] Selected tickets:", selectedTickets)
+
+    if (selectedTickets.length === 0) {
+      alert("Please select at least one ticket to generate tests for.")
+      return
+    }
 
     setIsGenerating(true)
+    setGeneratedTests([]) // Clear previous results
+
     try {
-      const selectedTicketData = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
+      // Fetch the full ticket objects for the selected IDs
+      const selectedTicketObjects = tickets.filter((ticket) => selectedTickets.includes(ticket.id))
 
       const response = await fetch("/api/generate-tests", {
         method: "POST",
@@ -977,11 +986,13 @@ public class ${className} {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          tickets: selectedTicketData,
-          testTypes: testType,
-          testPercentage: testPercentage,
-          framework: testFramework,
-          appConfig: appConfig,
+          tickets: selectedTicketObjects, // Send the full ticket objects
+          appConfig, // Include appConfig here
+          settings: {
+            coverageLevel: testPercentage, // Use testPercentage for coverageLevel
+            testTypes: testType,
+            framework: testFramework,
+          },
         }),
       })
 
@@ -990,11 +1001,18 @@ public class ${className} {
       }
 
       const data = await response.json()
-      setGeneratedTests(data.testCases || [])
-      setActiveSection("test-results")
+      console.log("[v0] API response:", data)
+
+      if (data.success && data.testCases) {
+        // The API should now return an array of TestGenerationResult objects
+        setGeneratedTests(data.testCases)
+        setActiveSection("test-results")
+      } else {
+        throw new Error(data.error || "Unknown error during test generation.")
+      }
     } catch (error) {
-      console.error("Test generation error:", error)
-      alert("Failed to generate test cases. Please try again.")
+      console.error("[v0] Error generating tests:", error)
+      alert(`Error generating tests: ${error.message}`)
     } finally {
       setIsGenerating(false)
     }
@@ -1327,84 +1345,90 @@ public class ${className} {
             {activeSection === "test-results" && (
               <div className="space-y-6">
                 {generatedTests.length > 0 ? (
-                  generatedTests.map((result, index) => (
-                    <div key={index} className="bg-white rounded-lg shadow p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-blue-600">
-                            {result.metadata?.ticketKey || `Test Suite ${index + 1}`}
-                          </h3>
-                          <p className="text-gray-600">{result.ticket?.summary || "No summary available"}</p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Generated {result.testCases?.length || 0} test cases on{" "}
-                            {result.metadata?.generatedAt
-                              ? new Date(result.metadata.generatedAt).toLocaleString()
-                              : "Unknown date"}
-                          </p>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => downloadTestCases("selenium", result)}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
-                          >
-                            📥 Selenium
-                          </button>
-                          <button
-                            onClick={() => downloadTestCases("cypress", result)}
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
-                          >
-                            📥 Cypress
-                          </button>
-                          <button
-                            onClick={() => downloadTestCases("json", result)}
-                            className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm"
-                          >
-                            📥 JSON
-                          </button>
-                        </div>
-                      </div>
+                  generatedTests.map((result, index) => {
+                    console.log("[v0] Rendering result at index", index, ":", result)
+                    console.log("[v0] result.metadata:", result?.metadata)
+                    console.log("[v0] result.metadata.ticketKey:", result?.metadata?.ticketKey)
 
-                      <div className="space-y-4">
-                        {result.testCases.map((testCase, tcIndex) => (
-                          <div key={tcIndex} className="border rounded-lg p-4 hover:bg-gray-50">
-                            <div className="flex justify-between items-start mb-2">
-                              <h4 className="font-medium text-gray-900">{testCase.title}</h4>
-                              <div className="flex space-x-2">
-                                <span
-                                  className={`px-2 py-1 text-xs rounded-full ${
-                                    testCase.priority === "High"
-                                      ? "bg-red-100 text-red-800"
-                                      : testCase.priority === "Medium"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-green-100 text-green-800"
-                                  }`}
-                                >
-                                  {testCase.priority}
-                                </span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                  {testCase.type}
-                                </span>
+                    return (
+                      <div key={index} className="bg-white rounded-lg shadow p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold text-blue-600">
+                              {result?.metadata?.ticketKey || `Test Suite ${index + 1}`}
+                            </h3>
+                            <p className="text-gray-600">{result?.ticket?.summary || "No summary available"}</p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Generated {result?.testCases?.length || 0} test cases on{" "}
+                              {result?.metadata?.generatedAt
+                                ? new Date(result.metadata.generatedAt).toLocaleString()
+                                : "Unknown date"}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => downloadTestCases("selenium", result)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                            >
+                              📥 Selenium
+                            </button>
+                            <button
+                              onClick={() => downloadTestCases("cypress", result)}
+                              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
+                            >
+                              📥 Cypress
+                            </button>
+                            <button
+                              onClick={() => downloadTestCases("json", result)}
+                              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm"
+                            >
+                              📥 JSON
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          {result.testCases.map((testCase, tcIndex) => (
+                            <div key={tcIndex} className="border rounded-lg p-4 hover:bg-gray-50">
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-medium text-gray-900">{testCase.title}</h4>
+                                <div className="flex space-x-2">
+                                  <span
+                                    className={`px-2 py-1 text-xs rounded-full ${
+                                      testCase.priority === "High"
+                                        ? "bg-red-100 text-red-800"
+                                        : testCase.priority === "Medium"
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : "bg-green-100 text-green-800"
+                                    }`}
+                                  >
+                                    {testCase.priority}
+                                  </span>
+                                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                    {testCase.type}
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-3">
+                                <strong>Expected:</strong> {testCase.expectedResults}
+                              </p>
+                              <div className="space-y-2">
+                                <h5 className="font-medium text-sm text-gray-700">Test Steps:</h5>
+                                {testCase.steps.map((step, stepIndex) => (
+                                  <div key={stepIndex} className="flex items-start space-x-2">
+                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded min-w-[24px] text-center">
+                                      {stepIndex + 1}
+                                    </span>
+                                    <span className="text-sm text-gray-700">{step}</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                            <p className="text-sm text-gray-600 mb-3">
-                              <strong>Expected:</strong> {testCase.expectedResults}
-                            </p>
-                            <div className="space-y-2">
-                              <h5 className="font-medium text-sm text-gray-700">Test Steps:</h5>
-                              {testCase.steps.map((step, stepIndex) => (
-                                <div key={stepIndex} className="flex items-start space-x-2">
-                                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded min-w-[24px] text-center">
-                                    {stepIndex + 1}
-                                  </span>
-                                  <span className="text-sm text-gray-700">{step}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="bg-white rounded-lg shadow p-6 text-center">
                     <div className="text-gray-400 text-6xl mb-4">🧪</div>
