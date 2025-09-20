@@ -109,7 +109,9 @@
                 console.log('[v0] API Response status:', response.status);
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('[v0] JIRA API error:', errorText);
+                    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
                 }
                 
                 const data = await response.json();
@@ -119,6 +121,7 @@
                 const tickets = Array.isArray(data) ? data : (data.tickets || data);
                 
                 if (!Array.isArray(tickets)) {
+                    console.error('[v0] Invalid response format:', data);
                     throw new Error('Invalid response format: expected array of tickets');
                 }
                 
@@ -211,40 +214,82 @@
             document.getElementById('loadingIndicator').classList.remove('hidden');
             
             try {
+                const requestBody = {
+                    jiraTicket: selectedTicket,
+                    language: language
+                };
+                
+                console.log('[v0] Request body:', requestBody);
+                
                 const response = await fetch('/api/test-generation/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        jiraTicket: selectedTicket,
-                        language: language
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 console.log('[v0] Generate response status:', response.status);
+                console.log('[v0] Generate response headers:', Object.fromEntries(response.headers.entries()));
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[v0] Generate error response:', errorText);
-                    throw new Error(`Failed to generate test project: ${response.status} - ${errorText}`);
+                    let errorMessage = `HTTP ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        console.error('[v0] Generate error JSON:', errorData);
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                    } catch (parseError) {
+                        console.error('[v0] Could not parse error as JSON, trying text');
+                        try {
+                            const errorText = await response.text();
+                            console.error('[v0] Generate error text:', errorText);
+                            errorMessage = errorText || errorMessage;
+                        } catch (textError) {
+                            console.error('[v0] Could not parse error as text either');
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
 
-                generatedProject = await response.json();
-                console.log('[v0] Generated project:', generatedProject);
-                
-                if (!generatedProject || !generatedProject.files) {
-                    throw new Error('Invalid project structure received');
+                let generatedProject;
+                try {
+                    generatedProject = await response.json();
+                    console.log('[v0] Generated project received:', generatedProject);
+                } catch (parseError) {
+                    console.error('[v0] Could not parse success response as JSON:', parseError);
+                    throw new Error('Invalid response format from server');
                 }
+                
+                if (!generatedProject) {
+                    throw new Error('No project data received from server');
+                }
+                
+                if (!generatedProject.files || typeof generatedProject.files !== 'object') {
+                    console.error('[v0] Invalid project structure:', generatedProject);
+                    throw new Error('Invalid project structure: missing or invalid files');
+                }
+                
+                const fileCount = Object.keys(generatedProject.files).length;
+                if (fileCount === 0) {
+                    throw new Error('No files generated in project');
+                }
+                
+                console.log('[v0] Project validation passed. Files:', fileCount);
+                
+                // Store the generated project globally
+                window.generatedProject = generatedProject;
                 
                 displayProjectPreview(generatedProject);
                 
                 document.getElementById('downloadBtn').classList.remove('hidden');
                 document.getElementById('projectPreviewSection').classList.remove('hidden');
                 
+                alert(`✅ Test project generated successfully!\n\nProject: ${generatedProject.projectName || selectedTicket.key + '-tests'}\nLanguage: ${generatedProject.language || language}\nFiles: ${fileCount}`);
+                
             } catch (error) {
                 console.error('[v0] Error generating test project:', error);
-                alert(`Error generating tests for ${selectedTicket.key}: ${error.message || error}`);
+                const errorMsg = error.message || 'Unknown error occurred';
+                alert(`❌ Error generating tests for ${selectedTicket.key}:\n\n${errorMsg}\n\nPlease check the console for more details.`);
             } finally {
                 document.getElementById('loadingIndicator').classList.add('hidden');
             }
@@ -300,43 +345,77 @@
             const language = document.getElementById('languageSelect').value;
             console.log('[v0] Downloading test project for:', selectedTicket.key);
             
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            
             try {
+                const requestBody = {
+                    jiraTicket: selectedTicket,
+                    language: language
+                };
+                
+                console.log('[v0] Download request body:', requestBody);
+                
                 const response = await fetch('/api/test-generation/download', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        jiraTicket: selectedTicket,
-                        language: language
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 console.log('[v0] Download response status:', response.status);
+                console.log('[v0] Download response headers:', Object.fromEntries(response.headers.entries()));
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[v0] Download error response:', errorText);
-                    throw new Error(`Failed to download test project: ${response.status} - ${errorText}`);
+                    let errorMessage = `HTTP ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        console.error('[v0] Download error JSON:', errorData);
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                    } catch (parseError) {
+                        try {
+                            const errorText = await response.text();
+                            console.error('[v0] Download error text:', errorText);
+                            errorMessage = errorText || errorMessage;
+                        } catch (textError) {
+                            console.error('[v0] Could not parse download error');
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const blob = await response.blob();
-                console.log('[v0] Downloaded blob size:', blob.size);
+                console.log('[v0] Downloaded blob size:', blob.size, 'bytes');
+                
+                if (blob.size === 0) {
+                    throw new Error('Downloaded file is empty');
+                }
+                
+                const filename = `${selectedTicket.key}-${language}-tests.zip`;
                 
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${selectedTicket.key}-tests.zip`;
+                a.download = filename;
+                a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
                 
-                console.log('[v0] Download completed successfully');
+                // Clean up
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }, 100);
+                
+                console.log('[v0] Download completed successfully:', filename);
+                alert(`✅ Download completed!\n\nFile: ${filename}\nSize: ${(blob.size / 1024).toFixed(1)} KB`);
                 
             } catch (error) {
                 console.error('[v0] Error downloading test project:', error);
-                alert(`Error downloading test project: ${error.message || error}`);
+                const errorMsg = error.message || 'Unknown download error occurred';
+                alert(`❌ Error downloading test project:\n\n${errorMsg}\n\nPlease check the console for more details.`);
+            } finally {
+                document.getElementById('loadingIndicator').classList.add('hidden');
             }
         });
 
