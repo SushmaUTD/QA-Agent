@@ -8,6 +8,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required JIRA configuration" }, { status: 400 })
     }
 
+    const projectsUrl = `${url}/rest/api/3/project`
+    const auth = Buffer.from(`${email}:${apiToken}`).toString("base64")
+
+    const projectsResponse = await fetch(projectsUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    })
+
+    if (!projectsResponse.ok) {
+      const errorText = await projectsResponse.text()
+      console.error("JIRA Projects API Error:", projectsResponse.status, errorText)
+      return NextResponse.json(
+        { error: `Failed to connect to JIRA. Please check your credentials and URL.` },
+        { status: projectsResponse.status },
+      )
+    }
+
+    const projects = await projectsResponse.json()
+    const projectExists = projects.some((project: any) => project.key === projectKey)
+
+    if (!projectExists) {
+      const availableProjects = projects.map((p: any) => `${p.key} (${p.name})`).join(", ")
+      return NextResponse.json(
+        {
+          error: `Project "${projectKey}" not found. Available projects: ${availableProjects}`,
+          availableProjects: projects.map((p: any) => ({ key: p.key, name: p.name })),
+        },
+        { status: 400 },
+      )
+    }
+
     // Create the JIRA API URL for searching issues
     const jiraApiUrl = `${url}/rest/api/3/search`
 
@@ -20,8 +55,6 @@ export async function POST(request: NextRequest) {
     })
 
     // Create Basic Auth header
-    const auth = Buffer.from(`${email}:${apiToken}`).toString("base64")
-
     const response = await fetch(`${jiraApiUrl}?${searchParams}`, {
       method: "GET",
       headers: {
