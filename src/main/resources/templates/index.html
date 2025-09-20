@@ -68,6 +68,33 @@
                     </select>
                 </div>
 
+                <!-- Added test scenario selection options -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Test Scenarios to Include:</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="positiveTests" checked class="mr-2 text-primary focus:ring-primary">
+                            <span class="text-sm text-gray-700">Positive Test Cases (Happy Path)</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="negativeTests" checked class="mr-2 text-primary focus:ring-primary">
+                            <span class="text-sm text-gray-700">Negative Test Cases (Error Scenarios)</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="edgeCases" checked class="mr-2 text-primary focus:ring-primary">
+                            <span class="text-sm text-gray-700">Edge Cases & Boundary Conditions</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="integrationTests" checked class="mr-2 text-primary focus:ring-primary">
+                            <span class="text-sm text-gray-700">Integration Tests</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="dataValidation" checked class="mr-2 text-primary focus:ring-primary">
+                            <span class="text-sm text-gray-700">Data Validation Tests</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="flex gap-4">
                     <button id="generateBtn" class="bg-success text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
                         Generate Test Project
@@ -208,15 +235,26 @@
             }
 
             const language = document.getElementById('languageSelect').value;
+            
+            const testScenarios = {
+                positiveTests: document.getElementById('positiveTests').checked,
+                negativeTests: document.getElementById('negativeTests').checked,
+                edgeCases: document.getElementById('edgeCases').checked,
+                integrationTests: document.getElementById('integrationTests').checked,
+                dataValidation: document.getElementById('dataValidation').checked
+            };
+            
             console.log('[v0] Generating test code for:', selectedTicket.key);
             console.log('[v0] Language:', language);
+            console.log('[v0] Test scenarios:', testScenarios);
             
             document.getElementById('loadingIndicator').classList.remove('hidden');
             
             try {
                 const requestBody = {
                     jiraTicket: selectedTicket,
-                    language: language
+                    language: language,
+                    testScenarios: testScenarios
                 };
                 
                 console.log('[v0] Request body:', requestBody);
