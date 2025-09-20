@@ -860,6 +860,8 @@ ${generateRealSeleniumVerification(testCase, testResult.ticket)}
   )
   .join("")}
 }`
+
+    return seleniumCode
   }
 
   const generateTestSteps = (testCase: any, ticket: any): string => {
