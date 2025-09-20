@@ -19,7 +19,12 @@ interface TestCase {
   id: string
   title: string
   priority: "High" | "Medium" | "Low"
-  type: "Functional" | "UI" | "Integration" | "Edge Case" | "Performance" | "Security"
+  type: "API" | "Integration" | "Contract" | "Performance" | "Security"
+  apiEndpoint: string
+  httpMethod: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
+  requestPayload?: string
+  expectedStatusCode: number
+  expectedResponse?: string
   preconditions: string[]
   steps: string[]
   expectedResults: string
@@ -60,8 +65,10 @@ export default function JiraTestGenerator() {
   const [generatedTests, setGeneratedTests] = useState<TestGenerationResult[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
 
-  const [testTypes, setTestTypes] = useState<string[]>(["functional"])
-  const [testCoverage, setTestCoverage] = useState(100)
+  // Updated testTypes to include API-specific types and adjusted default
+  const [testTypes, setTestTypes] = useState<string[]>(["API"])
+  // Updated testCoverage to use string values for better semantic meaning
+  const [testCoverage, setTestCoverage] = useState("comprehensive")
   const [selectedFramework, setSelectedFramework] = useState("selenium")
 
   const handleJiraConnect = async () => {
@@ -102,7 +109,7 @@ export default function JiraTestGenerator() {
 
   const generateTestCasesOld = async () => {
     if (selectedTickets.length === 0) {
-      alert("Please select at least one ticket to generate test cases.")
+      alert("Please select at least one ticket to generate API test cases.")
       return
     }
 
@@ -123,6 +130,7 @@ export default function JiraTestGenerator() {
               coverageLevel: testCoverage,
               testTypes,
               framework: selectedFramework,
+              testingType: "API", // Added API testing type
             },
           }),
         })
@@ -136,20 +144,19 @@ export default function JiraTestGenerator() {
             metadata: result.metadata || {
               ticketKey: ticket.key,
               generatedAt: new Date().toISOString(),
-              settings: { coverageLevel: testCoverage, testTypes, framework: selectedFramework },
+              settings: { coverageLevel: testCoverage, testTypes, framework: selectedFramework, testingType: "API" },
               totalTests: result.testCases.length,
               source: "jira",
             },
           }
 
-          console.log("[v0] Test result created:", testResult)
-          console.log("[v0] Test result metadata:", testResult.metadata)
+          console.log("[v0] API Test result created:", testResult)
           setGeneratedTests((prev) => [testResult, ...prev])
         }
       }
     } catch (error) {
-      console.error("Error generating test cases:", error)
-      alert("Error generating test cases. Please try again.")
+      console.error("Error generating API test cases:", error)
+      alert("Error generating API test cases. Please try again.")
     } finally {
       setIsGenerating(false)
     }
@@ -208,7 +215,8 @@ describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', (
     const ticketKey = testResult.metadata.ticketKey || "UnknownTicket"
 
     if (format === "selenium") {
-      generateSpringBootProject(testResult, ticketKey)
+      // Updated to call generateSeleniumCode for API tests
+      generateSeleniumCodeForApi(testResult, ticketKey)
       return
     }
 
@@ -237,17 +245,17 @@ describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', (
     URL.revokeObjectURL(url)
   }
 
-  const generateSpringBootProject = (testResult: TestGenerationResult, ticketKey: string) => {
-    const projectName = "qa_agent"
-    const packageName = `com.testing.qaagent`
+  const generateSeleniumCodeForApi = (testResult: any, ticketKey: string) => {
+    const projectName = "qa_agent_api"
+    const packageName = `com.testing.qaagent.api`
 
     const files: { [key: string]: string } = {}
 
     files["pom.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
-         http://www.w3.org/2001/XMLSchema-instance">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://www.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.testing</groupId>
@@ -256,53 +264,54 @@ describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', (
     <packaging>jar</packaging>
 
     <name>${projectName}</name>
-    <description>Selenium Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}</description>
+    <description>API Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}</description>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <selenium.version>4.15.0</selenium.version>
-        <testng.version>7.8.0</testng.version>
+        <java.version>17</java.version>
         <spring.boot.version>3.1.5</spring.boot.version>
+        <spring.boot.starter.test.version>3.1.5</spring.boot.starter.test.version>
+        <testng.version>7.8.0</testng.version>
+        <jackson.version>2.15.3</jackson.version>
     </properties>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.1.5</version>
+        <version>${"${spring.boot.version}"}</version>
         <relativePath/>
     </parent>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>\${selenium.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.github.bonigarcia</groupId>
-            <artifactId>webdrivermanager</artifactId>
-            <version>5.6.2</version>
+            <version>${"${spring.boot.starter.test.version}"}</version>
         </dependency>
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>\${testng.version}</version>
+            <version>${"${testng.version}"}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.11.0</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${"${jackson.version}"}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${"${jackson.version}"}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${"${jackson.version}"}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -318,8 +327,17 @@ describe('${ticket?.key || "Test"} - ${ticket?.summary || "Generated Tests"}', (
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${"${java.version}"}</source>
+                    <target>${"${java.version}"}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M9</version>
+                <version>3.0.0-M5</version>
                 <configuration>
                     <suiteXmlFiles>
                         <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
@@ -342,96 +360,40 @@ public class Application {
     }
 }`
 
-    files[`src/test/java/${packageName.replace(/\./g, "/")}/config/TestConfig.java`] = `package ${packageName}.config;
-
-import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
-
-import java.time.Duration;
-
-@Configuration
-public class TestConfig {
-    
-    @Value("\${app.base.url:${appConfig.applicationUrl || "http://localhost:3000"}}")
-    private String baseUrl;
-    
-    @Bean
-    @Scope("prototype")
-    public WebDriver webDriver() {
-        WebDriverManager.chromedriver().setup();
-        
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--disable-gpu");
-        options.addArguments("--window-size=1920,1080");
-        options.addArguments("--disable-web-security");
-        options.addArguments("--allow-running-insecure-content");
-        options.addArguments("--headless");
-        
-        WebDriver driver = new ChromeDriver(options);
-        driver.manage().window().maximize();
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-        
-        return driver;
-    }
-    
-    @Bean
-    public WebDriverWait webDriverWait(WebDriver webDriver) {
-        return new WebDriverWait(webDriver, Duration.ofSeconds(15));
-    }
-    
-    public String getBaseUrl() {
-        return baseUrl;
-    }
-}`
-
-    const seleniumCodeResult = generateSeleniumCode(testResult)
-    if (seleniumCodeResult) {
+    const apiTestCode = generateSeleniumCode(testResult)
+    if (apiTestCode) {
       const safeTicketKey = testResult.metadata?.ticketKey || "UnknownTicket"
-      const cleanClassName = `${safeTicketKey.replace(/-/g, "_")}_Tests`
-      files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${cleanClassName}.java`] = seleniumCodeResult
+      const cleanClassName = `${safeTicketKey.replace(/-/g, "_")}_ApiTests`
+      files[`src/test/java/${packageName.replace(/\./g, "/")}/tests/${cleanClassName}.java`] = apiTestCode
     }
 
     files["src/test/resources/testng.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
 <suite name="${projectName}" verbose="1">
-    <test name="${ticketKey} Tests">
+    <test name="${ticketKey} API Tests">
         <classes>
-            <class name="${packageName}.tests.GeneratedTests"/>
+            <class name="${packageName}.tests.${ticketKey.replace(/-/g, "_")}_ApiTests"/>
         </classes>
     </test>
 </suite>`
 
     files["src/test/resources/application.properties"] =
       `app.base.url=${appConfig.applicationUrl || "http://localhost:3000"}
+server.port=0
 logging.level.root=INFO
-logging.level.${packageName}=DEBUG
-test.timeout=30
-test.screenshot.enabled=true
-webdriver.chrome.headless=true
-webdriver.timeout.implicit=10
-webdriver.timeout.explicit=15`
+logging.level.${packageName}=DEBUG`
 
-    files["README.md"] = `# ${projectName.toUpperCase()} - Selenium Test Suite
+    files["README.md"] = `# ${projectName.toUpperCase()} - API Test Suite
 
 ## Overview
-Automated test suite for **${testResult.ticket?.summary || "JIRA Ticket"}** (${ticketKey})
+Automated API test suite for **${testResult.ticket?.summary || "JIRA Ticket"}** (${ticketKey})
 
-- **Framework**: Selenium WebDriver with Spring Boot & TestNG
+- **Framework**: Spring Boot TestRestTemplate with TestNG
 - **Generated**: ${new Date().toLocaleString()}
 - **Total Test Cases**: ${testResult.testCases?.length || 0}
 
 ## Prerequisites
-- Java 11 or higher
+- Java 17 or higher
 - Maven 3.6 or higher
-- Chrome browser installed
 
 ## How to Run
 
@@ -443,7 +405,7 @@ Automated test suite for **${testResult.ticket?.summary || "JIRA Ticket"}** (${t
 ### 2. Update Configuration
 Edit \`src/test/resources/application.properties\`:
 \`\`\`properties
-app.base.url=http://your-application-url
+app.base.url=http://your-api-base-url
 \`\`\`
 
 ### 3. Run Tests
@@ -457,16 +419,11 @@ app.base.url=http://your-application-url
 mvn clean test
 \`\`\`
 
-### 4. View Results
-- Test results: \`target/surefire-reports/\`
-- Screenshots: \`screenshots/\` (on test failures)
-
 ## Test Cases Included
-${testResult.testCases?.map((tc: any, i: number) => `${i + 1}. **${tc.title}** (${tc.priority} priority)`).join("\n") || "No test cases available"}
+${testResult.testCases?.map((tc: any, i: number) => `${i + 1}. **${tc.title}** (${tc.priority} priority) - ${tc.httpMethod} ${tc.apiEndpoint}`).join("\n") || "No test cases available"}
 
 ## Support
-Generated by JIRA Test Case Generator
-For issues, check the application logs and screenshots in the \`screenshots/\` directory.
+Generated by JIRA API Test Generator
 `
 
     createZipDownload(files, `${projectName}.zip`)
@@ -493,244 +450,139 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
       return undefined
     }
 
-    const applicationUrl = appConfig.applicationUrl || "http://localhost:3000"
+    const baseUrl = appConfig.applicationUrl || "http://localhost:3000"
 
     return `package com.testing.qaagent.tests;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.TimeoutException;
-import org.openqa.selenium.NoSuchElementException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.*;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.Test;
 import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.AfterMethod;
 import org.testng.Assert;
-import org.apache.commons.io.FileUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
-import java.io.File;
-import java.io.IOException;
-import java.time.Duration;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
-@SpringBootTest
-public class GeneratedTests extends AbstractTestNGSpringContextTests {
-
-    @Autowired
-    private WebDriver driver;
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class GeneratedApiTests extends AbstractTestNGSpringContextTests {
 
     @Autowired
-    private WebDriverWait wait;
-
+    private TestRestTemplate restTemplate;
+    
+    private ObjectMapper objectMapper = new ObjectMapper();
+    private String baseUrl = "${baseUrl}";
+    
     @BeforeMethod
     public void setUp() {
-        System.out.println("Navigating to: ${applicationUrl}");
-        driver.get("${applicationUrl}");
+        System.out.println("Setting up API tests for base URL: " + baseUrl);
+    }
+
+${testResult.testCases
+  .map(
+    (testCase: TestCase) => `
+    @Test(priority = ${testCase.priority === "High" ? "1" : testCase.priority === "Medium" ? "2" : "3"})
+    public void ${testCase.title.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}() {
+        System.out.println("Executing API test: ${testCase.title}");
         
-        // Wait for page to load completely
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-        
-        // Additional wait for dynamic content
         try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    @AfterMethod
-    public void tearDown() {
-        if (driver != null) {
-            driver.quit();
-        }
-    }
-
-    private WebElement findElementWithMultipleSelectors(String... selectors) {
-        for (String selector : selectors) {
-            try {
-                WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(selector)));
-                if (element.isDisplayed()) {
-                    System.out.println("Found element using selector: " + selector);
-                    return element;
-                }
-            } catch (TimeoutException e) {
-                System.out.println("Selector failed: " + selector);
-                continue;
-            }
-        }
-        throw new NoSuchElementException("Could not find element with any of the provided selectors");
-    }
-
-    private WebElement findClickableElementWithMultipleSelectors(String... selectors) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20)); // Increased wait time to 20 seconds
-        
-        for (String selector : selectors) {
-            try {
-                System.out.println("[v0] Trying selector: " + selector);
-                
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(selector)));
-                
-                WebElement element = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(selector)));
-                
-                if (element != null && element.isDisplayed() && element.isEnabled()) {
-                    System.out.println("[v0] Successfully found clickable element with selector: " + selector);
-                    return element;
-                }
-            } catch (Exception e) {
-                System.out.println("[v0] Selector failed: " + selector + " - " + e.getMessage());
-                continue;
-            }
-        }
-        
-        System.out.println("[v0] All selectors failed. Current page title: " + driver.getTitle());
-        System.out.println("[v0] Current URL: " + driver.getCurrentUrl());
-        
-        takeScreenshot("element_not_found_" + System.currentTimeMillis());
-        
-        throw new RuntimeException("Could not find clickable element with any of the provided selectors");
-    }
-
-    private void takeScreenshot(String testName) {
-        try {
-            TakesScreenshot screenshot = (TakesScreenshot) driver;
-            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
-            File destFile = new File("screenshots/" + testName + "_" + System.currentTimeMillis() + ".png");
-            destFile.getParentFile().mkdirs();
-            FileUtils.copyFile(sourceFile, destFile);
-            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
-        } catch (IOException e) {
-            System.err.println("Failed to take screenshot: " + e.getMessage());
-        }
-    }
-
-    @Test(description = "Test Add Instrument Functionality")
-    public void testAddInstrument() {
-        try {
-            System.out.println("Starting Add Instrument test");
+            // Test: ${testCase.title}
+            // API Endpoint: ${testCase.apiEndpoint}
+            // HTTP Method: ${testCase.httpMethod}
+            // Expected Status: ${testCase.expectedStatusCode}
             
-            WebElement addInstrumentButton = findClickableElementWithMultipleSelectors(
-                "//button[contains(text(), 'Add Instrument')]",
-                "//button[contains(., 'Add Instrument')]",
-                "//*[@role='button' and contains(text(), 'Add Instrument')]",
-                "//button[contains(@class, 'bg-blue') or contains(@class, 'btn-primary')]//text()[contains(., 'Add Instrument')]/parent::*",
-                "//div[contains(@class, 'top') or contains(@class, 'header')]//button[contains(text(), 'Add')]",
-                "//*[contains(text(), 'Add Instrument') and (name()='button' or @role='button')]",
-                "//button[contains(@aria-label, 'Add Instrument')]",
-                "//a[contains(@href, 'add') and contains(text(), 'Instrument')]"
-            );
+            String endpoint = baseUrl + "${testCase.apiEndpoint}";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
             
-            System.out.println("Clicking Add Instrument button");
-            addInstrumentButton.click();
+            ${
+              testCase.requestPayload
+                ? `
+            // Request payload from JIRA AC
+            String requestBody = """
+            ${testCase.requestPayload}
+            """;
             
-            // Wait for form to appear
-            System.out.println("Waiting for add instrument form");
-            WebElement form = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//form | //div[contains(@class, 'form') or contains(@class, 'modal')]")
-            ));
-            
-            // Find symbol/ticker input field
-            WebElement symbolField = findElementWithMultipleSelectors(
-                "//input[@name='symbol']",
-                "//input[@name='ticker']",
-                "//input[@placeholder*='symbol' or @placeholder*='Symbol']",
-                "//input[@placeholder*='ticker' or @placeholder*='Ticker']",
-                "//label[contains(text(), 'Symbol')]/following-sibling::input",
-                "//label[contains(text(), 'Ticker')]/following-sibling::input"
-            );
-            
-            System.out.println("Entering symbol: AAPL");
-            symbolField.clear();
-            symbolField.sendKeys("AAPL");
-            
-            // Find company name field
-            WebElement companyField = findElementWithMultipleSelectors(
-                "//input[@name='companyName']",
-                "//input[@name='company']",
-                "//input[@name='name']",
-                "//input[@placeholder*='company' or @placeholder*='Company']",
-                "//input[@placeholder*='name' or @placeholder*='Name']",
-                "//label[contains(text(), 'Company')]/following-sibling::input",
-                "//label[contains(text(), 'Name')]/following-sibling::input"
-            );
-            
-            System.out.println("Entering company name: Apple Inc.");
-            companyField.clear();
-            companyField.sendKeys("Apple Inc.");
-            
-            // Try to find and set asset class if available
-            try {
-                WebElement assetClassField = findElementWithMultipleSelectors(
-                    "//select[@name='assetClass']",
-                    "//select[@name='type']",
-                    "//select[@name='class']",
-                    "//input[@name='assetClass']",
-                    "//input[@name='type']"
-                );
-                
-                if (assetClassField.getTagName().equals("select")) {
-                    Select select = new Select(assetClassField);
-                    select.selectByVisibleText("Equity");
-                    System.out.println("Selected asset class: Equity");
-                } else {
-                    assetClassField.clear();
-                    assetClassField.sendKeys("Equity");
-                    System.out.println("Entered asset class: Equity");
-                }
-            } catch (NoSuchElementException e) {
-                System.out.println("Asset class field not found, skipping");
+            HttpEntity<String> request = new HttpEntity<>(requestBody, headers);
+            `
+                : `
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            `
             }
             
-            // Find and click submit button
-            WebElement submitButton = findClickableElementWithMultipleSelectors(
-                "//button[@type='submit']",
-                "//button[contains(text(), 'Add')]",
-                "//button[contains(text(), 'Save')]",
-                "//button[contains(text(), 'Submit')]",
-                "//button[contains(text(), 'Create')]",
-                "//input[@type='submit']"
+            // Execute ${testCase.httpMethod} request
+            ResponseEntity<String> response = restTemplate.exchange(
+                endpoint,
+                HttpMethod.${testCase.httpMethod},
+                request,
+                String.class
             );
             
-            System.out.println("Clicking submit button");
-            submitButton.click();
+            // Verify status code
+            Assert.assertEquals(response.getStatusCode().value(), ${testCase.expectedStatusCode}, 
+                "Expected status code ${testCase.expectedStatusCode} but got " + response.getStatusCode().value());
             
-            // Wait for success indication
-            System.out.println("Waiting for success confirmation");
-            WebElement successElement = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//*[contains(text(), 'success') or contains(text(), 'Success') or " +
-                        "contains(text(), 'added') or contains(text(), 'Added') or " +
-                        "contains(text(), 'created') or contains(text(), 'Created')]")
-            ));
+            ${
+              testCase.expectedResponse
+                ? `
+            // Verify response content
+            String responseBody = response.getBody();
+            Assert.assertNotNull(responseBody, "Response body should not be null");
             
-            System.out.println("Success message found: " + successElement.getText());
+            // Parse and validate JSON response
+            JsonNode responseJson = objectMapper.readTree(responseBody);
+            JsonNode expectedJson = objectMapper.readTree("""
+            ${testCase.expectedResponse}
+            """);
             
-            // Verify the instrument appears in the table
-            try {
-                WebElement instrumentInTable = wait.until(ExpectedConditions.presenceOfElementLocated(
-                    By.xpath("//td[contains(text(), 'AAPL')] | //tr[contains(., 'AAPL')] | " +
-                            "//*[contains(text(), 'Apple Inc.')]")
-                ));
-                System.out.println("Verified: Instrument AAPL found in table");
-            } catch (TimeoutException e) {
-                System.out.println("Warning: Could not verify instrument in table, but success message was shown");
+            // Validate key fields from expected response
+            validateJsonResponse(responseJson, expectedJson);
+            `
+                : `
+            // Verify response is not null
+            Assert.assertNotNull(response.getBody(), "Response body should not be null");
+            `
             }
             
-            System.out.println("Test PASSED: Successfully added instrument AAPL");
+            System.out.println("✓ API test passed: ${testCase.title}");
             
         } catch (Exception e) {
-            System.err.println("Test FAILED: " + e.getMessage());
-            takeScreenshot("testAddInstrument_failed");
-            e.printStackTrace();
-            Assert.fail("Test failed: " + e.getMessage());
+            System.err.println("✗ API test failed: ${testCase.title}");
+            System.err.println("Error: " + e.getMessage());
+            Assert.fail("API test failed: " + e.getMessage());
         }
+    }`,
+  )
+  .join("\n")}
+
+    private void validateJsonResponse(JsonNode actual, JsonNode expected) {
+        expected.fieldNames().forEachRemaining(fieldName -> {
+            Assert.assertTrue(actual.has(fieldName), 
+                "Response missing expected field: " + fieldName);
+            
+            JsonNode expectedValue = expected.get(fieldName);
+            JsonNode actualValue = actual.get(fieldName);
+            
+            if (expectedValue.isTextual()) {
+                Assert.assertEquals(actualValue.asText(), expectedValue.asText(),
+                    "Field " + fieldName + " value mismatch");
+            } else if (expectedValue.isNumber()) {
+                Assert.assertEquals(actualValue.asInt(), expectedValue.asInt(),
+                    "Field " + fieldName + " value mismatch");
+            } else if (expectedValue.isObject()) {
+                validateJsonResponse(actualValue, expectedValue);
+            } else if (expectedValue.isArray()) {
+                Assert.assertTrue(actualValue.isArray(), "Expected an array for field: " + fieldName);
+                Assert.assertEquals(actualValue.size(), expectedValue.size(), "Array size mismatch for field: " + fieldName);
+                for (int i = 0; i < expectedValue.size(); i++) {
+                    validateJsonResponse(actualValue.get(i), expectedValue.get(i));
+                }
+            }
+        });
     }
 }`
   }
@@ -739,9 +591,10 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
+          {/* Updated title and description for API focus */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">JIRA Test Case Generator</h1>
-            <p className="text-lg text-gray-600">Generate comprehensive test cases from JIRA tickets</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">JIRA API Test Generator</h1>
+            <p className="text-lg text-gray-600">Generate comprehensive API test cases from JIRA tickets</p>
           </div>
 
           <div className="flex justify-center mb-8">
@@ -788,7 +641,8 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Test Types</label>
                   <div className="space-y-2">
-                    {["functional", "ui", "integration", "edge-case", "performance", "security"].map((type) => (
+                    {/* Updated test types to be API-focused */}
+                    {["API", "Integration", "Contract", "Performance", "Security"].map((type) => (
                       <label key={type} className="flex items-center">
                         <input
                           type="checkbox"
@@ -808,22 +662,17 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Test Coverage: {testCoverage}%</label>
-                  <input
-                    type="range"
-                    min="25"
-                    max="100"
-                    step="25"
+                  {/* Updated coverage label and range for API testing */}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">API Test Coverage Level</label>
+                  <select
                     value={testCoverage}
-                    onChange={(e) => setTestCoverage(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>25%</span>
-                    <span>50%</span>
-                    <span>75%</span>
-                    <span>100%</span>
-                  </div>
+                    onChange={(e) => setTestCoverage(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="basic">Basic - Core API endpoints</option>
+                    <option value="comprehensive">Comprehensive - All endpoints + edge cases</option>
+                    <option value="exhaustive">Exhaustive - Full contract validation</option>
+                  </select>
                 </div>
               </div>
               <div className="mt-6">
@@ -833,7 +682,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                   onChange={(e) => setSelectedFramework(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="selenium">Selenium WebDriver</option>
+                  <option value="selenium">Selenium WebDriver (for API Project)</option>
                   <option value="cypress">Cypress</option>
                   <option value="playwright">Playwright</option>
                 </select>
@@ -909,7 +758,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                     type="url"
                     value={appConfig.applicationUrl}
                     onChange={(e) => setAppConfig({ ...appConfig, applicationUrl: e.target.value })}
-                    placeholder="https://your-app.com"
+                    placeholder="https://your-api-base-url.com"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -979,7 +828,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                       disabled={isGenerating || selectedTickets.length === 0}
                       className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                      {isGenerating ? "Generating..." : `Generate Test Cases (${selectedTickets.length})`}
+                      {isGenerating ? "Generating..." : `Generate API Test Cases (${selectedTickets.length})`}
                     </button>
                   </div>
                 </div>
@@ -987,7 +836,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
 
               {generatedTests.length > 0 && (
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">Generated Test Cases</h2>
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">Generated API Test Cases</h2>
                   <div className="space-y-6">
                     {generatedTests.map((testResult, index) => (
                       <div key={index} className="border rounded-lg p-4">
@@ -1003,7 +852,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                               onClick={() => downloadTestCases("selenium", testResult)}
                               className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
                             >
-                              Download Selenium
+                              Download Java API Tests
                             </button>
                             <button
                               onClick={() => downloadTestCases("cypress", testResult)}
@@ -1042,6 +891,12 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                                 </div>
                               </div>
                               <p className="text-sm text-gray-600 mt-1">{testCase.expectedResults}</p>
+                              {/* Displaying API specific details */}
+                              <p className="text-sm text-gray-600 mt-1">
+                                Endpoint: <strong>{testCase.apiEndpoint}</strong> | Method:{" "}
+                                <strong>{testCase.httpMethod}</strong> | Expected Status:{" "}
+                                <strong>{testCase.expectedStatusCode}</strong>
+                              </p>
                             </div>
                           ))}
                         </div>
@@ -1065,7 +920,7 @@ public class GeneratedTests extends AbstractTestNGSpringContextTests {
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No JIRA Connection</h3>
                   <p className="text-gray-600 mb-4">
-                    Connect to JIRA to start generating test cases from your tickets.
+                    Connect to JIRA to start generating API test cases from your tickets.
                   </p>
                   <button
                     onClick={() => setActiveSection("jira-config")}
