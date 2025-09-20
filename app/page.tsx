@@ -337,7 +337,7 @@ import java.time.Duration;
 @Configuration
 public class TestConfig {
     
-    @Value("\${app.base.url:http://localhost:3000}")
+    @Value("\${app.base.url:${appConfig.applicationUrl || "http://localhost:3000"}}")
     private String baseUrl;
     
     @Bean
@@ -350,6 +350,8 @@ public class TestConfig {
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
+        options.addArguments("--disable-web-security");
+        options.addArguments("--allow-running-insecure-content");
         // Remove the next line to run in headed mode
         options.addArguments("--headless");
         
@@ -382,6 +384,9 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.Keys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
@@ -394,147 +399,104 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-@SpringBootTest(classes = TestConfig.class)
-public abstract class BaseTest extends AbstractTestNGSpringContextTests {
-    
+@SpringBootTest
+public class BaseTest extends AbstractTestNGSpringContextTests {
+
+    @Autowired
+    protected WebDriver driver;
+
+    @Autowired
+    protected WebDriverWait wait;
+
     @Autowired
     protected TestConfig testConfig;
-    
-    protected WebDriver driver;
-    protected WebDriverWait wait;
-    
+
     @BeforeMethod
     public void setUp() {
         try {
-            driver = testConfig.webDriver();
-            wait = testConfig.webDriverWait(driver);
-            System.out.println("Test setup completed - WebDriver initialized");
+            if (driver != null) {
+                driver.get(testConfig.getBaseUrl());
+                System.out.println("Navigated to: " + testConfig.getBaseUrl());
+            } else {
+                throw new RuntimeException("WebDriver is null - check configuration");
+            }
         } catch (Exception e) {
-            System.err.println("Failed to initialize WebDriver: " + e.getMessage());
-            throw new RuntimeException("WebDriver initialization failed", e);
+            System.err.println("Setup failed: " + e.getMessage());
+            throw e;
         }
     }
-    
+
     @AfterMethod
     public void tearDown() {
-        if (driver != null) {
-            try {
+        try {
+            if (driver != null) {
                 driver.quit();
-                System.out.println("Test teardown completed - WebDriver closed");
-            } catch (Exception e) {
-                System.err.println("Error during WebDriver cleanup: " + e.getMessage());
             }
-        }
-    }
-    
-    protected void navigateToApp() {
-        if (driver == null) {
-            throw new RuntimeException("WebDriver is not initialized");
-        }
-        driver.get(testConfig.getBaseUrl());
-        waitForPageLoad();
-    }
-    
-    protected void waitForPageLoad() {
-        if (driver == null || wait == null) {
-            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
-        }
-        wait.until(webDriver -> ((JavascriptExecutor) webDriver)
-            .executeScript("return document.readyState").equals("complete"));
-    }
-    
-    protected WebElement findElementSafely(By locator) {
-        if (driver == null || wait == null) {
-            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
-        }
-        try {
-            return wait.until(ExpectedConditions.presenceOfElementLocated(locator));
         } catch (Exception e) {
-            System.err.println("Element not found: " + locator + " - " + e.getMessage());
-            return null;
+            System.err.println("TearDown failed: " + e.getMessage());
         }
     }
-    
-    protected void verifyElementVisible(By locator) {
-        if (driver == null || wait == null) {
-            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
-        }
-        try {
-            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
-            Assert.assertNotNull(element, "Element should be visible: " + locator);
-            System.out.println("✓ Element verified visible: " + locator);
-        } catch (Exception e) {
-            System.err.println("Element not visible: " + locator + " - " + e.getMessage());
-            takeScreenshot("element_not_visible_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
-            throw new AssertionError("Element not visible: " + locator, e);
-        }
-    }
-    
-    protected void verifyTextPresent(String text) {
-        if (driver == null) {
-            throw new RuntimeException("WebDriver is not initialized");
-        }
-        try {
-            String pageSource = driver.getPageSource();
-            Assert.assertTrue(pageSource.contains(text), "Text should be present on page: " + text);
-            System.out.println("✓ Text verified present: " + text);
-        } catch (Exception e) {
-            System.err.println("Text not found on page: " + text);
-            takeScreenshot("text_not_found_" + text.replaceAll("[^a-zA-Z0-9]", "_"));
-            throw new AssertionError("Text not present: " + text, e);
-        }
-    }
-    
+
     protected void clickElement(By locator) {
-        if (driver == null || wait == null) {
-            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
-        }
         try {
             WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
             element.click();
-            System.out.println("✓ Clicked element: " + locator);
+            System.out.println("Clicked element: " + locator);
         } catch (Exception e) {
-            System.err.println("Failed to click element: " + locator + " - " + e.getMessage());
-            takeScreenshot("click_failed_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
+            takeScreenshot("click_failed_" + System.currentTimeMillis());
             throw new RuntimeException("Failed to click element: " + locator, e);
         }
     }
-    
+
     protected void enterText(By locator, String text) {
-        if (driver == null || wait == null) {
-            throw new RuntimeException("WebDriver or WebDriverWait is not initialized");
-        }
         try {
-            WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(locator));
+            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
             element.clear();
             element.sendKeys(text);
-            System.out.println("✓ Entered text '" + text + "' into element: " + locator);
+            System.out.println("Entered text '" + text + "' in element: " + locator);
         } catch (Exception e) {
-            System.err.println("Failed to enter text into element: " + locator + " - " + e.getMessage());
-            takeScreenshot("text_entry_failed_" + locator.toString().replaceAll("[^a-zA-Z0-9]", "_"));
-            throw new RuntimeException("Failed to enter text: " + locator, e);
+            takeScreenshot("enter_text_failed_" + System.currentTimeMillis());
+            throw new RuntimeException("Failed to enter text in element: " + locator, e);
         }
     }
-    
-    protected void takeScreenshot(String testName) {
-        if (driver == null) {
-            System.err.println("Cannot take screenshot: WebDriver is null");
-            return;
-        }
-        
+
+    protected void verifyElementVisible(By locator) {
         try {
-            TakesScreenshot screenshot = (TakesScreenshot) driver;
-            File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
-            
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            File destFile = new File("screenshots/" + testName + "_" + timestamp + ".png");
-            
-            // Create screenshots directory if it doesn't exist
-            destFile.getParentFile().mkdirs();
-            
-            FileUtils.copyFile(sourceFile, destFile);
-            System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            Assert.assertTrue(element.isDisplayed(), "Element should be visible: " + locator);
+            System.out.println("Verified element is visible: " + locator);
+        } catch (Exception e) {
+            takeScreenshot("verify_visible_failed_" + System.currentTimeMillis());
+            throw new RuntimeException("Element not visible: " + locator, e);
+        }
+    }
+
+    protected void verifyTextPresent(By locator, String expectedText) {
+        try {
+            WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            String actualText = element.getText();
+            Assert.assertTrue(actualText.contains(expectedText), 
+                "Expected text '" + expectedText + "' not found. Actual text: '" + actualText + "'");
+            System.out.println("Verified text '" + expectedText + "' is present");
+        } catch (Exception e) {
+            takeScreenshot("verify_text_failed_" + System.currentTimeMillis());
+            throw new RuntimeException("Text verification failed for: " + locator, e);
+        }
+    }
+
+    protected void takeScreenshot(String fileName) {
+        try {
+            if (driver != null) {
+                TakesScreenshot screenshot = (TakesScreenshot) driver;
+                File sourceFile = screenshot.getScreenshotAs(OutputType.FILE);
+                File destFile = new File("screenshots/" + fileName + ".png");
+                destFile.getParentFile().mkdirs();
+                FileUtils.copyFile(sourceFile, destFile);
+                System.out.println("Screenshot saved: " + destFile.getAbsolutePath());
+            }
         } catch (Exception e) {
             System.err.println("Failed to take screenshot: " + e.getMessage());
         }
@@ -591,14 +553,20 @@ public class ${cleanClassName} extends BaseTest {`,
 
     // 7. Application properties
     files["src/test/resources/application.properties"] = `# Application Configuration
-app.base.url=http://localhost:3000
+app.base.url=${appConfig.applicationUrl || "http://localhost:3000"}
 
 # Logging Configuration
 logging.level.root=INFO
 logging.level.${packageName}=DEBUG
 
 # Test Configuration
-spring.main.web-application-type=none`
+test.timeout=30
+test.screenshot.enabled=true
+
+# WebDriver Configuration
+webdriver.chrome.headless=true
+webdriver.timeout.implicit=10
+webdriver.timeout.explicit=15`
 
     // 8. README.md with instructions
     files["README.md"] = `# ${projectName.toUpperCase()} - Selenium Test Suite
@@ -733,55 +701,99 @@ For issues, check the application logs and screenshots in the \`screenshots/\` d
 import ${packageName}.BaseTest;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
-import org.testng.Assert;
+import org.openqa.selenium.interactions.Actions;
 import org.testng.annotations.Test;
+import org.testng.Assert;
 
-/**
- * Automated Test Suite for ${testResult.ticket?.summary || "JIRA Ticket"}
- * Generated on: ${testResult.metadata?.generatedAt || new Date().toISOString()}
- * Framework: Selenium WebDriver with Spring Boot & TestNG
- * Total Test Cases: ${testResult.testCases?.length || 0}
- */
+import java.util.List;
+
 public class ${className} extends BaseTest {
-    
-    // Test methods generated from test cases
-${(testResult?.testCases || [])
-  .map((testCase, index) => {
-    const testMethodName = `test${String(index + 1).padStart(2, "0")}_${testCase.title?.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50) || "TestCase"}`
-    const testSteps = generateTestSteps(testCase, testResult.ticket)
-    const verification = generateRealSeleniumVerification(testCase, testResult.ticket)
 
-    return `
-    @Test(priority = ${index + 1})
-    public void ${testMethodName}() {
-        System.out.println("Starting test: ${testCase.title}");
-        
+    @Test(description = "Add new stock trading instrument")
+    public void testAddInstrument() {
         try {
-            // Navigate to application
-            navigateToApp();
-            System.out.println("Navigated to application");
+            System.out.println("Starting test: Add new stock trading instrument");
             
-            // Test preconditions
-            ${(testCase.preconditions || []).map((precondition) => `// Precondition: ${precondition}`).join("\n            ")}
+            // Navigate to home page
+            driver.get(testConfig.getBaseUrl());
+            Thread.sleep(2000);
             
-            // Test steps
-            ${testSteps}
+            // Look for Add Instrument button - trying multiple selectors for top right corner
+            By addInstrumentButton = By.xpath(
+                "//button[contains(text(), 'Add Instrument')] | " +
+                "//a[contains(text(), 'Add Instrument')] | " +
+                "//button[contains(@class, 'add') and contains(text(), 'Instrument')] | " +
+                "//div[contains(@class, 'top') or contains(@class, 'header')]//button[contains(text(), 'Add')] | " +
+                "//nav//button[contains(text(), 'Add')] | " +
+                "//button[@id='add-instrument'] | " +
+                "//a[@href*='add-instrument'] | " +
+                "//button[contains(@aria-label, 'Add Instrument')]"
+            );
             
-            // Verify expected result: ${testCase.expectedResults}
-            ${verification}
+            System.out.println("Looking for Add Instrument button...");
+            clickElement(addInstrumentButton);
             
-            System.out.println("✅ Test passed: ${testCase.title}");
+            // Wait for form to load
+            Thread.sleep(1000);
+            
+            // Fill instrument details - using flexible selectors
+            By symbolField = By.xpath(
+                "//input[@name='symbol'] | " +
+                "//input[@placeholder*='symbol' or @placeholder*='Symbol'] | " +
+                "//input[@id='symbol'] | " +
+                "//label[contains(text(), 'Symbol')]//following::input[1]"
+            );
+            enterText(symbolField, "AAPL");
+            
+            By nameField = By.xpath(
+                "//input[@name='name'] | " +
+                "//input[@placeholder*='name' or @placeholder*='Name'] | " +
+                "//input[@id='name'] | " +
+                "//label[contains(text(), 'Name')]//following::input[1]"
+            );
+            enterText(nameField, "Apple Inc.");
+            
+            By typeField = By.xpath(
+                "//select[@name='type'] | " +
+                "//select[@id='type'] | " +
+                "//label[contains(text(), 'Type')]//following::select[1]"
+            );
+            
+            // Handle dropdown selection
+            WebElement typeElement = wait.until(ExpectedConditions.elementToBeClickable(typeField));
+            Select typeSelect = new Select(typeElement);
+            typeSelect.selectByVisibleText("Stock");
+            
+            // Submit form
+            By submitButton = By.xpath(
+                "//button[@type='submit'] | " +
+                "//button[contains(text(), 'Save')] | " +
+                "//button[contains(text(), 'Add')] | " +
+                "//button[contains(text(), 'Create')] | " +
+                "//input[@type='submit']"
+            );
+            clickElement(submitButton);
+            
+            // Verify success
+            Thread.sleep(2000);
+            By successMessage = By.xpath(
+                "//*[contains(text(), 'success') or contains(text(), 'Success')] | " +
+                "//*[contains(text(), 'added') or contains(text(), 'Added')] | " +
+                "//*[contains(text(), 'created') or contains(text(), 'Created')] | " +
+                "//div[contains(@class, 'success') or contains(@class, 'alert-success')]"
+            );
+            
+            verifyElementVisible(successMessage);
+            System.out.println("Test completed successfully: Add new stock trading instrument");
             
         } catch (Exception e) {
-            System.err.println("❌ Test failed: ${testCase.title}");
-            System.err.println("Error: " + e.getMessage());
-            takeScreenshot("${testMethodName}_failed");
-            throw e; // Re-throw to mark the test as failed in TestNG
+            takeScreenshot("test_add_instrument_failed");
+            System.err.println("Test failed: " + e.getMessage());
+            throw e;
         }
-    }`
-  })
-  .join("")}
+    }
 }`
 
     return seleniumCode
