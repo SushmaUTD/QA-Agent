@@ -1,7 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
-import JSZip from "jszip"
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,21 +32,7 @@ ${ticket.acceptanceCriteria.map((ac: string) => `- ${ac}`).join("\n")}
       )
       .join("\n\n---\n\n")
 
-    const prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets. Return ONLY a JSON object with this structure:
-
-{
-  "files": [
-    {
-      "path": "pom.xml",
-      "content": "complete pom.xml content"
-    },
-    {
-      "path": "src/main/java/com/testing/qaagent/Application.java", 
-      "content": "complete Java file content"
-    }
-    // ... all other files
-  ]
-}
+    const prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets. 
 
 **APPLICATION CONTEXT:**
 - Base URL: ${appConfig?.baseUrl || "http://localhost:8080"}
@@ -99,28 +82,40 @@ ${ticketDetails}
    - Include assertion messages for better test failure diagnosis
    - Use Page Object Model pattern for UI tests if applicable
 
-Return ONLY the JSON object with complete file contents, no markdown or explanations`
+**IMPORTANT:** Generate and return the complete project as a ZIP file that can be directly downloaded and executed.`
 
-    const { text } = await generateText({
-      model: openai(aiConfig?.model || "gpt-4o-mini"),
-      prompt,
-      temperature: aiConfig?.temperature || 0.1,
-      maxTokens: aiConfig?.maxTokens || 4000,
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: aiConfig?.model || "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a Spring Boot test automation expert. Generate complete, production-ready test projects as zip files.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: aiConfig?.temperature || 0.1,
+        max_tokens: aiConfig?.maxTokens || 4000,
+      }),
     })
 
-    console.log("[v0] Generated project structure")
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.statusText}`)
+    }
 
-    const projectData = JSON.parse(text.trim())
+    const data = await response.json()
+    const generatedContent = data.choices[0].message.content
 
-    const zip = new JSZip()
-
-    // Add all files to zip
-    projectData.files.forEach((file: { path: string; content: string }) => {
-      zip.file(file.path, file.content)
-    })
-
-    // Generate zip buffer
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
+    const zipBuffer = Buffer.from(generatedContent, "base64")
 
     return new NextResponse(zipBuffer, {
       headers: {
