@@ -42,6 +42,13 @@ interface HistoryItem {
   status: "completed" | "failed"
 }
 
+interface AppConfig {
+  baseUrl: string
+  environment: "dev" | "staging" | "prod"
+  authDetails?: string
+  dbConnectionInfo?: string
+}
+
 export default function JiraTestGenerator() {
   // State management
   const [activeTab, setActiveTab] = useState<"configuration" | "tickets" | "results" | "history">("configuration")
@@ -66,6 +73,12 @@ export default function JiraTestGenerator() {
   const [error, setError] = useState("")
   const [generatedTests, setGeneratedTests] = useState<any>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
+  const [appConfig, setAppConfig] = useState<AppConfig>({
+    baseUrl: "",
+    environment: "dev",
+    authDetails: "",
+    dbConnectionInfo: "",
+  })
 
   // Load saved configurations on mount
   useEffect(() => {
@@ -144,19 +157,18 @@ export default function JiraTestGenerator() {
     try {
       const selectedTicketData = tickets.filter((t) => selectedTickets.includes(t.id))
 
-      const response = await fetch("/api/generate-tests", {
+      const response = await fetch("http://localhost:8080/api/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tickets: selectedTicketData,
           aiConfig,
           language: "java",
-          jiraConfig: {
-            jiraUrl: selectedJiraConfig.url,
-            projectKey: selectedJiraConfig.projectKey,
-            environment: "Development",
-            baseApiUrl: selectedJiraConfig.url.replace(/\/+$/, "") + "/rest/api/2",
-            authType: "Basic Auth",
+          appConfig: {
+            baseUrl: appConfig.baseUrl,
+            environment: appConfig.environment,
+            authDetails: appConfig.authDetails,
+            dbConnectionInfo: appConfig.dbConnectionInfo,
           },
         }),
       })
@@ -429,6 +441,71 @@ export default function JiraTestGenerator() {
                         </Label>
                       </div>
                     ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-600 text-xl">🏗️</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Application Configuration</h3>
+                    <p className="text-sm text-slate-600">Configure the application under test settings</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">
+                      Base URL <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      placeholder="https://api.yourapp.com"
+                      value={appConfig.baseUrl}
+                      onChange={(e) => setAppConfig({ ...appConfig, baseUrl: e.target.value })}
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">
+                      Environment <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={appConfig.environment}
+                      onValueChange={(value: "dev" | "staging" | "prod") =>
+                        setAppConfig({ ...appConfig, environment: value })
+                      }
+                    >
+                      <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dev">Development</SelectItem>
+                        <SelectItem value="staging">Staging</SelectItem>
+                        <SelectItem value="prod">Production</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">Authentication Details</Label>
+                    <Input
+                      placeholder="Bearer token, API key, etc."
+                      value={appConfig.authDetails}
+                      onChange={(e) => setAppConfig({ ...appConfig, authDetails: e.target.value })}
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">Database Connection Info</Label>
+                    <Input
+                      placeholder="Connection string or database details"
+                      value={appConfig.dbConnectionInfo}
+                      onChange={(e) => setAppConfig({ ...appConfig, dbConnectionInfo: e.target.value })}
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
+                    />
                   </div>
                 </div>
               </CardContent>
