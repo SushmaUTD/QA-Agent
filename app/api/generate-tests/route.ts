@@ -103,28 +103,67 @@ Generate ALL necessary files including pom.xml, main application class, test cla
     console.log("[v0] OpenAI response length:", generatedContent.length)
     console.log("[v0] OpenAI response preview:", generatedContent.substring(0, 500))
 
+    console.log("[v0] Full OpenAI response:", generatedContent)
+
     const zip = new JSZip()
 
     const filePatterns = [
-      /\*\*File:\s*([^\n]+)\*\*\s*```\w*\n([\s\S]*?)```/g,
+      // Pattern for **File: filename** format
+      /\*\*File:\s*([^*\n]+)\*\*\s*```(?:\w+)?\s*\n([\s\S]*?)```/g,
+      // Pattern for **filename.ext** format
+      /\*\*([^*\n]+\.(java|xml|properties|md))\*\*\s*```(?:\w+)?\s*\n([\s\S]*?)```/g,
+      // Pattern for filename: format
       /```filename:\s*([^\n]+)\n([\s\S]*?)```/g,
-      /```([^\n]+\.(?:java|xml|properties|md))\n([\s\S]*?)```/g,
-      /```\w*\n\/\/ File: ([^\n]+)\n([\s\S]*?)```/g,
-      /```\w*\n# ([^\n]+)\n([\s\S]*?)```/g,
+      // Pattern for file extension detection
+      /```(\w+)\n([\s\S]*?)```/g,
     ]
 
     let filesFound = 0
 
     for (const pattern of filePatterns) {
+      console.log("[v0] Trying pattern:", pattern.source)
       let match
       while ((match = pattern.exec(generatedContent)) !== null) {
-        let filePath = match[1].trim()
-        const fileContent = match[2].trim()
+        let filePath, fileContent
 
+        if (pattern.source.includes("File:")) {
+          // **File: filename** format
+          filePath = match[1].trim()
+          fileContent = match[2].trim()
+        } else if (pattern.source.includes("java|xml")) {
+          // **filename.ext** format
+          filePath = match[1].trim()
+          fileContent = match[3].trim()
+        } else if (pattern.source.includes("filename:")) {
+          // filename: format
+          filePath = match[1].trim()
+          fileContent = match[2].trim()
+        } else {
+          // Extension-based detection
+          const extension = match[1]
+          fileContent = match[2].trim()
+
+          // Try to determine filename from content
+          if (extension === "xml" && fileContent.includes("<modelVersion>")) {
+            filePath = "pom.xml"
+          } else if (extension === "java" && fileContent.includes("@SpringBootApplication")) {
+            filePath = "src/main/java/com/example/Application.java"
+          } else if (extension === "java" && fileContent.includes("@Test")) {
+            filePath = "src/test/java/com/example/ApiTest.java"
+          } else if (extension === "md" || fileContent.includes("# ")) {
+            filePath = "README.md"
+          } else {
+            filePath = `generated-file-${filesFound}.${extension}`
+          }
+        }
+
+        // Clean up file path
         filePath = filePath.replace(/[<>:"|?*]/g, "_").replace(/\\/g, "/")
         filePath = filePath.replace(/\*\*/g, "").replace(/`/g, "")
 
         console.log("[v0] Adding file to zip:", filePath, "Content length:", fileContent.length)
+        console.log("[v0] File content preview:", fileContent.substring(0, 200))
+
         zip.file(filePath, fileContent)
         filesFound++
       }
@@ -132,31 +171,6 @@ Generate ALL necessary files including pom.xml, main application class, test cla
       if (filesFound > 0) {
         console.log("[v0] Found", filesFound, "files using pattern:", pattern.source)
         break
-      }
-    }
-
-    if (filesFound === 0) {
-      console.log("[v0] No files found with patterns, extracting all code blocks")
-      const codeBlockRegex = /```(?:\w+)?\n([\s\S]*?)```/g
-      let match
-      let blockIndex = 0
-
-      while ((match = codeBlockRegex.exec(generatedContent)) !== null) {
-        const content = match[1].trim()
-        if (content.length > 50) {
-          const extension = content.includes("<?xml")
-            ? "xml"
-            : content.includes("package ")
-              ? "java"
-              : content.includes("# ")
-                ? "md"
-                : "txt"
-          const fileName = `generated-file-${blockIndex}.${extension}`
-          console.log("[v0] Adding code block as file:", fileName)
-          zip.file(fileName, content)
-          filesFound++
-          blockIndex++
-        }
       }
     }
 
