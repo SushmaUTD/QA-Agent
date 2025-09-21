@@ -44,17 +44,30 @@ ${ticket.acceptanceCriteria.map((ac: string) => `- ${ac}`).join("\n")}
 ${ticketDetails}
 
 **REQUIREMENTS:**
-1. **Valid POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0
+1. **Valid POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0, JUnit 5.10.0
 2. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria
 3. **Complete Project Structure** - Ready to execute with "mvn test"
+4. **Proper Maven Directory Structure** - src/main/java, src/test/java, src/main/resources
 
 **OUTPUT FORMAT:**
-Provide the complete project structure with all files. Start each file with:
-\`\`\`filename: path/to/file.java\`\`\`
-[file content]
+For each file, use this exact format:
+
+**File: pom.xml**
+\`\`\`xml
+[pom.xml content here]
 \`\`\`
 
-Generate ALL necessary files including pom.xml, test classes, configuration files, and README.md.`
+**File: src/main/java/com/example/Application.java**
+\`\`\`java
+[Application.java content here]
+\`\`\`
+
+**File: src/test/java/com/example/ApiTest.java**
+\`\`\`java
+[test content here]
+\`\`\`
+
+Generate ALL necessary files including pom.xml, main application class, test classes, and README.md.`
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -93,10 +106,11 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
     const zip = new JSZip()
 
     const filePatterns = [
-      /```filename:\s*([^\\n]+)\\n([\\s\\S]*?)```/g,
-      /```([^\\n]+\\.(?:java|xml|properties|md))\\n([\\s\\S]*?)```/g,
-      /```\\w*\\n\/\/ File: ([^\\n]+)\\n([\\s\\S]*?)```/g,
-      /```\\w*\\n# ([^\\n]+)\\n([\\s\\S]*?)```/g,
+      /\*\*File:\s*([^\n]+)\*\*\s*```\w*\n([\s\S]*?)```/g,
+      /```filename:\s*([^\n]+)\n([\s\S]*?)```/g,
+      /```([^\n]+\.(?:java|xml|properties|md))\n([\s\S]*?)```/g,
+      /```\w*\n\/\/ File: ([^\n]+)\n([\s\S]*?)```/g,
+      /```\w*\n# ([^\n]+)\n([\s\S]*?)```/g,
     ]
 
     let filesFound = 0
@@ -107,7 +121,8 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
         let filePath = match[1].trim()
         const fileContent = match[2].trim()
 
-        filePath = filePath.replace(/[<>:"|?*]/g, "_").replace(/\\\\/g, "/")
+        filePath = filePath.replace(/[<>:"|?*]/g, "_").replace(/\\/g, "/")
+        filePath = filePath.replace(/\*\*/g, "").replace(/`/g, "")
 
         console.log("[v0] Adding file to zip:", filePath, "Content length:", fileContent.length)
         zip.file(filePath, fileContent)
@@ -122,14 +137,13 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
 
     if (filesFound === 0) {
       console.log("[v0] No files found with patterns, extracting all code blocks")
-      const codeBlockRegex = /```(?:\\w+)?\\n([\\s\\S]*?)```/g
+      const codeBlockRegex = /```(?:\w+)?\n([\s\S]*?)```/g
       let match
       let blockIndex = 0
 
       while ((match = codeBlockRegex.exec(generatedContent)) !== null) {
         const content = match[1].trim()
         if (content.length > 50) {
-          // Only include substantial content
           const extension = content.includes("<?xml")
             ? "xml"
             : content.includes("package ")
@@ -148,10 +162,8 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
 
     console.log("[v0] Total files added to zip:", filesFound)
 
-    // Generate zip buffer
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
 
-    // Return zip file as download
     return new NextResponse(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
