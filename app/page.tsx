@@ -332,10 +332,10 @@ export default function JiraTestGenerator() {
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-purple-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
                 <CardTitle className="text-slate-800 flex items-center gap-2">
-                  <span className="text-purple-600">🤖</span>
+                  <span className="text-blue-600">🤖</span>
                   AI Test Configuration
                 </CardTitle>
                 <CardDescription className="text-slate-600">Configure how tests should be generated</CardDescription>
