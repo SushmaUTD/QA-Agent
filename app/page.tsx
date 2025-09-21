@@ -340,17 +340,17 @@ export default function JiraTestGenerator() {
                 </CardTitle>
                 <CardDescription className="text-slate-600">Configure how tests should be generated</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-slate-700 font-medium">Test Type</Label>
+              <CardContent className="space-y-6 pt-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">Test Type</Label>
                     <Select
                       value={aiConfig.testType}
                       onValueChange={(value: "selenium-api" | "selenium-ui") =>
                         setAiConfig({ ...aiConfig, testType: value })
                       }
                     >
-                      <SelectTrigger className="border-slate-300 focus:border-purple-500">
+                      <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -359,28 +359,28 @@ export default function JiraTestGenerator() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label className="text-slate-700 font-medium">Test Coverage (%)</Label>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium text-sm">Test Coverage (%)</Label>
                     <Input
                       type="number"
                       min="10"
                       max="100"
                       value={aiConfig.coverage}
                       onChange={(e) => setAiConfig({ ...aiConfig, coverage: Number.parseInt(e.target.value) || 80 })}
-                      className="border-slate-300 focus:border-purple-500 focus:ring-purple-500"
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <Label className="text-slate-700 font-medium">Download Format</Label>
+                <div className="space-y-2">
+                  <Label className="text-slate-700 font-medium text-sm">Download Format</Label>
                   <Select
                     value={aiConfig.downloadFormat}
                     onValueChange={(value: "single-file" | "spring-project") =>
                       setAiConfig({ ...aiConfig, downloadFormat: value })
                     }
                   >
-                    <SelectTrigger className="border-slate-300 focus:border-purple-500">
+                    <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -390,11 +390,14 @@ export default function JiraTestGenerator() {
                   </Select>
                 </div>
 
-                <div>
-                  <Label className="text-slate-700 font-medium">Test Case Types</Label>
-                  <div className="flex flex-wrap gap-4 mt-2">
+                <div className="space-y-3">
+                  <Label className="text-slate-700 font-medium text-sm">Test Case Types</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {["functional", "edge", "performance", "UI", "integration"].map((type) => (
-                      <div key={type} className="flex items-center space-x-2">
+                      <div
+                        key={type}
+                        className="flex items-center space-x-3 p-3 border border-slate-200 rounded-lg hover:bg-blue-50 transition-colors"
+                      >
                         <Checkbox
                           id={type}
                           checked={aiConfig.testCaseTypes.includes(type)}
@@ -408,9 +411,9 @@ export default function JiraTestGenerator() {
                               })
                             }
                           }}
-                          className="border-slate-300 data-[state=checked]:bg-purple-600"
+                          className="border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                         />
-                        <Label htmlFor={type} className="capitalize text-slate-700">
+                        <Label htmlFor={type} className="capitalize text-slate-700 font-medium cursor-pointer">
                           {type}
                         </Label>
                       </div>
