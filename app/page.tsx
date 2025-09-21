@@ -123,11 +123,15 @@ export default function JiraTestGenerator() {
     setError("")
 
     try {
-      const response = await fetch("/api/jira-tickets", {
+      const response = await fetch("http://localhost:8080/api/jira/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedJiraConfig),
       })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
 
       const data = await response.json()
 
@@ -138,7 +142,12 @@ export default function JiraTestGenerator() {
         setError(data.error || "Failed to fetch tickets")
       }
     } catch (err) {
-      setError("Network error: " + (err as Error).message)
+      console.error("Fetch tickets error:", err)
+      setError(
+        "Network error: " +
+          (err as Error).message +
+          ". Make sure the Java Spring Boot backend is running on port 8080.",
+      )
     } finally {
       setLoading(false)
     }
@@ -148,6 +157,11 @@ export default function JiraTestGenerator() {
   const generateTests = async () => {
     if (selectedTickets.length === 0) {
       setError("Please select at least one ticket")
+      return
+    }
+
+    if (!appConfig.baseUrl || !appConfig.environment) {
+      setError("Please fill in the mandatory Application Configuration fields (Base URL and Environment)")
       return
     }
 
@@ -173,6 +187,10 @@ export default function JiraTestGenerator() {
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
       const data = await response.json()
 
       if (data.files) {
@@ -196,7 +214,12 @@ export default function JiraTestGenerator() {
         setError(data.error || "Failed to generate tests")
       }
     } catch (err) {
-      setError("Test generation failed: " + (err as Error).message)
+      console.error("Generate tests error:", err)
+      setError(
+        "Test generation failed: " +
+          (err as Error).message +
+          ". Make sure the Java Spring Boot backend is running on port 8080.",
+      )
     } finally {
       setLoading(false)
     }
