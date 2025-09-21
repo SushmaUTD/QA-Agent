@@ -21,10 +21,24 @@ export async function POST(request: NextRequest) {
   try {
     const jiraConfig: JiraConfig = await request.json()
 
+    if (!jiraConfig.url || !jiraConfig.email || !jiraConfig.apiToken || !jiraConfig.projectKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing required JIRA configuration fields",
+        },
+        { status: 400 },
+      )
+    }
+
+    const baseUrl = jiraConfig.url.replace(/\/$/, "")
+
     const auth = Buffer.from(`${jiraConfig.email}:${jiraConfig.apiToken}`).toString("base64")
 
+    console.log("[v0] Making JIRA API call to:", `${baseUrl}/rest/api/3/search`)
+
     const jiraResponse = await fetch(
-      `${jiraConfig.url}/rest/api/3/search?jql=project=${jiraConfig.projectKey}&fields=id,key,summary,description,status,priority,customfield_*&maxResults=50`,
+      `${baseUrl}/rest/api/3/search?jql=project=${jiraConfig.projectKey}&fields=id,key,summary,description,status,priority,customfield_*&maxResults=50`,
       {
         method: "GET",
         headers: {
@@ -35,8 +49,34 @@ export async function POST(request: NextRequest) {
       },
     )
 
+    console.log("[v0] JIRA Response status:", jiraResponse.status)
+    console.log("[v0] JIRA Response headers:", Object.fromEntries(jiraResponse.headers.entries()))
+
     if (!jiraResponse.ok) {
-      throw new Error(`JIRA API responded with status: ${jiraResponse.status}`)
+      const responseText = await jiraResponse.text()
+      console.log("[v0] JIRA Error response:", responseText.substring(0, 500))
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: `JIRA API error (${jiraResponse.status}): ${responseText.includes("<!DOCTYPE") ? "Authentication failed or invalid URL" : responseText}`,
+        },
+        { status: 500 },
+      )
+    }
+
+    const contentType = jiraResponse.headers.get("content-type")
+    if (!contentType || !contentType.includes("application/json")) {
+      const responseText = await jiraResponse.text()
+      console.log("[v0] Non-JSON response:", responseText.substring(0, 500))
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "JIRA returned non-JSON response. Check your JIRA URL and credentials.",
+        },
+        { status: 500 },
+      )
     }
 
     const jiraData = await jiraResponse.json()
