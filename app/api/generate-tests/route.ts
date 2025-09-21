@@ -87,17 +87,66 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
     const data = await response.json()
     const generatedContent = data.choices[0].message.content
 
+    console.log("[v0] OpenAI response length:", generatedContent.length)
+    console.log("[v0] OpenAI response preview:", generatedContent.substring(0, 500))
+
     const zip = new JSZip()
 
-    // Extract files from OpenAI response using regex
-    const fileRegex = /```filename:\s*([^\n]+)\n([\s\S]*?)```/g
-    let match
+    const filePatterns = [
+      /```filename:\s*([^\\n]+)\\n([\\s\\S]*?)```/g,
+      /```([^\\n]+\\.(?:java|xml|properties|md))\\n([\\s\\S]*?)```/g,
+      /```\\w*\\n\/\/ File: ([^\\n]+)\\n([\\s\\S]*?)```/g,
+      /```\\w*\\n# ([^\\n]+)\\n([\\s\\S]*?)```/g,
+    ]
 
-    while ((match = fileRegex.exec(generatedContent)) !== null) {
-      const filePath = match[1].trim()
-      const fileContent = match[2].trim()
-      zip.file(filePath, fileContent)
+    let filesFound = 0
+
+    for (const pattern of filePatterns) {
+      let match
+      while ((match = pattern.exec(generatedContent)) !== null) {
+        let filePath = match[1].trim()
+        const fileContent = match[2].trim()
+
+        filePath = filePath.replace(/[<>:"|?*]/g, "_").replace(/\\\\/g, "/")
+
+        console.log("[v0] Adding file to zip:", filePath, "Content length:", fileContent.length)
+        zip.file(filePath, fileContent)
+        filesFound++
+      }
+
+      if (filesFound > 0) {
+        console.log("[v0] Found", filesFound, "files using pattern:", pattern.source)
+        break
+      }
     }
+
+    if (filesFound === 0) {
+      console.log("[v0] No files found with patterns, extracting all code blocks")
+      const codeBlockRegex = /```(?:\\w+)?\\n([\\s\\S]*?)```/g
+      let match
+      let blockIndex = 0
+
+      while ((match = codeBlockRegex.exec(generatedContent)) !== null) {
+        const content = match[1].trim()
+        if (content.length > 50) {
+          // Only include substantial content
+          const extension = content.includes("<?xml")
+            ? "xml"
+            : content.includes("package ")
+              ? "java"
+              : content.includes("# ")
+                ? "md"
+                : "txt"
+          const fileName = `generated-file-${blockIndex}.${extension}`
+          console.log("[v0] Adding code block as file:", fileName)
+          zip.file(fileName, content)
+          filesFound++
+          blockIndex++
+        }
+      }
+    }
+
+    console.log("[v0] Total files added to zip:", filesFound)
 
     // Generate zip buffer
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
