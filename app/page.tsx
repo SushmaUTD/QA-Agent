@@ -393,7 +393,7 @@ export default function JiraTestGenerator() {
                 <div>
                   <Label className="text-slate-700 font-medium">Test Case Types</Label>
                   <div className="flex flex-wrap gap-4 mt-2">
-                    {["positive", "negative", "edge-case", "integration", "performance"].map((type) => (
+                    {["functional", "edge", "performance", "UI", "integration"].map((type) => (
                       <div key={type} className="flex items-center space-x-2">
                         <Checkbox
                           id={type}
@@ -411,7 +411,7 @@ export default function JiraTestGenerator() {
                           className="border-slate-300 data-[state=checked]:bg-purple-600"
                         />
                         <Label htmlFor={type} className="capitalize text-slate-700">
-                          {type.replace("-", " ")}
+                          {type}
                         </Label>
                       </div>
                     ))}
@@ -740,7 +740,7 @@ export default function JiraTestGenerator() {
         <div className="p-4 border-t border-slate-700">
           <div className="text-center">
             <p className="text-xs text-slate-400">© 2024 Goldman Sachs Group, Inc.</p>
-            <p className="text-xs text-slate-500 mt-1">Consumer & Wealth Management Division</p>
+            <p className="text-xs text-slate-500 mt-1">Global Banking Markets Division</p>
           </div>
         </div>
       </div>
