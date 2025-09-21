@@ -200,11 +200,21 @@ export default function JiraTestGenerator() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
+      const contentType = response.headers.get("content-type")
 
-      if (data.files) {
-        setGeneratedTests(data)
+      if (contentType?.includes("application/zip")) {
+        // Handle zip file download
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `spring-boot-test-project-${Date.now()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
 
+        // Update history
         const historyItem: HistoryItem = {
           id: Date.now().toString(),
           date: new Date().toISOString(),
@@ -218,8 +228,12 @@ export default function JiraTestGenerator() {
         setHistory(updatedHistory)
         localStorage.setItem("testHistory", JSON.stringify(updatedHistory))
 
+        // Set success state for UI
+        setGeneratedTests({ success: true, downloaded: true })
         setActiveTab("results")
       } else {
+        // Handle JSON error response
+        const data = await response.json()
         setError(data.error || "Failed to generate tests")
       }
     } catch (err) {
@@ -227,40 +241,6 @@ export default function JiraTestGenerator() {
       setError("Test generation failed: " + (err as Error).message + ". Please check your configuration and try again.")
     } finally {
       setLoading(false)
-    }
-  }
-
-  // Download tests
-  const downloadTests = async () => {
-    if (!generatedTests) return
-
-    if (aiConfig.downloadFormat === "single-file") {
-      const allContent = generatedTests.files
-        .map((file: any) => `// ===== ${file.path} =====\n${file.content}\n\n`)
-        .join("")
-
-      const blob = new Blob([allContent], { type: "text/plain" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `test-cases-${Date.now()}.txt`
-      a.click()
-      URL.revokeObjectURL(url)
-    } else {
-      const JSZip = (await import("jszip")).default
-      const zip = new JSZip()
-
-      generatedTests.files.forEach((file: any) => {
-        zip.file(file.path, file.content)
-      })
-
-      const content = await zip.generateAsync({ type: "blob" })
-      const url = URL.createObjectURL(content)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `spring-boot-tests-${Date.now()}.zip`
-      a.click()
-      URL.revokeObjectURL(url)
     }
   }
 
@@ -680,43 +660,37 @@ export default function JiraTestGenerator() {
                   <div className="flex items-center gap-3">
                     <span className="text-blue-600 text-xl">📦</span>
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Generated Tests</h3>
-                      <p className="text-sm text-slate-600">Download and review your generated test cases</p>
+                      <h3 className="text-lg font-semibold text-slate-900">Test Generation Complete</h3>
+                      <p className="text-sm text-slate-600">Your Spring Boot test project has been downloaded</p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Test Suite Generated</h3>
-                      <p className="text-sm text-slate-600">
-                        {generatedTests.files.length} files created for {selectedTickets.length} ticket(s)
+                  <div className="flex items-center justify-center p-8 bg-green-50 rounded-lg border border-green-200">
+                    <div className="text-center">
+                      <div className="text-green-600 text-6xl mb-4">✅</div>
+                      <h3 className="font-semibold text-slate-900 text-xl mb-2">Download Complete!</h3>
+                      <p className="text-slate-600 mb-4">
+                        Your complete Spring Boot test project has been generated and downloaded.
                       </p>
-                    </div>
-                    <Button onClick={downloadTests} className="bg-blue-600 hover:bg-blue-700 text-white">
-                      Download {aiConfig.downloadFormat === "single-file" ? "Text File" : "Spring Project"}
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {generatedTests.files.slice(0, 3).map((file: any, index: number) => (
-                      <div key={index} className="border border-blue-200 rounded-lg shadow-sm">
-                        <div className="p-3 bg-blue-50 border-b border-blue-200">
-                          <h4 className="font-medium text-sm text-slate-800">{file.path}</h4>
-                        </div>
-                        <div className="p-3">
-                          <pre className="text-xs bg-slate-900 text-slate-100 p-3 rounded overflow-x-auto">
-                            {file.content.substring(0, 300)}
-                            {file.content.length > 300 && "..."}
-                          </pre>
-                        </div>
+                      <div className="bg-white p-4 rounded-lg border border-green-200 text-left">
+                        <h4 className="font-medium text-slate-800 mb-2">Next Steps:</h4>
+                        <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
+                          <li>Extract the downloaded ZIP file</li>
+                          <li>Open the project in your IDE (IntelliJ IDEA, Eclipse, etc.)</li>
+                          <li>
+                            Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
+                          </li>
+                          <li>Review and customize the generated test cases as needed</li>
+                        </ol>
                       </div>
-                    ))}
-                    {generatedTests.files.length > 3 && (
-                      <p className="text-sm text-slate-500 text-center">
-                        ... and {generatedTests.files.length - 3} more files
-                      </p>
-                    )}
+                      <Button
+                        onClick={() => setActiveTab("tickets")}
+                        className="bg-blue-600 hover:bg-blue-700 text-white mt-4"
+                      >
+                        Generate More Tests
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
