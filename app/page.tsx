@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -231,15 +231,7 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
-                <CardTitle className="text-slate-800 flex items-center gap-2">
-                  <span className="text-blue-600">⚙️</span>
-                  JIRA Configuration
-                </CardTitle>
-                <CardDescription className="text-slate-600">
-                  Configure your JIRA connection or select from saved configurations
-                </CardDescription>
-              </CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
               <CardContent className="space-y-4 pt-6">
                 {jiraConfigs.length > 0 && (
                   <div>
@@ -333,13 +325,7 @@ export default function JiraTestGenerator() {
             </Card>
 
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
-                <CardTitle className="text-slate-800 flex items-center gap-2">
-                  <span className="text-blue-600">🤖</span>
-                  AI Test Configuration
-                </CardTitle>
-                <CardDescription className="text-slate-600">Configure how tests should be generated</CardDescription>
-              </CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
               <CardContent className="space-y-6 pt-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -443,15 +429,7 @@ export default function JiraTestGenerator() {
               </Card>
             ) : (
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
-                  <CardTitle className="text-slate-800 flex items-center gap-2">
-                    <span className="text-blue-600">🎫</span>
-                    Select JIRA Tickets ({tickets.length} found)
-                  </CardTitle>
-                  <CardDescription className="text-slate-600">
-                    Choose tickets to generate tests from their acceptance criteria
-                  </CardDescription>
-                </CardHeader>
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-center gap-4">
                     <Label className="text-slate-700 font-medium">Filter by Status:</Label>
@@ -559,15 +537,7 @@ export default function JiraTestGenerator() {
               </Card>
             ) : (
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
-                  <CardTitle className="text-slate-800 flex items-center gap-2">
-                    <span className="text-blue-600">📦</span>
-                    Generated Test Results
-                  </CardTitle>
-                  <CardDescription className="text-slate-600">
-                    Your Spring Boot test project is ready for download
-                  </CardDescription>
-                </CardHeader>
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div>
@@ -611,15 +581,7 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
-                <CardTitle className="text-slate-800 flex items-center gap-2">
-                  <span className="text-blue-600">📈</span>
-                  Test Generation History
-                </CardTitle>
-                <CardDescription className="text-slate-600">
-                  Analytics and history of previous test generations
-                </CardDescription>
-              </CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
               <CardContent className="pt-6">
                 {history.length === 0 ? (
                   <div className="text-center py-8">
@@ -753,7 +715,9 @@ export default function JiraTestGenerator() {
         <div className="bg-white border-b border-slate-200 shadow-sm">
           <div className="px-8 py-6">
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">GBM-CSG QA Agent</h1>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2 bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                QA Agent
+              </h1>
               <p className="text-slate-600">Automated Test Case Generation Platform</p>
             </div>
           </div>
