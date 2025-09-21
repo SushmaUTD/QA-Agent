@@ -231,7 +231,17 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-600 text-xl">🔗</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">JIRA Configuration</h3>
+                    <p className="text-sm text-slate-600">
+                      Configure your JIRA connection or select from saved configurations
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-4 pt-6">
                 {jiraConfigs.length > 0 && (
                   <div>
@@ -325,7 +335,15 @@ export default function JiraTestGenerator() {
             </Card>
 
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-600 text-xl">🤖</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">AI Test Configuration</h3>
+                    <p className="text-sm text-slate-600">Configure how tests should be generated</p>
+                  </div>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-6 pt-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -429,7 +447,15 @@ export default function JiraTestGenerator() {
               </Card>
             ) : (
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <span className="text-blue-600 text-xl">🎫</span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Ticket Selection</h3>
+                      <p className="text-sm text-slate-600">Select tickets to generate test cases for</p>
+                    </div>
+                  </div>
+                </CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-center gap-4">
                     <Label className="text-slate-700 font-medium">Filter by Status:</Label>
@@ -537,7 +563,15 @@ export default function JiraTestGenerator() {
               </Card>
             ) : (
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <span className="text-blue-600 text-xl">📦</span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Generated Tests</h3>
+                      <p className="text-sm text-slate-600">Download and review your generated test cases</p>
+                    </div>
+                  </div>
+                </CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div>
@@ -581,7 +615,15 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-white"></CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-600 text-xl">📈</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Test Generation History</h3>
+                    <p className="text-sm text-slate-600">Analytics and history of previous test generations</p>
+                  </div>
+                </div>
+              </CardHeader>
               <CardContent className="pt-6">
                 {history.length === 0 ? (
                   <div className="text-center py-8">
