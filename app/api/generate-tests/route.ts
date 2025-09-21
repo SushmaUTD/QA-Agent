@@ -49,25 +49,29 @@ ${ticketDetails}
 3. **Complete Project Structure** - Ready to execute with "mvn test"
 4. **Proper Maven Directory Structure** - src/main/java, src/test/java, src/main/resources
 
-**OUTPUT FORMAT:**
-For each file, use this exact format:
+**IMPORTANT: Respond with ONLY a JSON object in this exact format:**
+{
+  "files": [
+    {
+      "path": "pom.xml",
+      "content": "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<project xmlns=\\"http://maven.apache.org/POM/4.0.0\\"...FULL CONTENT HERE..."
+    },
+    {
+      "path": "src/main/java/com/example/Application.java",
+      "content": "package com.example;\\n\\nimport org.springframework.boot.SpringApplication;...FULL CONTENT HERE..."
+    },
+    {
+      "path": "src/test/java/com/example/ApiTest.java", 
+      "content": "package com.example;\\n\\nimport org.testng.annotations.Test;...FULL CONTENT HERE..."
+    },
+    {
+      "path": "README.md",
+      "content": "# Spring Boot API Test Project\\n\\nThis project contains...FULL CONTENT HERE..."
+    }
+  ]
+}
 
-**File: pom.xml**
-\`\`\`xml
-[pom.xml content here]
-\`\`\`
-
-**File: src/main/java/com/example/Application.java**
-\`\`\`java
-[Application.java content here]
-\`\`\`
-
-**File: src/test/java/com/example/ApiTest.java**
-\`\`\`java
-[test content here]
-\`\`\`
-
-Generate ALL necessary files including pom.xml, main application class, test classes, and README.md.`
+Generate ALL necessary files. Do NOT include any markdown formatting, explanations, or text outside the JSON object.`
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -103,75 +107,44 @@ Generate ALL necessary files including pom.xml, main application class, test cla
     console.log("[v0] OpenAI response length:", generatedContent.length)
     console.log("[v0] OpenAI response preview:", generatedContent.substring(0, 500))
 
-    console.log("[v0] Full OpenAI response:", generatedContent)
-
     const zip = new JSZip()
 
-    const filePatterns = [
-      // Pattern for **File: filename** format
-      /\*\*File:\s*([^*\n]+)\*\*\s*```(?:\w+)?\s*\n([\s\S]*?)```/g,
-      // Pattern for **filename.ext** format
-      /\*\*([^*\n]+\.(java|xml|properties|md))\*\*\s*```(?:\w+)?\s*\n([\s\S]*?)```/g,
-      // Pattern for filename: format
-      /```filename:\s*([^\n]+)\n([\s\S]*?)```/g,
-      // Pattern for file extension detection
-      /```(\w+)\n([\s\S]*?)```/g,
-    ]
+    let parsedResponse
+    try {
+      const jsonStart = generatedContent.indexOf("{")
+      const jsonEnd = generatedContent.lastIndexOf("}") + 1
+      const jsonContent = generatedContent.slice(jsonStart, jsonEnd)
+
+      console.log("[v0] Extracted JSON content:", jsonContent.substring(0, 200))
+
+      parsedResponse = JSON.parse(jsonContent)
+    } catch (error) {
+      console.error("[v0] Failed to parse JSON response:", error)
+      return NextResponse.json({
+        success: false,
+        error: "Failed to parse OpenAI response as JSON",
+      })
+    }
+
+    if (!parsedResponse.files || !Array.isArray(parsedResponse.files)) {
+      return NextResponse.json({
+        success: false,
+        error: "Invalid response format - missing files array",
+      })
+    }
 
     let filesFound = 0
-
-    for (const pattern of filePatterns) {
-      console.log("[v0] Trying pattern:", pattern.source)
-      let match
-      while ((match = pattern.exec(generatedContent)) !== null) {
-        let filePath, fileContent
-
-        if (pattern.source.includes("File:")) {
-          // **File: filename** format
-          filePath = match[1].trim()
-          fileContent = match[2].trim()
-        } else if (pattern.source.includes("java|xml")) {
-          // **filename.ext** format
-          filePath = match[1].trim()
-          fileContent = match[3].trim()
-        } else if (pattern.source.includes("filename:")) {
-          // filename: format
-          filePath = match[1].trim()
-          fileContent = match[2].trim()
-        } else {
-          // Extension-based detection
-          const extension = match[1]
-          fileContent = match[2].trim()
-
-          // Try to determine filename from content
-          if (extension === "xml" && fileContent.includes("<modelVersion>")) {
-            filePath = "pom.xml"
-          } else if (extension === "java" && fileContent.includes("@SpringBootApplication")) {
-            filePath = "src/main/java/com/example/Application.java"
-          } else if (extension === "java" && fileContent.includes("@Test")) {
-            filePath = "src/test/java/com/example/ApiTest.java"
-          } else if (extension === "md" || fileContent.includes("# ")) {
-            filePath = "README.md"
-          } else {
-            filePath = `generated-file-${filesFound}.${extension}`
-          }
-        }
-
-        // Clean up file path
-        filePath = filePath.replace(/[<>:"|?*]/g, "_").replace(/\\/g, "/")
-        filePath = filePath.replace(/\*\*/g, "").replace(/`/g, "")
-
-        console.log("[v0] Adding file to zip:", filePath, "Content length:", fileContent.length)
-        console.log("[v0] File content preview:", fileContent.substring(0, 200))
-
-        zip.file(filePath, fileContent)
-        filesFound++
+    for (const file of parsedResponse.files) {
+      if (!file.path || !file.content) {
+        console.warn("[v0] Skipping invalid file:", file)
+        continue
       }
 
-      if (filesFound > 0) {
-        console.log("[v0] Found", filesFound, "files using pattern:", pattern.source)
-        break
-      }
+      console.log("[v0] Adding file to zip:", file.path, "Content length:", file.content.length)
+      console.log("[v0] File content preview:", file.content.substring(0, 200))
+
+      zip.file(file.path, file.content)
+      filesFound++
     }
 
     console.log("[v0] Total files added to zip:", filesFound)
