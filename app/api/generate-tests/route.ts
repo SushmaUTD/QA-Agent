@@ -32,57 +32,28 @@ ${ticket.acceptanceCriteria.map((ac: string) => `- ${ac}`).join("\n")}
       )
       .join("\n\n---\n\n")
 
-    const prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets. 
+    const prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets.
 
 **APPLICATION CONTEXT:**
 - Base URL: ${appConfig?.baseUrl || "http://localhost:8080"}
 - Environment: ${appConfig?.environment || "dev"}
 - Auth Details: ${appConfig?.authDetails || "Basic Auth"}
-- AI Model: ${aiConfig?.model || "gpt-4o-mini"}
-- Temperature: ${aiConfig?.temperature || 0.1}
-- Max Tokens: ${aiConfig?.maxTokens || 4000}
 
 **JIRA TICKETS:**
 ${ticketDetails}
 
-**CRITICAL REQUIREMENTS:**
+**REQUIREMENTS:**
+1. **Valid POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0
+2. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria
+3. **Complete Project Structure** - Ready to execute with "mvn test"
 
-1. **POM.XML REQUIREMENTS:**
-   - Use Spring Boot 3.2.0 with valid, compatible dependency versions
-   - Include RestAssured 5.3.2, TestNG 7.8.0, Jackson 2.15.2
-   - All dependencies MUST have explicit versions (no version ranges)
-   - Include maven-surefire-plugin 3.1.2 for test execution
-   - Ensure all versions are compatible and production-ready
+**OUTPUT FORMAT:**
+Provide the complete project structure with all files. Start each file with:
+\`\`\`filename: path/to/file.java\`\`\`
+[file content]
+\`\`\`
 
-2. **TEST CASE GENERATION:**
-   - Analyze each acceptance criteria thoroughly to extract ALL testable scenarios
-   - For EACH function/endpoint, create BOTH positive and negative test cases:
-     * **Positive Tests:** Valid inputs, expected success scenarios, boundary conditions
-     * **Negative Tests:** Invalid inputs, error conditions, edge cases, security tests
-   - Generate realistic test data that matches the business domain
-   - Include data validation tests, authentication tests, and error handling tests
-
-3. **COMPREHENSIVE COVERAGE:**
-   - Create separate test classes for each major functionality
-   - Include integration tests for end-to-end workflows
-   - Add performance tests for critical endpoints
-   - Generate test data setup and teardown methods
-   - Include parameterized tests for multiple input scenarios
-
-4. **PROJECT STRUCTURE:**
-   - Complete Spring Boot project with proper package structure
-   - Include application.properties for different environments
-   - Add README.md with setup and execution instructions
-   - Make it immediately executable with "mvn test"
-   - Include logging configuration and test reporting
-
-5. **QUALITY STANDARDS:**
-   - Follow Java naming conventions and best practices
-   - Add comprehensive JavaDoc comments
-   - Include assertion messages for better test failure diagnosis
-   - Use Page Object Model pattern for UI tests if applicable
-
-**IMPORTANT:** Generate and return the complete project as a ZIP file that can be directly downloaded and executed.`
+Generate ALL necessary files including pom.xml, test classes, configuration files, and README.md.`
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -96,7 +67,7 @@ ${ticketDetails}
           {
             role: "system",
             content:
-              "You are a Spring Boot test automation expert. Generate complete, production-ready test projects as zip files.",
+              "You are a Spring Boot test automation expert. Generate complete, production-ready test projects as text.",
           },
           {
             role: "user",
@@ -115,14 +86,10 @@ ${ticketDetails}
     const data = await response.json()
     const generatedContent = data.choices[0].message.content
 
-    const zipBuffer = Buffer.from(generatedContent, "base64")
-
-    return new NextResponse(zipBuffer, {
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": 'attachment; filename="spring-boot-test-project.zip"',
-        "Content-Length": zipBuffer.length.toString(),
-      },
+    return NextResponse.json({
+      success: true,
+      content: generatedContent,
+      projectName: `spring-boot-tests-${Date.now()}`,
     })
   } catch (error) {
     console.error("Test generation error:", error.message || error)

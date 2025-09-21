@@ -200,19 +200,14 @@ export default function JiraTestGenerator() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const contentType = response.headers.get("content-type")
+      const data = await response.json()
 
-      if (contentType?.includes("application/zip")) {
-        // Handle zip file download
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `spring-boot-test-project-${Date.now()}.zip`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+      if (data.success) {
+        setGeneratedTests({
+          success: true,
+          content: data.content,
+          projectName: data.projectName,
+        })
 
         // Update history
         const historyItem: HistoryItem = {
@@ -228,12 +223,8 @@ export default function JiraTestGenerator() {
         setHistory(updatedHistory)
         localStorage.setItem("testHistory", JSON.stringify(updatedHistory))
 
-        // Set success state for UI
-        setGeneratedTests({ success: true, downloaded: true })
         setActiveTab("results")
       } else {
-        // Handle JSON error response
-        const data = await response.json()
         setError(data.error || "Failed to generate tests")
       }
     } catch (err) {
@@ -661,37 +652,49 @@ export default function JiraTestGenerator() {
                     <span className="text-blue-600 text-xl">📦</span>
                     <div>
                       <h3 className="text-lg font-semibold text-slate-900">Test Generation Complete</h3>
-                      <p className="text-sm text-slate-600">Your Spring Boot test project has been downloaded</p>
+                      <p className="text-sm text-slate-600">Your Spring Boot test project has been generated</p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                  <div className="flex items-center justify-center p-8 bg-green-50 rounded-lg border border-green-200">
-                    <div className="text-center">
-                      <div className="text-green-600 text-6xl mb-4">✅</div>
-                      <h3 className="font-semibold text-slate-900 text-xl mb-2">Download Complete!</h3>
-                      <p className="text-slate-600 mb-4">
-                        Your complete Spring Boot test project has been generated and downloaded.
-                      </p>
-                      <div className="bg-white p-4 rounded-lg border border-green-200 text-left">
-                        <h4 className="font-medium text-slate-800 mb-2">Next Steps:</h4>
-                        <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
-                          <li>Extract the downloaded ZIP file</li>
-                          <li>Open the project in your IDE (IntelliJ IDEA, Eclipse, etc.)</li>
-                          <li>
-                            Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
-                          </li>
-                          <li>Review and customize the generated test cases as needed</li>
-                        </ol>
-                      </div>
+                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-slate-900">Generated Spring Boot Project</h4>
                       <Button
-                        onClick={() => setActiveTab("tickets")}
-                        className="bg-blue-600 hover:bg-blue-700 text-white mt-4"
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedTests.content)
+                          // Show a temporary success message
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-200 text-blue-600 hover:bg-blue-50"
                       >
-                        Generate More Tests
+                        Copy All Code
                       </Button>
                     </div>
+                    <div className="bg-white rounded border border-slate-200 p-4 max-h-96 overflow-y-auto">
+                      <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono">
+                        {generatedTests.content}
+                      </pre>
+                    </div>
                   </div>
+
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-medium text-slate-800 mb-2">Next Steps:</h4>
+                    <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
+                      <li>Copy the generated code above</li>
+                      <li>Create a new Spring Boot project in your IDE</li>
+                      <li>Replace/add the generated files to your project</li>
+                      <li>
+                        Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
+                      </li>
+                      <li>Review and customize the generated test cases as needed</li>
+                    </ol>
+                  </div>
+
+                  <Button onClick={() => setActiveTab("tickets")} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Generate More Tests
+                  </Button>
                 </CardContent>
               </Card>
             )}
