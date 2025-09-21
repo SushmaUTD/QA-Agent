@@ -55,22 +55,57 @@ ${ticket.acceptanceCriteria.map((ac: string) => `- ${ac}`).join("\n")}
 - Base URL: ${appConfig?.baseUrl || "http://localhost:8080"}
 - Environment: ${appConfig?.environment || "dev"}
 - Auth Details: ${appConfig?.authDetails || "Basic Auth"}
+- AI Model: ${aiConfig?.model || "gpt-4o-mini"}
+- Temperature: ${aiConfig?.temperature || 0.1}
+- Max Tokens: ${aiConfig?.maxTokens || 4000}
 
 **JIRA TICKETS:**
 ${ticketDetails}
 
-**REQUIREMENTS:**
-1. Complete Spring Boot 3.2.0 project with RestAssured 5.3.2, TestNG 7.8.0
-2. Analyze acceptance criteria to extract exact API endpoints and test scenarios
-3. Generate realistic test data and comprehensive test methods
-4. Include pom.xml, main Application.java, test classes, properties files, README.md
-5. Make it immediately executable with "mvn test"
-6. Return ONLY the JSON object, no markdown or explanations`
+**CRITICAL REQUIREMENTS:**
+
+1. **POM.XML REQUIREMENTS:**
+   - Use Spring Boot 3.2.0 with valid, compatible dependency versions
+   - Include RestAssured 5.3.2, TestNG 7.8.0, Jackson 2.15.2
+   - All dependencies MUST have explicit versions (no version ranges)
+   - Include maven-surefire-plugin 3.1.2 for test execution
+   - Ensure all versions are compatible and production-ready
+
+2. **TEST CASE GENERATION:**
+   - Analyze each acceptance criteria thoroughly to extract ALL testable scenarios
+   - For EACH function/endpoint, create BOTH positive and negative test cases:
+     * **Positive Tests:** Valid inputs, expected success scenarios, boundary conditions
+     * **Negative Tests:** Invalid inputs, error conditions, edge cases, security tests
+   - Generate realistic test data that matches the business domain
+   - Include data validation tests, authentication tests, and error handling tests
+
+3. **COMPREHENSIVE COVERAGE:**
+   - Create separate test classes for each major functionality
+   - Include integration tests for end-to-end workflows
+   - Add performance tests for critical endpoints
+   - Generate test data setup and teardown methods
+   - Include parameterized tests for multiple input scenarios
+
+4. **PROJECT STRUCTURE:**
+   - Complete Spring Boot project with proper package structure
+   - Include application.properties for different environments
+   - Add README.md with setup and execution instructions
+   - Make it immediately executable with "mvn test"
+   - Include logging configuration and test reporting
+
+5. **QUALITY STANDARDS:**
+   - Follow Java naming conventions and best practices
+   - Add comprehensive JavaDoc comments
+   - Include assertion messages for better test failure diagnosis
+   - Use Page Object Model pattern for UI tests if applicable
+
+Return ONLY the JSON object with complete file contents, no markdown or explanations`
 
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai(aiConfig?.model || "gpt-4o-mini"),
       prompt,
-      temperature: 0.1,
+      temperature: aiConfig?.temperature || 0.1,
+      maxTokens: aiConfig?.maxTokens || 4000,
     })
 
     console.log("[v0] Generated project structure")
