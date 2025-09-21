@@ -46,7 +46,6 @@ interface AppConfig {
   baseUrl: string
   environment: "dev" | "staging" | "prod"
   authDetails?: string
-  dbConnectionInfo?: string
 }
 
 export default function JiraTestGenerator() {
@@ -77,7 +76,6 @@ export default function JiraTestGenerator() {
     baseUrl: "",
     environment: "dev",
     authDetails: "",
-    dbConnectionInfo: "",
   })
 
   // Load saved configurations on mount
@@ -194,7 +192,6 @@ export default function JiraTestGenerator() {
             baseUrl: appConfig.baseUrl,
             environment: appConfig.environment,
             authDetails: appConfig.authDetails,
-            dbConnectionInfo: appConfig.dbConnectionInfo,
           },
         }),
       })
@@ -488,6 +485,16 @@ export default function JiraTestGenerator() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6 pt-8">
+                <div className="flex justify-start">
+                  <Button
+                    variant="outline"
+                    onClick={saveAppConfig}
+                    className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
+                  >
+                    Save Application Configuration
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-slate-700 font-medium text-sm">
@@ -520,7 +527,7 @@ export default function JiraTestGenerator() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label className="text-slate-700 font-medium text-sm">Authentication Details</Label>
                     <Input
                       placeholder="Bearer token, API key, etc."
@@ -529,25 +536,6 @@ export default function JiraTestGenerator() {
                       className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 font-medium text-sm">Database Connection Info</Label>
-                    <Input
-                      placeholder="Connection string or database details"
-                      value={appConfig.dbConnectionInfo}
-                      onChange={(e) => setAppConfig({ ...appConfig, dbConnectionInfo: e.target.value })}
-                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={saveAppConfig}
-                    className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
-                  >
-                    Save Application Configuration
-                  </Button>
                 </div>
               </CardContent>
             </Card>
