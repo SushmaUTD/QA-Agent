@@ -91,6 +91,11 @@ export default function JiraTestGenerator() {
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory))
     }
+
+    const savedAppConfig = localStorage.getItem("appConfig")
+    if (savedAppConfig) {
+      setAppConfig(JSON.parse(savedAppConfig))
+    }
   }, [])
 
   // Save JIRA configuration
@@ -117,13 +122,17 @@ export default function JiraTestGenerator() {
     setSelectedJiraConfig(config)
   }
 
+  const saveAppConfig = () => {
+    localStorage.setItem("appConfig", JSON.stringify(appConfig))
+  }
+
   // Fetch JIRA tickets
   const fetchTickets = async () => {
     setLoading(true)
     setError("")
 
     try {
-      const response = await fetch("http://localhost:8080/api/jira/tickets", {
+      const response = await fetch("/api/jira/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedJiraConfig),
@@ -143,11 +152,7 @@ export default function JiraTestGenerator() {
       }
     } catch (err) {
       console.error("Fetch tickets error:", err)
-      setError(
-        "Network error: " +
-          (err as Error).message +
-          ". Make sure the Java Spring Boot backend is running on port 8080.",
-      )
+      setError("Network error: " + (err as Error).message + ". Please check your JIRA configuration and try again.")
     } finally {
       setLoading(false)
     }
@@ -171,13 +176,20 @@ export default function JiraTestGenerator() {
     try {
       const selectedTicketData = tickets.filter((t) => selectedTickets.includes(t.id))
 
-      const response = await fetch("http://localhost:8080/api/generate-tests", {
+      const response = await fetch("/api/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tickets: selectedTicketData,
           aiConfig,
           language: "java",
+          jiraConfig: {
+            jiraUrl: selectedJiraConfig.url,
+            projectKey: selectedJiraConfig.projectKey,
+            environment: appConfig.environment,
+            baseApiUrl: appConfig.baseUrl,
+            authType: appConfig.authDetails ? "Bearer Token" : "Basic Auth",
+          },
           appConfig: {
             baseUrl: appConfig.baseUrl,
             environment: appConfig.environment,
@@ -215,11 +227,7 @@ export default function JiraTestGenerator() {
       }
     } catch (err) {
       console.error("Generate tests error:", err)
-      setError(
-        "Test generation failed: " +
-          (err as Error).message +
-          ". Make sure the Java Spring Boot backend is running on port 8080.",
-      )
+      setError("Test generation failed: " + (err as Error).message + ". Please check your configuration and try again.")
     } finally {
       setLoading(false)
     }
@@ -530,6 +538,16 @@ export default function JiraTestGenerator() {
                       className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 h-11"
                     />
                   </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={saveAppConfig}
+                    className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
+                  >
+                    Save Application Configuration
+                  </Button>
                 </div>
               </CardContent>
             </Card>
