@@ -162,12 +162,29 @@ Generate ALL necessary files including pom.xml, main application class, test cla
 
     console.log("[v0] Total files added to zip:", filesFound)
 
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
+    if (filesFound === 0) {
+      return NextResponse.json({
+        success: false,
+        error: "No files were extracted from OpenAI response",
+      })
+    }
+
+    console.log("[v0] Generating zip buffer...")
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 6,
+      },
+    })
+
+    console.log("[v0] Zip buffer generated, size:", zipBuffer.length, "bytes")
 
     return new NextResponse(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="spring-boot-tests-${Date.now()}.zip"`,
+        "Content-Length": zipBuffer.length.toString(),
       },
     })
   } catch (error) {
