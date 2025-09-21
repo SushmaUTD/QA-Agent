@@ -721,25 +721,6 @@ export default function JiraTestGenerator() {
               <p className="text-slate-600">Automated Test Case Generation Platform</p>
             </div>
           </div>
-          <div className="px-8 py-4 bg-slate-50 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-800 capitalize flex items-center gap-2">
-                  {activeTab === "configuration" && <span className="text-blue-600">⚙️</span>}
-                  {activeTab === "tickets" && <span className="text-blue-600">🎫</span>}
-                  {activeTab === "results" && <span className="text-blue-600">📦</span>}
-                  {activeTab === "history" && <span className="text-blue-600">📈</span>}
-                  {activeTab}
-                </h2>
-                <p className="text-slate-600 text-sm mt-1">
-                  {activeTab === "configuration" && "Configure JIRA and AI settings"}
-                  {activeTab === "tickets" && "Select tickets for test generation"}
-                  {activeTab === "results" && "Download generated test projects"}
-                  {activeTab === "history" && "View test generation analytics"}
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Content Area */}
