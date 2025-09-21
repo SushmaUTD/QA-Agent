@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import JSZip from "jszip"
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,10 +87,27 @@ Generate ALL necessary files including pom.xml, test classes, configuration file
     const data = await response.json()
     const generatedContent = data.choices[0].message.content
 
-    return NextResponse.json({
-      success: true,
-      content: generatedContent,
-      projectName: `spring-boot-tests-${Date.now()}`,
+    const zip = new JSZip()
+
+    // Extract files from OpenAI response using regex
+    const fileRegex = /```filename:\s*([^\n]+)\n([\s\S]*?)```/g
+    let match
+
+    while ((match = fileRegex.exec(generatedContent)) !== null) {
+      const filePath = match[1].trim()
+      const fileContent = match[2].trim()
+      zip.file(filePath, fileContent)
+    }
+
+    // Generate zip buffer
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
+
+    // Return zip file as download
+    return new NextResponse(zipBuffer, {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="spring-boot-tests-${Date.now()}.zip"`,
+      },
     })
   } catch (error) {
     console.error("Test generation error:", error.message || error)

@@ -200,13 +200,21 @@ export default function JiraTestGenerator() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
+      if (response.headers.get("content-type")?.includes("application/zip")) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `spring-boot-tests-${Date.now()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
 
-      if (data.success) {
         setGeneratedTests({
           success: true,
-          content: data.content,
-          projectName: data.projectName,
+          downloaded: true,
+          projectName: `spring-boot-tests-${Date.now()}`,
         })
 
         // Update history
@@ -225,7 +233,10 @@ export default function JiraTestGenerator() {
 
         setActiveTab("results")
       } else {
-        setError(data.error || "Failed to generate tests")
+        const data = await response.json()
+        if (!data.success) {
+          setError(data.error || "Failed to generate tests")
+        }
       }
     } catch (err) {
       console.error("Generate tests error:", err)
@@ -652,39 +663,29 @@ export default function JiraTestGenerator() {
                     <span className="text-blue-600 text-xl">📦</span>
                     <div>
                       <h3 className="text-lg font-semibold text-slate-900">Test Generation Complete</h3>
-                      <p className="text-sm text-slate-600">Your Spring Boot test project has been generated</p>
+                      <p className="text-sm text-slate-600">Your Spring Boot test project has been downloaded</p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-slate-900">Generated Spring Boot Project</h4>
-                      <Button
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedTests.content)
-                          // Show a temporary success message
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                      >
-                        Copy All Code
-                      </Button>
-                    </div>
-                    <div className="bg-white rounded border border-slate-200 p-4 max-h-96 overflow-y-auto">
-                      <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono">
-                        {generatedTests.content}
-                      </pre>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-green-600 text-2xl">✅</span>
+                      <div>
+                        <h4 className="font-semibold text-green-800">Download Complete!</h4>
+                        <p className="text-sm text-green-700">
+                          Your Spring Boot test project has been generated and downloaded.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     <h4 className="font-medium text-slate-800 mb-2">Next Steps:</h4>
                     <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
-                      <li>Copy the generated code above</li>
-                      <li>Create a new Spring Boot project in your IDE</li>
-                      <li>Replace/add the generated files to your project</li>
+                      <li>Extract the downloaded ZIP file to your desired location</li>
+                      <li>Open the project in your IDE (IntelliJ IDEA, Eclipse, VS Code)</li>
+                      <li>Import as a Maven project if needed</li>
                       <li>
                         Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
                       </li>
