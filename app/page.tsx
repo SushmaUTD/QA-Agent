@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, CheckCircle, Download, Settings, Ticket } from "lucide-react"
 
 interface JiraTicket {
   id: string
@@ -170,7 +169,6 @@ export default function JiraTestGenerator() {
       a.click()
       URL.revokeObjectURL(url)
     } else {
-      // Download as Spring Boot project ZIP
       const JSZip = (await import("jszip")).default
       const zip = new JSZip()
 
@@ -208,14 +206,10 @@ export default function JiraTestGenerator() {
         {/* JIRA Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              JIRA Configuration
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2">⚙️ JIRA Configuration</CardTitle>
             <CardDescription>Configure your JIRA connection or select from saved configurations</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Saved Configurations */}
             {jiraConfigs.length > 0 && (
               <div>
                 <Label>Saved Configurations</Label>
@@ -229,7 +223,6 @@ export default function JiraTestGenerator() {
               </div>
             )}
 
-            {/* Configuration Form */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="jira-url">JIRA URL</Label>
@@ -285,7 +278,7 @@ export default function JiraTestGenerator() {
         {/* AI Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle>AI Test Configuration</CardTitle>
+            <CardTitle>🤖 AI Test Configuration</CardTitle>
             <CardDescription>Configure how tests should be generated</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -367,10 +360,7 @@ export default function JiraTestGenerator() {
         {tickets.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Ticket className="h-5 w-5" />
-                Select JIRA Tickets ({tickets.length} found)
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2">🎫 Select JIRA Tickets ({tickets.length} found)</CardTitle>
               <CardDescription>Choose tickets to generate tests from their acceptance criteria</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -435,9 +425,7 @@ export default function JiraTestGenerator() {
                           </div>
                         )}
                       </div>
-                      {selectedTickets.includes(ticket.id) && (
-                        <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                      )}
+                      {selectedTickets.includes(ticket.id) && <span className="text-blue-500 text-xl">✓</span>}
                     </div>
                   </div>
                 ))}
@@ -458,10 +446,7 @@ export default function JiraTestGenerator() {
         {generatedTests && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Download className="h-5 w-5" />
-                Generated Test Results
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2">📥 Generated Test Results</CardTitle>
               <CardDescription>Your Spring Boot test project is ready for download</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -473,8 +458,7 @@ export default function JiraTestGenerator() {
                   </p>
                 </div>
                 <Button onClick={downloadTests}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download {aiConfig.downloadFormat === "single-file" ? "Text File" : "Spring Project"}
+                  📥 Download {aiConfig.downloadFormat === "single-file" ? "Text File" : "Spring Project"}
                 </Button>
               </div>
 
@@ -508,7 +492,7 @@ export default function JiraTestGenerator() {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-5 w-5" />
+                <span className="text-xl">⚠️</span>
                 <span className="font-medium">Error:</span>
                 <span>{error}</span>
               </div>
