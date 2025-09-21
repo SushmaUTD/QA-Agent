@@ -151,6 +151,13 @@ export default function JiraTestGenerator() {
           tickets: selectedTicketData,
           aiConfig,
           language: "java",
+          jiraConfig: {
+            jiraUrl: selectedJiraConfig.url,
+            projectKey: selectedJiraConfig.projectKey,
+            environment: "Development",
+            baseApiUrl: selectedJiraConfig.url.replace(/\/+$/, "") + "/rest/api/2",
+            authType: "Basic Auth",
+          },
         }),
       })
 
