@@ -426,9 +426,9 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             {tickets.length === 0 ? (
-              <Card className="border-l-4 border-l-orange-500 shadow-sm">
+              <Card className="border-l-4 border-l-blue-500 shadow-sm">
                 <CardContent className="pt-6 text-center">
-                  <div className="text-orange-600 text-4xl mb-4">📋</div>
+                  <div className="text-blue-600 text-4xl mb-4">📋</div>
                   <p className="text-slate-600 mb-4">No tickets loaded. Please configure JIRA connection first.</p>
                   <Button
                     className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -439,10 +439,10 @@ export default function JiraTestGenerator() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-l-4 border-l-green-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-white">
+              <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
                   <CardTitle className="text-slate-800 flex items-center gap-2">
-                    <span className="text-green-600">🎫</span>
+                    <span className="text-blue-600">🎫</span>
                     Select JIRA Tickets ({tickets.length} found)
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -453,7 +453,7 @@ export default function JiraTestGenerator() {
                   <div className="flex items-center gap-4">
                     <Label className="text-slate-700 font-medium">Filter by Status:</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-48 border-slate-300 focus:border-green-500">
+                      <SelectTrigger className="w-48 border-slate-300 focus:border-blue-500">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -474,7 +474,7 @@ export default function JiraTestGenerator() {
                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                           selectedTickets.includes(ticket.id)
                             ? "border-blue-500 bg-blue-50 shadow-md"
-                            : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                            : "border-slate-200 hover:border-blue-300 hover:shadow-sm"
                         }`}
                         onClick={() => {
                           if (selectedTickets.includes(ticket.id)) {
@@ -523,14 +523,14 @@ export default function JiraTestGenerator() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between pt-4 border-t border-blue-200">
                     <span className="text-sm text-slate-600 font-medium">
                       {selectedTickets.length} ticket(s) selected
                     </span>
                     <Button
                       onClick={generateTests}
                       disabled={loading || selectedTickets.length === 0}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       {loading ? "Generating Tests..." : "Generate AI Tests"}
                     </Button>
@@ -545,9 +545,9 @@ export default function JiraTestGenerator() {
         return (
           <div className="space-y-6">
             {!generatedTests ? (
-              <Card className="border-l-4 border-l-yellow-500 shadow-sm">
+              <Card className="border-l-4 border-l-blue-500 shadow-sm">
                 <CardContent className="pt-6 text-center">
-                  <div className="text-yellow-600 text-4xl mb-4">📊</div>
+                  <div className="text-blue-600 text-4xl mb-4">📊</div>
                   <p className="text-slate-600 mb-4">No test results available. Generate tests first.</p>
                   <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setActiveTab("tickets")}>
                     Go to Tickets
@@ -555,10 +555,10 @@ export default function JiraTestGenerator() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-l-4 border-l-indigo-500 shadow-sm">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
+              <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
                   <CardTitle className="text-slate-800 flex items-center gap-2">
-                    <span className="text-indigo-600">📦</span>
+                    <span className="text-blue-600">📦</span>
                     Generated Test Results
                   </CardTitle>
                   <CardDescription className="text-slate-600">
@@ -566,22 +566,22 @@ export default function JiraTestGenerator() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                  <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div>
                       <h3 className="font-semibold text-slate-900">Test Suite Generated</h3>
                       <p className="text-sm text-slate-600">
                         {generatedTests.files.length} files created for {selectedTickets.length} ticket(s)
                       </p>
                     </div>
-                    <Button onClick={downloadTests} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <Button onClick={downloadTests} className="bg-blue-600 hover:bg-blue-700 text-white">
                       Download {aiConfig.downloadFormat === "single-file" ? "Text File" : "Spring Project"}
                     </Button>
                   </div>
 
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {generatedTests.files.slice(0, 3).map((file: any, index: number) => (
-                      <div key={index} className="border border-slate-200 rounded-lg shadow-sm">
-                        <div className="p-3 bg-slate-50 border-b border-slate-200">
+                      <div key={index} className="border border-blue-200 rounded-lg shadow-sm">
+                        <div className="p-3 bg-blue-50 border-b border-blue-200">
                           <h4 className="font-medium text-sm text-slate-800">{file.path}</h4>
                         </div>
                         <div className="p-3">
@@ -607,10 +607,10 @@ export default function JiraTestGenerator() {
       case "history":
         return (
           <div className="space-y-6">
-            <Card className="border-l-4 border-l-teal-500 shadow-sm">
-              <CardHeader className="bg-gradient-to-r from-teal-50 to-white">
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
                 <CardTitle className="text-slate-800 flex items-center gap-2">
-                  <span className="text-teal-600">📈</span>
+                  <span className="text-blue-600">📈</span>
                   Test Generation History
                 </CardTitle>
                 <CardDescription className="text-slate-600">
@@ -620,7 +620,7 @@ export default function JiraTestGenerator() {
               <CardContent className="pt-6">
                 {history.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="text-teal-600 text-4xl mb-4">📊</div>
+                    <div className="text-blue-600 text-4xl mb-4">📊</div>
                     <p className="text-slate-500">No test generation history available.</p>
                   </div>
                 ) : (
@@ -628,15 +628,13 @@ export default function JiraTestGenerator() {
                     {history.map((item) => (
                       <div
                         key={item.id}
-                        className="border border-slate-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                        className="border border-blue-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Badge
                               variant={item.status === "completed" ? "default" : "destructive"}
-                              className={
-                                item.status === "completed" ? "bg-green-100 text-green-800 border-green-200" : ""
-                              }
+                              className={item.status === "completed" ? "bg-blue-100 text-blue-800 border-blue-200" : ""}
                             >
                               {item.status}
                             </Badge>
@@ -644,7 +642,7 @@ export default function JiraTestGenerator() {
                               {new Date(item.date).toLocaleDateString()} at {new Date(item.date).toLocaleTimeString()}
                             </span>
                           </div>
-                          <Badge variant="outline" className="border-teal-200 text-teal-700 bg-teal-50">
+                          <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">
                             {item.testType}
                           </Badge>
                         </div>
@@ -761,9 +759,9 @@ export default function JiraTestGenerator() {
               <div>
                 <h2 className="text-xl font-semibold text-slate-800 capitalize flex items-center gap-2">
                   {activeTab === "configuration" && <span className="text-blue-600">⚙️</span>}
-                  {activeTab === "tickets" && <span className="text-green-600">🎫</span>}
-                  {activeTab === "results" && <span className="text-indigo-600">📦</span>}
-                  {activeTab === "history" && <span className="text-teal-600">📈</span>}
+                  {activeTab === "tickets" && <span className="text-blue-600">🎫</span>}
+                  {activeTab === "results" && <span className="text-blue-600">📦</span>}
+                  {activeTab === "history" && <span className="text-blue-600">📈</span>}
                   {activeTab}
                 </h2>
                 <p className="text-slate-600 text-sm mt-1">
