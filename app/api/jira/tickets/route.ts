@@ -21,64 +21,97 @@ export async function POST(request: NextRequest) {
   try {
     const jiraConfig: JiraConfig = await request.json()
 
-    const mockTickets: JiraTicket[] = [
+    const auth = Buffer.from(`${jiraConfig.email}:${jiraConfig.apiToken}`).toString("base64")
+
+    const jiraResponse = await fetch(
+      `${jiraConfig.url}/rest/api/3/search?jql=project=${jiraConfig.projectKey}&fields=id,key,summary,description,status,priority,customfield_*&maxResults=50`,
       {
-        id: "1",
-        key: `${jiraConfig.projectKey}-101`,
-        summary: "User Authentication API",
-        description: "Implement user login and registration endpoints",
-        status: "In Progress",
-        priority: "High",
-        acceptanceCriteria: [
-          "POST /api/auth/login should accept email and password",
-          "POST /api/auth/register should create new user account",
-          "API should return JWT token on successful authentication",
-          "Invalid credentials should return 401 status code",
-          'Sample payload: {"email": "user@example.com", "password": "password123"}',
-        ],
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
       },
-      {
-        id: "2",
-        key: `${jiraConfig.projectKey}-102`,
-        summary: "Product Catalog API",
-        description: "Create endpoints for product management",
-        status: "To Do",
-        priority: "Medium",
-        acceptanceCriteria: [
-          "GET /api/products should return list of all products",
-          "GET /api/products/{id} should return specific product details",
-          "POST /api/products should create new product (admin only)",
-          "PUT /api/products/{id} should update existing product",
-          'Sample response: {"id": 1, "name": "Product Name", "price": 99.99, "category": "electronics"}',
-        ],
-      },
-      {
-        id: "3",
-        key: `${jiraConfig.projectKey}-103`,
-        summary: "Order Processing System",
-        description: "Handle customer order creation and tracking",
-        status: "Done",
-        priority: "High",
-        acceptanceCriteria: [
-          "POST /api/orders should create new order with items",
-          "GET /api/orders/{id} should return order details and status",
-          "PUT /api/orders/{id}/status should update order status",
-          "API should validate inventory before order creation",
-          'Sample payload: {"customerId": 123, "items": [{"productId": 1, "quantity": 2}], "totalAmount": 199.98}',
-        ],
-      },
-    ]
+    )
+
+    if (!jiraResponse.ok) {
+      throw new Error(`JIRA API responded with status: ${jiraResponse.status}`)
+    }
+
+    const jiraData = await jiraResponse.json()
+
+    const tickets: JiraTicket[] = jiraData.issues.map((issue: any) => {
+      // Extract acceptance criteria from description or custom fields
+      let acceptanceCriteria: string[] = []
+
+      // Try to extract acceptance criteria from description
+      if (issue.fields.description?.content) {
+        const description = issue.fields.description.content
+          .map((block: any) => block.content?.map((item: any) => item.text).join(" ") || "")
+          .join("\n")
+
+        // Look for acceptance criteria patterns
+        const acMatch = description.match(/acceptance criteria:?\s*(.*?)(?:\n\n|\n[A-Z]|$)/is)
+        if (acMatch) {
+          acceptanceCriteria = acMatch[1]
+            .split(/\n|•|-|\*/)
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+        }
+      }
+
+      // If no AC found in description, try custom fields
+      if (acceptanceCriteria.length === 0) {
+        Object.keys(issue.fields).forEach((key) => {
+          if (key.startsWith("customfield_") && issue.fields[key]) {
+            const fieldValue =
+              typeof issue.fields[key] === "string" ? issue.fields[key] : JSON.stringify(issue.fields[key])
+
+            if (
+              fieldValue.toLowerCase().includes("acceptance") ||
+              fieldValue.toLowerCase().includes("criteria") ||
+              fieldValue.toLowerCase().includes("api") ||
+              fieldValue.toLowerCase().includes("endpoint")
+            ) {
+              acceptanceCriteria.push(fieldValue)
+            }
+          }
+        })
+      }
+
+      // Fallback: use description as acceptance criteria if nothing else found
+      if (acceptanceCriteria.length === 0 && issue.fields.description?.content) {
+        const description = issue.fields.description.content
+          .map((block: any) => block.content?.map((item: any) => item.text).join(" ") || "")
+          .join("\n")
+        acceptanceCriteria = [description]
+      }
+
+      return {
+        id: issue.id,
+        key: issue.key,
+        summary: issue.fields.summary,
+        description:
+          issue.fields.description?.content
+            ?.map((block: any) => block.content?.map((item: any) => item.text).join(" ") || "")
+            .join("\n") || "",
+        status: issue.fields.status.name,
+        priority: issue.fields.priority?.name || "Medium",
+        acceptanceCriteria: acceptanceCriteria,
+      }
+    })
 
     return NextResponse.json({
       success: true,
-      tickets: mockTickets,
+      tickets: tickets,
     })
   } catch (error) {
     console.error("JIRA API Error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch tickets from JIRA",
+        error: `Failed to fetch tickets from JIRA: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       { status: 500 },
     )
