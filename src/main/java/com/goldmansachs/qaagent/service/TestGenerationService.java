@@ -178,8 +178,7 @@ public class TestGenerationService {
         // Extract just the JSON part
         String jsonContent = response.substring(jsonStart, jsonEnd + 1);
         
-        // Remove any markdown code block markers that might be embedded
-        jsonContent = jsonContent.replaceAll("\`\`\`json", "").replaceAll("\`\`\`", "");
+        jsonContent = jsonContent.replace("\`\`\`json", "").replace("\`\`\`", "");
         
         return jsonContent.trim();
     }
