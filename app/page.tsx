@@ -224,12 +224,14 @@ export default function JiraTestGenerator() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      if (response.headers.get("content-type")?.includes("application/zip")) {
-        const blob = await response.blob()
+      if (aiConfig.downloadFormat === "single-file") {
+        // For single file, expect plain text content
+        const fileContent = await response.text()
+        const blob = new Blob([fileContent], { type: "text/plain" })
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
-        a.download = `spring-boot-tests-${Date.now()}.zip`
+        a.download = `ApiTest-${Date.now()}.java`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
@@ -238,30 +240,51 @@ export default function JiraTestGenerator() {
         setGeneratedTests({
           success: true,
           downloaded: true,
-          projectName: `spring-boot-tests-${Date.now()}`,
+          projectName: `ApiTest-${Date.now()}.java`,
+          downloadType: "single-file",
         })
-
-        // Update history
-        const historyItem: HistoryItem = {
-          id: Date.now().toString(),
-          date: new Date().toISOString(),
-          tickets: selectedTicketData.map((t) => t.key),
-          testType: aiConfig.testType,
-          coverage: aiConfig.coverage,
-          status: "completed",
-        }
-
-        const updatedHistory = [historyItem, ...history]
-        setHistory(updatedHistory)
-        localStorage.setItem("testHistory", JSON.stringify(updatedHistory))
-
-        setActiveTab("results")
       } else {
-        const data = await response.json()
-        if (!data.success) {
-          setError(data.error || "Failed to generate tests")
+        // For Spring Boot project, expect zip file
+        if (response.headers.get("content-type")?.includes("application/zip")) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `spring-boot-tests-${Date.now()}.zip`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+
+          setGeneratedTests({
+            success: true,
+            downloaded: true,
+            projectName: `spring-boot-tests-${Date.now()}`,
+            downloadType: "spring-project",
+          })
+        } else {
+          const data = await response.json()
+          if (!data.success) {
+            setError(data.error || "Failed to generate tests")
+          }
         }
       }
+
+      // Update history
+      const historyItem: HistoryItem = {
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        tickets: selectedTicketData.map((t) => t.key),
+        testType: aiConfig.testType,
+        coverage: aiConfig.coverage,
+        status: "completed",
+      }
+
+      const updatedHistory = [historyItem, ...history]
+      setHistory(updatedHistory)
+      localStorage.setItem("testHistory", JSON.stringify(updatedHistory))
+
+      setActiveTab("results")
     } catch (err) {
       console.error("Generate tests error:", err)
       setError("Test generation failed: " + (err as Error).message + ". Please check your configuration and try again.")
@@ -726,13 +749,25 @@ export default function JiraTestGenerator() {
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     <h4 className="font-medium text-slate-800 mb-2">Next Steps:</h4>
                     <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
-                      <li>Extract the downloaded ZIP file to your desired location</li>
-                      <li>Open the project in your IDE (IntelliJ IDEA, Eclipse, VS Code)</li>
-                      <li>Import as a Maven project if needed</li>
-                      <li>
-                        Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
-                      </li>
-                      <li>Review and customize the generated test cases as needed</li>
+                      {generatedTests.downloadType === "single-file" ? (
+                        <>
+                          <li>Save the downloaded Java file to your desired location</li>
+                          <li>Open your IDE (IntelliJ IDEA, Eclipse, VS Code)</li>
+                          <li>Add the Java file to your existing project</li>
+                          <li>Run your tests as per your project setup</li>
+                          <li>Review and customize the generated test cases as needed</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Extract the downloaded ZIP file to your desired location</li>
+                          <li>Open the project in your IDE (IntelliJ IDEA, Eclipse, VS Code)</li>
+                          <li>Import as a Maven project if needed</li>
+                          <li>
+                            Run <code className="bg-slate-100 px-1 rounded">mvn clean test</code> to execute tests
+                          </li>
+                          <li>Review and customize the generated test cases as needed</li>
+                        </>
+                      )}
                     </ol>
                   </div>
 
