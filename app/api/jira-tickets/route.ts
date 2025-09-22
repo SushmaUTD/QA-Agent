@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       assignee: issue.fields.assignee?.emailAddress || issue.fields.assignee?.displayName || "Unassigned",
       priority: issue.fields.priority?.name || "Medium",
       updated: issue.fields.updated.split("T")[0],
-      acceptanceCriteria: extractAcceptanceCriteria(issue.fields.description),
+      acceptanceCriteria: getRawDescription(issue.fields.description),
     }))
 
     return NextResponse.json({ success: true, tickets })
@@ -105,8 +105,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to extract acceptance criteria from description
-function extractAcceptanceCriteria(description: any): string[] {
+function getRawDescription(description: any): string[] {
   if (!description) return []
 
   let text = ""
@@ -117,51 +116,10 @@ function extractAcceptanceCriteria(description: any): string[] {
     text = extractTextFromADF(description)
   }
 
-  console.log("[v0] Raw description for AC extraction:", JSON.stringify(description, null, 2))
-  console.log("[v0] Extracted text for AC extraction:", text)
+  console.log("[v0] Raw description returned without filtering:", text)
 
-  const patterns = [
-    // Standard format: "Acceptance Criteria:" followed by content
-    /acceptance criteria:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
-    // Short format: "AC:" followed by content
-    /\bac:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
-    // Just "Criteria:" followed by content
-    /\bcriteria:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
-    // Acceptance criteria anywhere in text
-    /acceptance criteria:?\s*(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
-    // Look for bullet points after "Acceptance Criteria" even without colon
-    /acceptance criteria\s*(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      console.log("[v0] Found AC match with pattern:", pattern.source)
-      console.log("[v0] AC match content:", match[1])
-
-      const criteria = match[1]
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => {
-          // Remove bullet points and clean up
-          return line.replace(/^[-*•]\s*/, "").replace(/^\d+\.\s*/, "")
-        })
-        .filter((line) => line.length > 0)
-
-      console.log("[v0] Extracted criteria:", criteria)
-      return criteria
-    }
-  }
-
-  const simpleMatch = text.match(/acceptance criteria:?\s*(.*)/is)
-  if (simpleMatch && simpleMatch[1] && simpleMatch[1].trim()) {
-    console.log("[v0] Using simple AC extraction:", simpleMatch[1])
-    return [simpleMatch[1].trim()]
-  }
-
-  console.log("[v0] No acceptance criteria found in text")
-  return []
+  // Return the entire description as a single item without any pattern matching
+  return text.trim() ? [text.trim()] : []
 }
 
 // Helper function to extract text from Atlassian Document Format
