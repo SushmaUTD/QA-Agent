@@ -154,7 +154,7 @@ export default function JiraTestGenerator() {
     setError("")
 
     try {
-      const response = await fetch("/api/jira/tickets", {
+      const response = await fetch("http://localhost:8080/api/jira/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedJiraConfig),
