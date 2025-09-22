@@ -8,9 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -36,14 +38,16 @@ public class JiraService {
         String baseUrl = url.replaceAll("/$", "");
         String jiraApiUrl = baseUrl + "/rest/api/3/search";
         String jql = "project=" + projectKey + " ORDER BY updated DESC";
+        String encodedJql = URLEncoder.encode(jql, StandardCharsets.UTF_8);
         String auth = Base64.getEncoder().encodeToString((email + ":" + apiToken).getBytes());
         
         logger.info("Making JIRA API call to: {}", jiraApiUrl);
         logger.info("JQL Query: {}", jql);
+        logger.info("Encoded JQL Query: {}", encodedJql);
         logger.info("Authorization header: Basic [REDACTED]");
         
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(jiraApiUrl + "?jql=" + jql + "&fields=id,key,summary,description,status,priority,customfield_*&maxResults=50"))
+            .uri(URI.create(jiraApiUrl + "?jql=" + encodedJql + "&fields=id,key,summary,description,status,priority,customfield_*&maxResults=50"))
             .header("Authorization", "Basic " + auth)
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
