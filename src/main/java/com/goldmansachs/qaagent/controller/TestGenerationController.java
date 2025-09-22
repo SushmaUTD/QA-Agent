@@ -1,9 +1,10 @@
 package com.goldmansachs.qaagent.controller;
 
 import com.goldmansachs.qaagent.model.TestGenerationRequest;
-import com.goldmansachs.qaagent.model.TestGenerationResponse;
 import com.goldmansachs.qaagent.service.TestGenerationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
@@ -20,19 +21,29 @@ public class TestGenerationController {
     private TestGenerationService testGenerationService;
 
     @PostMapping("/generate-tests")
-    public ResponseEntity<TestGenerationResponse> generateTests(@RequestBody TestGenerationRequest request) {
+    public ResponseEntity<byte[]> generateTests(@RequestBody TestGenerationRequest request) {
         logger.info("Received test generation request");
         logger.info("Request body: {}", request);
         
         try {
-            TestGenerationResponse response = testGenerationService.generateTests(request);
-            logger.info("Test generation completed successfully");
-            return ResponseEntity.ok(response);
+            byte[] zipBytes = testGenerationService.generateTestsAsZip(request);
+            logger.info("Test generation completed successfully, zip size: {} bytes", zipBytes.length);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", "spring-boot-tests-" + System.currentTimeMillis() + ".zip");
+            headers.setContentLength(zipBytes.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(zipBytes);
+                    
         } catch (Exception e) {
             logger.error("Test generation failed: {}", e.getMessage(), e);
-            TestGenerationResponse errorResponse = new TestGenerationResponse();
-            errorResponse.setError("Failed to generate tests: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            String errorJson = "{\"success\":false,\"error\":\"Failed to generate tests: " + e.getMessage().replace("\"", "\\\"") + "\"}";
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(errorJson.getBytes());
         }
     }
 }
