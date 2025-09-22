@@ -117,25 +117,50 @@ function extractAcceptanceCriteria(description: any): string[] {
     text = extractTextFromADF(description)
   }
 
-  // Look for acceptance criteria patterns
+  console.log("[v0] Raw description for AC extraction:", JSON.stringify(description, null, 2))
+  console.log("[v0] Extracted text for AC extraction:", text)
+
   const patterns = [
-    /acceptance criteria:?\s*\n(.*?)(?:\n\n|\n[A-Z]|$)/is,
-    /ac:?\s*\n(.*?)(?:\n\n|\n[A-Z]|$)/is,
-    /criteria:?\s*\n(.*?)(?:\n\n|\n[A-Z]|$)/is,
+    // Standard format: "Acceptance Criteria:" followed by content
+    /acceptance criteria:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
+    // Short format: "AC:" followed by content
+    /\bac:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
+    // Just "Criteria:" followed by content
+    /\bcriteria:?\s*\n(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
+    // Acceptance criteria anywhere in text
+    /acceptance criteria:?\s*(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
+    // Look for bullet points after "Acceptance Criteria" even without colon
+    /acceptance criteria\s*(.*?)(?:\n\n|\n[A-Z][^:]*:|$)/is,
   ]
 
   for (const pattern of patterns) {
     const match = text.match(pattern)
-    if (match) {
-      return match[1]
+    if (match && match[1]) {
+      console.log("[v0] Found AC match with pattern:", pattern.source)
+      console.log("[v0] AC match content:", match[1])
+
+      const criteria = match[1]
         .split("\n")
         .map((line) => line.trim())
-        .filter((line) => line.length > 0 && (line.startsWith("-") || line.startsWith("*") || line.startsWith("•")))
-        .map((line) => line.replace(/^[-*•]\s*/, ""))
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          // Remove bullet points and clean up
+          return line.replace(/^[-*•]\s*/, "").replace(/^\d+\.\s*/, "")
+        })
+        .filter((line) => line.length > 0)
+
+      console.log("[v0] Extracted criteria:", criteria)
+      return criteria
     }
   }
 
-  // If no specific AC section found, return empty array
+  const simpleMatch = text.match(/acceptance criteria:?\s*(.*)/is)
+  if (simpleMatch && simpleMatch[1] && simpleMatch[1].trim()) {
+    console.log("[v0] Using simple AC extraction:", simpleMatch[1])
+    return [simpleMatch[1].trim()]
+  }
+
+  console.log("[v0] No acceptance criteria found in text")
   return []
 }
 
