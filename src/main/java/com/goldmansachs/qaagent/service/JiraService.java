@@ -72,28 +72,69 @@ public class JiraService {
         if (issues != null && issues.isArray()) {
             for (JsonNode issue : issues) {
                 JiraTicket ticket = new JiraTicket();
-                ticket.setId(issue.get("id").asText());
-                ticket.setKey(issue.get("key").asText());
-                ticket.setSummary(issue.get("fields").get("summary").asText());
                 
-                // Extract description
-                JsonNode descriptionNode = issue.get("fields").get("description");
-                String description = extractDescription(descriptionNode);
-                ticket.setDescription(description);
+                JsonNode idNode = issue.get("id");
+                ticket.setId(idNode != null ? idNode.asText() : "");
                 
-                List<String> acceptanceCriteria = new ArrayList<>();
-                acceptanceCriteria.add(description);
-                ticket.setAcceptanceCriteria(acceptanceCriteria);
+                JsonNode keyNode = issue.get("key");
+                ticket.setKey(keyNode != null ? keyNode.asText() : "");
                 
-                ticket.setStatus(issue.get("fields").get("status").get("name").asText());
-                
-                JsonNode priorityNode = issue.get("fields").get("priority");
-                ticket.setPriority(priorityNode != null ? priorityNode.get("name").asText() : "Medium");
-                
-                JsonNode assigneeNode = issue.get("fields").get("assignee");
-                ticket.setAssignee(assigneeNode != null ? 
-                    (assigneeNode.get("emailAddress") != null ? assigneeNode.get("emailAddress").asText() : 
-                     assigneeNode.get("displayName").asText()) : "Unassigned");
+                JsonNode fieldsNode = issue.get("fields");
+                if (fieldsNode != null) {
+                    JsonNode summaryNode = fieldsNode.get("summary");
+                    ticket.setSummary(summaryNode != null ? summaryNode.asText() : "No summary");
+                    
+                    // Extract description
+                    JsonNode descriptionNode = fieldsNode.get("description");
+                    String description = extractDescription(descriptionNode);
+                    ticket.setDescription(description);
+                    
+                    List<String> acceptanceCriteria = new ArrayList<>();
+                    acceptanceCriteria.add(description);
+                    ticket.setAcceptanceCriteria(acceptanceCriteria);
+                    
+                    // Status with null check
+                    JsonNode statusNode = fieldsNode.get("status");
+                    if (statusNode != null) {
+                        JsonNode statusNameNode = statusNode.get("name");
+                        ticket.setStatus(statusNameNode != null ? statusNameNode.asText() : "Unknown");
+                    } else {
+                        ticket.setStatus("Unknown");
+                    }
+                    
+                    // Priority with null check
+                    JsonNode priorityNode = fieldsNode.get("priority");
+                    if (priorityNode != null) {
+                        JsonNode priorityNameNode = priorityNode.get("name");
+                        ticket.setPriority(priorityNameNode != null ? priorityNameNode.asText() : "Medium");
+                    } else {
+                        ticket.setPriority("Medium");
+                    }
+                    
+                    // Assignee with null check
+                    JsonNode assigneeNode = fieldsNode.get("assignee");
+                    if (assigneeNode != null && !assigneeNode.isNull()) {
+                        JsonNode emailNode = assigneeNode.get("emailAddress");
+                        JsonNode displayNameNode = assigneeNode.get("displayName");
+                        if (emailNode != null) {
+                            ticket.setAssignee(emailNode.asText());
+                        } else if (displayNameNode != null) {
+                            ticket.setAssignee(displayNameNode.asText());
+                        } else {
+                            ticket.setAssignee("Unassigned");
+                        }
+                    } else {
+                        ticket.setAssignee("Unassigned");
+                    }
+                } else {
+                    // Handle case where fields node is null
+                    ticket.setSummary("No summary");
+                    ticket.setDescription("No description available");
+                    ticket.setAcceptanceCriteria(new ArrayList<>());
+                    ticket.setStatus("Unknown");
+                    ticket.setPriority("Medium");
+                    ticket.setAssignee("Unassigned");
+                }
                 
                 tickets.add(ticket);
             }
@@ -172,7 +213,8 @@ public class JiraService {
                 
                 // Check if the specified project exists
                 for (JsonNode project : projects) {
-                    if (projectKey.equals(project.get("key").asText())) {
+                    JsonNode projectKeyNode = project.get("key");
+                    if (projectKeyNode != null && projectKey.equals(projectKeyNode.asText())) {
                         logger.info("JIRA connection validated successfully for project: {}", projectKey);
                         return true;
                     }
