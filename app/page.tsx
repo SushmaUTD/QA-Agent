@@ -205,6 +205,33 @@ export default function JiraTestGenerator() {
     try {
       const selectedTicketData = tickets.filter((t) => selectedTickets.includes(t.id))
 
+      console.log(
+        "[v0] Test Generation Request Body:",
+        JSON.stringify(
+          {
+            tickets: selectedTicketData,
+            aiConfig,
+            language: "java",
+            jiraConfig: {
+              jiraUrl: selectedJiraConfig.url,
+              projectKey: selectedJiraConfig.projectKey,
+              environment: appConfig.environment,
+              baseApiUrl: appConfig.baseUrl,
+              authType: appConfig.authDetails ? "Bearer Token" : "Basic Auth",
+            },
+            appConfig: {
+              baseUrl: appConfig.baseUrl,
+              environment: appConfig.environment,
+              authDetails: appConfig.authDetails,
+            },
+          },
+          null,
+          2,
+        ),
+      )
+
+      console.log("[v0] Making request to: http://localhost:8080/api/generate-tests")
+
       const response = await fetch("http://localhost:8080/api/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -227,9 +254,8 @@ export default function JiraTestGenerator() {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+      console.log("[v0] Test Generation Response Status:", response.status)
+      console.log("[v0] Test Generation Response Headers:", Object.fromEntries(response.headers.entries()))
 
       if (aiConfig.downloadFormat === "single-file") {
         // For single file, expect plain text content
