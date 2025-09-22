@@ -77,6 +77,7 @@ export default function JiraTestGenerator() {
     environment: "dev",
     authDetails: "",
   })
+  const [appConfigs, setAppConfigs] = useState<AppConfig[]>([])
 
   // Load saved configurations on mount
   useEffect(() => {
@@ -93,6 +94,11 @@ export default function JiraTestGenerator() {
     const savedAppConfig = localStorage.getItem("appConfig")
     if (savedAppConfig) {
       setAppConfig(JSON.parse(savedAppConfig))
+    }
+
+    const savedAppConfigs = localStorage.getItem("appConfigs")
+    if (savedAppConfigs) {
+      setAppConfigs(JSON.parse(savedAppConfigs))
     }
   }, [])
 
@@ -121,7 +127,25 @@ export default function JiraTestGenerator() {
   }
 
   const saveAppConfig = () => {
-    localStorage.setItem("appConfig", JSON.stringify(appConfig))
+    const configName = `${appConfig.baseUrl} - ${appConfig.environment}`
+    const existingIndex = appConfigs.findIndex(
+      (c) => c.baseUrl === appConfig.baseUrl && c.environment === appConfig.environment,
+    )
+
+    let updatedConfigs
+    if (existingIndex >= 0) {
+      updatedConfigs = [...appConfigs]
+      updatedConfigs[existingIndex] = appConfig
+    } else {
+      updatedConfigs = [...appConfigs, appConfig]
+    }
+
+    setAppConfigs(updatedConfigs)
+    localStorage.setItem("appConfigs", JSON.stringify(updatedConfigs))
+  }
+
+  const loadAppConfig = (config: AppConfig) => {
+    setAppConfig(config)
   }
 
   // Fetch JIRA tickets
@@ -467,6 +491,25 @@ export default function JiraTestGenerator() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6 pt-8">
+                {appConfigs.length > 0 && (
+                  <div>
+                    <Label className="text-slate-700 font-medium">Saved Configurations</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {appConfigs.map((config, index) => (
+                        <Button
+                          key={index}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadAppConfig(config)}
+                          className="border-blue-200 hover:border-blue-400 hover:bg-blue-50"
+                        >
+                          {config.baseUrl} - {config.environment}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-start">
                   <Button
                     variant="outline"

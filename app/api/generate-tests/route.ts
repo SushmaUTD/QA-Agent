@@ -6,7 +6,8 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json()
     const { tickets, aiConfig, language, jiraConfig, appConfig } = requestBody
 
-    console.log("[v0] Generating complete Spring Boot project for tickets:", tickets?.length || 0)
+    console.log("[v0] Generating tests for tickets:", tickets?.length || 0)
+    console.log("[v0] Download format:", aiConfig?.downloadFormat || "spring-project")
 
     const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== ""
 
@@ -33,7 +34,41 @@ ${ticket.acceptanceCriteria.map((ac: string) => `- ${ac}`).join("\n")}
       )
       .join("\n\n---\n\n")
 
-    const prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets.
+    let prompt: string
+    let filename: string
+
+    if (aiConfig?.downloadFormat === "single-file") {
+      prompt = `Generate a single comprehensive Java test class file for API testing based on these JIRA tickets.
+
+**APPLICATION CONTEXT:**
+- Base URL: ${appConfig?.baseUrl || "http://localhost:8080"}
+- Environment: ${appConfig?.environment || "dev"}
+- Auth Details: ${appConfig?.authDetails || "Basic Auth"}
+
+**JIRA TICKETS:**
+${ticketDetails}
+
+**REQUIREMENTS:**
+1. **Single Java Test Class** - Complete test class with all necessary imports
+2. **RestAssured Framework** - Use RestAssured for API testing
+3. **TestNG Annotations** - Use @Test, @BeforeClass, @DataProvider as needed
+4. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria
+5. **Ready to Use** - Can be added directly to an existing Spring Boot project
+
+**IMPORTANT: Respond with ONLY a JSON object in this exact format:**
+{
+  "files": [
+    {
+      "path": "ApiTest.java",
+      "content": "package com.example;\\n\\nimport io.restassured.RestAssured;\\nimport io.restassured.http.ContentType;\\nimport org.testng.annotations.*;\\nimport static io.restassured.RestAssured.*;\\nimport static org.hamcrest.Matchers.*;\\n\\npublic class ApiTest {\\n\\n    @BeforeClass\\n    public void setup() {\\n        RestAssured.baseURI = \\"${appConfig?.baseUrl || "http://localhost:8080"}\\";\\n    }\\n\\n    // FULL TEST METHODS HERE...\\n}"
+    }
+  ]
+}
+
+Generate a complete, production-ready test class. Do NOT include any markdown formatting, explanations, or text outside the JSON object.`
+      filename = `api-tests-${Date.now()}.java`
+    } else {
+      prompt = `Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets.
 
 **APPLICATION CONTEXT:**
 - Base URL: ${appConfig?.baseUrl || "http://localhost:8080"}
@@ -72,6 +107,8 @@ ${ticketDetails}
 }
 
 Generate ALL necessary files. Do NOT include any markdown formatting, explanations, or text outside the JSON object.`
+      filename = `spring-boot-tests-${Date.now()}.zip`
+    }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -107,8 +144,6 @@ Generate ALL necessary files. Do NOT include any markdown formatting, explanatio
     console.log("[v0] OpenAI response length:", generatedContent.length)
     console.log("[v0] OpenAI response preview:", generatedContent.substring(0, 500))
 
-    const zip = new JSZip()
-
     let parsedResponse
     try {
       const jsonStart = generatedContent.indexOf("{")
@@ -133,6 +168,27 @@ Generate ALL necessary files. Do NOT include any markdown formatting, explanatio
       })
     }
 
+    if (aiConfig?.downloadFormat === "single-file") {
+      const file = parsedResponse.files[0]
+      if (!file || !file.content) {
+        return NextResponse.json({
+          success: false,
+          error: "No test file generated",
+        })
+      }
+
+      console.log("[v0] Returning single file:", file.path, "Content length:", file.content.length)
+
+      return new NextResponse(file.content, {
+        headers: {
+          "Content-Type": "text/plain",
+          "Content-Disposition": `attachment; filename="${file.path}"`,
+          "Content-Length": file.content.length.toString(),
+        },
+      })
+    }
+
+    const zip = new JSZip()
     let filesFound = 0
     for (const file of parsedResponse.files) {
       if (!file.path || !file.content) {
@@ -170,7 +226,7 @@ Generate ALL necessary files. Do NOT include any markdown formatting, explanatio
     return new NextResponse(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="spring-boot-tests-${Date.now()}.zip"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Length": zipBuffer.length.toString(),
       },
     })
