@@ -4,8 +4,14 @@ import com.goldmansachs.qaagent.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class TestGenerationService {
@@ -114,6 +120,44 @@ public class TestGenerationService {
         prompt.append("IMPORTANT: Generate REAL, EXECUTABLE code based on the JIRA ticket requirements. Do not use placeholders or TODO comments.\n");
         
         return prompt.toString();
+    }
+
+    public byte[] generateTestsAsZip(TestGenerationRequest request) throws IOException {
+        try {
+            // Build enhanced prompt with application configuration context
+            String prompt = buildEnhancedPrompt(request);
+            
+            // Generate tests using OpenAI - this returns the complete project structure
+            String generatedContent = openAIService.generateTests(prompt);
+            
+            // Parse the JSON response from OpenAI
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(generatedContent);
+            JsonNode filesNode = rootNode.get("files");
+            
+            // Create zip file in memory
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ZipOutputStream zos = new ZipOutputStream(baos);
+            
+            // Add each file to the zip
+            if (filesNode != null && filesNode.isArray()) {
+                for (JsonNode fileNode : filesNode) {
+                    String path = fileNode.get("path").asText();
+                    String content = fileNode.get("content").asText();
+                    
+                    ZipEntry entry = new ZipEntry(path);
+                    zos.putNextEntry(entry);
+                    zos.write(content.getBytes());
+                    zos.closeEntry();
+                }
+            }
+            
+            zos.close();
+            return baos.toByteArray();
+            
+        } catch (Exception e) {
+            throw new IOException("Test generation failed: " + e.getMessage(), e);
+        }
     }
 
     // - parseGeneratedContent() 
