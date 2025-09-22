@@ -157,7 +157,7 @@ export default function JiraTestGenerator() {
       console.log("[v0] JIRA Request Body:", JSON.stringify(selectedJiraConfig, null, 2))
       console.log("[v0] JIRA Request Headers:", { "Content-Type": "application/json" })
 
-      const response = await fetch("/api/jira-tickets", {
+      const response = await fetch("http://localhost:8080/api/jira/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedJiraConfig),
@@ -205,7 +205,7 @@ export default function JiraTestGenerator() {
     try {
       const selectedTicketData = tickets.filter((t) => selectedTickets.includes(t.id))
 
-      const response = await fetch("/api/generate-tests", {
+      const response = await fetch("http://localhost:8080/api/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
