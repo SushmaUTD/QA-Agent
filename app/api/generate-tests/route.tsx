@@ -79,34 +79,53 @@ Generate a complete, production-ready test class. Do NOT include any markdown fo
 ${ticketDetails}
 
 **REQUIREMENTS:**
-1. **Valid POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0, JUnit 5.10.0
-2. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria
-3. **Complete Project Structure** - Ready to execute with "mvn test"
-4. **Proper Maven Directory Structure** - src/main/java, src/test/java, src/main/resources
+1. **Complete POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0, JUnit 5.10.0, Maven Surefire Plugin
+2. **Comprehensive Test Classes** - Separate test classes for each major functionality
+3. **Test Configuration** - application.properties for test environment
+4. **Base Test Class** - Common setup and utilities
+5. **Data Providers** - Test data management
+6. **Complete Project Structure** - Ready to execute with "mvn test"
+7. **Detailed README** - Setup and execution instructions
 
 **IMPORTANT: Respond with ONLY a JSON object in this exact format:**
 {
   "files": [
     {
       "path": "pom.xml",
-      "content": "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<project xmlns=\\"http://maven.apache.org/POM/4.0.0\\"...FULL CONTENT HERE..."
+      "content": "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<project xmlns=\\"http://maven.apache.org/POM/4.0.0\\" xmlns:xsi=\\"http://www.w3.org/2001/XMLSchema-instance\\"\\n         xsi:schemaLocation=\\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\\">\\n    <modelVersion>4.0.0</modelVersion>\\n    <groupId>com.example</groupId>\\n    <artifactId>api-testing</artifactId>\\n    <version>1.0-SNAPSHOT</version>\\n    <properties>\\n        <maven.compiler.source>17</maven.compiler.source>\\n        <maven.compiler.target>17</maven.compiler.target>\\n        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\\n        <spring.boot.version>3.2.0</spring.boot.version>\\n        <rest.assured.version>5.3.2</rest.assured.version>\\n        <testng.version>7.8.0</testng.version>\\n    </properties>\\n    <dependencies>\\n        <dependency>\\n            <groupId>org.springframework.boot</groupId>\\n            <artifactId>spring-boot-starter-test</artifactId>\\n            <version>\${spring.boot.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>io.rest-assured</groupId>\\n            <artifactId>rest-assured</artifactId>\\n            <version>\${rest.assured.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>org.testng</groupId>\\n            <artifactId>testng</artifactId>\\n            <version>\${testng.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>com.fasterxml.jackson.core</groupId>\\n            <artifactId>jackson-databind</artifactId>\\n            <version>2.15.2</version>\\n            <scope>test</scope>\\n        </dependency>\\n    </dependencies>\\n    <build>\\n        <plugins>\\n            <plugin>\\n                <groupId>org.apache.maven.plugins</groupId>\\n                <artifactId>maven-surefire-plugin</artifactId>\\n                <version>3.0.0</version>\\n                <configuration>\\n                    <suiteXmlFiles>\\n                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>\\n                    </suiteXmlFiles>\\n                </configuration>\\n            </plugin>\\n        </plugins>\\n    </build>\\n</project>"
     },
     {
       "path": "src/main/java/com/example/Application.java",
-      "content": "package com.example;\\n\\nimport org.springframework.boot.SpringApplication;...FULL CONTENT HERE..."
+      "content": "package com.example;\\n\\nimport org.springframework.boot.SpringApplication;\\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\\n\\n@SpringBootApplication\\npublic class Application {\\n    public static void main(String[] args) {\\n        SpringApplication.run(Application.class, args);\\n    }\\n}"
+    },
+    {
+      "path": "src/test/java/com/example/BaseTest.java",
+      "content": "GENERATE COMPREHENSIVE BASE TEST CLASS WITH SETUP AND UTILITIES"
     },
     {
       "path": "src/test/java/com/example/ApiTest.java", 
-      "content": "package com.example;\\n\\nimport org.testng.annotations.Test;...FULL CONTENT HERE..."
+      "content": "GENERATE COMPREHENSIVE API TEST CLASS WITH ALL ACCEPTANCE CRITERIA COVERED"
+    },
+    {
+      "path": "src/test/java/com/example/DataProviders.java",
+      "content": "GENERATE TEST DATA PROVIDERS CLASS"
+    },
+    {
+      "path": "src/test/resources/application-test.properties",
+      "content": "GENERATE TEST CONFIGURATION PROPERTIES"
+    },
+    {
+      "path": "src/test/resources/testng.xml",
+      "content": "GENERATE TESTNG SUITE CONFIGURATION"
     },
     {
       "path": "README.md",
-      "content": "# Spring Boot API Test Project\\n\\nThis project contains...FULL CONTENT HERE..."
+      "content": "GENERATE COMPREHENSIVE README WITH SETUP AND EXECUTION INSTRUCTIONS"
     }
   ]
 }
 
-Generate ALL necessary files. Do NOT include any markdown formatting, explanations, or text outside the JSON object.`
+Generate ALL files with complete, production-ready content. Each file should be substantial and fully functional. Do NOT include any markdown formatting, explanations, or text outside the JSON object.`
       filename = `spring-boot-tests-${Date.now()}.zip`
     }
 
