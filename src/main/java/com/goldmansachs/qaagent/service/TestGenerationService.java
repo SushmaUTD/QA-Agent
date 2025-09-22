@@ -130,9 +130,11 @@ public class TestGenerationService {
             // Generate tests using OpenAI - this returns the complete project structure
             String generatedContent = openAIService.generateTests(prompt);
             
+            String jsonContent = extractJsonFromResponse(generatedContent);
+            
             // Parse the JSON response from OpenAI
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(generatedContent);
+            JsonNode rootNode = mapper.readTree(jsonContent);
             JsonNode filesNode = rootNode.get("files");
             
             // Create zip file in memory
@@ -158,6 +160,28 @@ public class TestGenerationService {
         } catch (Exception e) {
             throw new IOException("Test generation failed: " + e.getMessage(), e);
         }
+    }
+
+    private String extractJsonFromResponse(String response) {
+        // Remove any leading text before the JSON
+        int jsonStart = response.indexOf("{");
+        if (jsonStart == -1) {
+            throw new RuntimeException("No JSON found in OpenAI response");
+        }
+        
+        // Find the last closing brace to get complete JSON
+        int jsonEnd = response.lastIndexOf("}");
+        if (jsonEnd == -1 || jsonEnd <= jsonStart) {
+            throw new RuntimeException("Invalid JSON structure in OpenAI response");
+        }
+        
+        // Extract just the JSON part
+        String jsonContent = response.substring(jsonStart, jsonEnd + 1);
+        
+        // Remove any markdown code block markers that might be embedded
+        jsonContent = jsonContent.replaceAll("\`\`\`json", "").replaceAll("\`\`\`", "");
+        
+        return jsonContent.trim();
     }
 
     // - parseGeneratedContent() 
