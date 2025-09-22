@@ -154,17 +154,24 @@ export default function JiraTestGenerator() {
     setError("")
 
     try {
-      const response = await fetch("http://localhost:8080/api/jira/tickets", {
+      console.log("[v0] JIRA Request Body:", JSON.stringify(selectedJiraConfig, null, 2))
+      console.log("[v0] JIRA Request Headers:", { "Content-Type": "application/json" })
+
+      const response = await fetch("/api/jira-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedJiraConfig),
       })
+
+      console.log("[v0] JIRA Response Status:", response.status)
+      console.log("[v0] JIRA Response Headers:", Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
+      console.log("[v0] JIRA Response Data:", data)
 
       if (data.success) {
         setTickets(data.tickets)

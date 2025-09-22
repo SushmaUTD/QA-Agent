@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, email, apiToken, projectKey } = await request.json()
+    const requestBody = await request.json()
+    const { url, email, apiToken, projectKey } = requestBody
+
+    console.log("[v0] JIRA API Request Body:", JSON.stringify(requestBody, null, 2))
+    console.log("[v0] JIRA API Request Headers:", Object.fromEntries(request.headers.entries()))
 
     if (!url || !email || !apiToken || !projectKey) {
       return NextResponse.json({ error: "Missing required JIRA configuration" }, { status: 400 })
@@ -10,6 +14,9 @@ export async function POST(request: NextRequest) {
 
     const projectsUrl = `${url}/rest/api/3/project`
     const auth = Buffer.from(`${email}:${apiToken}`).toString("base64")
+
+    console.log("[v0] Calling JIRA Projects API:", projectsUrl)
+    console.log("[v0] JIRA Auth Header:", `Basic ${auth.substring(0, 10)}...`)
 
     const projectsResponse = await fetch(projectsUrl, {
       method: "GET",
