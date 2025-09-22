@@ -94,9 +94,10 @@ public class TestGenerationService {
             prompt.append("\n");
         }
         
-        prompt.append("=== GENERATION INSTRUCTIONS ===\n");
-        prompt.append("Generate a complete Spring Boot test project with ALL necessary files.\n");
-        prompt.append("Return ONLY a JSON response with this exact structure:\n");
+        prompt.append("=== CRITICAL: JSON OUTPUT REQUIREMENT ===\n");
+        prompt.append("YOU MUST RESPOND WITH VALID JSON ONLY. NO EXPLANATORY TEXT. NO MARKDOWN. NO CODE BLOCKS.\n");
+        prompt.append("START YOUR RESPONSE IMMEDIATELY WITH { AND END WITH }\n\n");
+        prompt.append("Required JSON structure:\n");
         prompt.append("{\n");
         prompt.append("  \"files\": [\n");
         prompt.append("    {\n");
@@ -118,6 +119,7 @@ public class TestGenerationService {
         prompt.append("  ]\n");
         prompt.append("}\n\n");
         prompt.append("IMPORTANT: Generate REAL, EXECUTABLE code based on the JIRA ticket requirements. Do not use placeholders or TODO comments.\n");
+        prompt.append("REMEMBER: RESPOND WITH VALID JSON ONLY. NO OTHER TEXT.\n");
         
         return prompt.toString();
     }
