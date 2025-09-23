@@ -278,7 +278,10 @@ export default function JiraTestGenerator() {
         })
       } else {
         // For Spring Boot project, expect zip file
-        if (response.headers.get("content-type")?.includes("application/zip")) {
+        const contentType = response.headers.get("content-type")
+        console.log("[v0] Response content-type:", contentType)
+
+        if (contentType?.includes("application/zip") || contentType?.includes("application/octet-stream")) {
           const blob = await response.blob()
           const url = window.URL.createObjectURL(blob)
           const a = document.createElement("a")
@@ -296,9 +299,17 @@ export default function JiraTestGenerator() {
             downloadType: "spring-project",
           })
         } else {
-          const data = await response.json()
-          if (!data.success) {
-            setError(data.error || "Failed to generate tests")
+          const responseText = await response.text()
+          console.log("[v0] Response text preview:", responseText.substring(0, 200))
+
+          try {
+            const data = JSON.parse(responseText)
+            if (!data.success) {
+              setError(data.error || "Failed to generate tests")
+            }
+          } catch (parseError) {
+            console.error("[v0] Failed to parse response as JSON:", parseError)
+            setError("Received unexpected response format from server")
           }
         }
       }
