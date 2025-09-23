@@ -161,88 +161,10 @@ public class TestGenerationService {
         }
     }
     
-    private List<ProjectFile> extractFilesDirectly(String response) {
-        List<ProjectFile> files = new ArrayList<>();
-        
-        // Find all file entries using simple string patterns
-        String[] lines = response.split("\n");
-        String currentPath = null;
-        StringBuilder currentContent = new StringBuilder();
-        boolean inContent = false;
-        
-        for (String line : lines) {
-            // Look for path pattern: "path": "some/path"
-            if (line.contains("\"path\":")) {
-                // Save previous file if exists
-                if (currentPath != null && currentContent.length() > 0) {
-                    String content = currentContent.toString().trim();
-                    // Clean up the content by removing quotes and unescaping
-                    if (content.startsWith("\"") && content.endsWith("\"")) {
-                        content = content.substring(1, content.length() - 1);
-                    }
-                    content = content.replace("\\\\n", "\n")
-                                   .replace("\\\\t", "\t")
-                                   .replace("\\\\\"", "\"")
-                                   .replace("\\\\\\\\", "\\");
-                    
-                    files.add(new ProjectFile(currentPath, content));
-                    System.out.println("[v0] Extracted file: " + currentPath + " (length: " + content.length() + ")");
-                }
-                
-                // Extract new path
-                int pathStart = line.indexOf("\"path\":") + 7;
-                int firstQuote = line.indexOf("\"", pathStart);
-                int lastQuote = line.indexOf("\"", firstQuote + 1);
-                if (firstQuote != -1 && lastQuote != -1) {
-                    currentPath = line.substring(firstQuote + 1, lastQuote);
-                    currentContent = new StringBuilder();
-                    inContent = false;
-                }
-            }
-            // Look for content pattern: "content": "..."
-            else if (line.contains("\"content\":") && currentPath != null) {
-                inContent = true;
-                int contentStart = line.indexOf("\"content\":") + 10;
-                String contentPart = line.substring(contentStart).trim();
-                if (contentPart.startsWith("\"")) {
-                    contentPart = contentPart.substring(1);
-                }
-                currentContent.append(contentPart);
-            }
-            // Continue collecting content lines
-            else if (inContent && currentPath != null) {
-                // Stop if we hit the end of this file entry
-                if (line.trim().equals("}") || line.trim().equals("},")) {
-                    inContent = false;
-                } else {
-                    currentContent.append("\n").append(line);
-                }
-            }
-        }
-        
-        // Don't forget the last file
-        if (currentPath != null && currentContent.length() > 0) {
-            String content = currentContent.toString().trim();
-            if (content.startsWith("\"") && content.endsWith("\"")) {
-                content = content.substring(1, content.length() - 1);
-            }
-            content = content.replace("\\\\n", "\n")
-                           .replace("\\\\t", "\t")
-                           .replace("\\\\\"", "\"")
-                           .replace("\\\\\\\\", "\\");
-            
-            files.add(new ProjectFile(currentPath, content));
-            System.out.println("[v0] Extracted final file: " + currentPath + " (length: " + content.length() + ")");
-        }
-        
-        return files;
-    }
-    
     private List<ProjectFile> extractFilesWithJsonParsing(String response) {
         List<ProjectFile> files = new ArrayList<>();
         
         try {
-            // Extract JSON from response using the same approach as Next.js
             int jsonStart = response.indexOf("{");
             int jsonEnd = response.lastIndexOf("}") + 1;
             
@@ -252,9 +174,8 @@ public class TestGenerationService {
             }
             
             String jsonContent = response.substring(jsonStart, jsonEnd);
-            System.out.println("[v0] Extracted JSON length: " + jsonContent.length());
+            System.out.println("[v0] Extracted JSON: " + jsonContent.substring(0, Math.min(200, jsonContent.length())));
             
-            // Parse JSON using ObjectMapper
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(jsonContent);
             JsonNode filesArray = rootNode.get("files");
@@ -264,24 +185,22 @@ public class TestGenerationService {
                     String path = fileNode.get("path").asText();
                     String content = fileNode.get("content").asText();
                     
-                    // The content is already properly unescaped by Jackson
                     files.add(new ProjectFile(path, content));
-                    System.out.println("[v0] Parsed file: " + path + " (length: " + content.length() + ")");
+                    System.out.println("[v0] Added file: " + path + " (length: " + content.length() + ")");
                 }
             }
             
         } catch (Exception e) {
             System.out.println("[v0] JSON parsing failed: " + e.getMessage());
             e.printStackTrace();
-            // Fallback to direct extraction if JSON parsing fails
-            return extractFilesDirectly(response);
+            throw new RuntimeException("Failed to parse OpenAI response", e);
         }
         
         return files;
     }
 
     public void testParsingWithActualResponse() {
-        String actualResponse = "{\n\"files\": [\n{\n\"path\": \"src/main/java/com/example/Application.java\",\n\"content\": \"package com.example;\\n\\nimport org.springframework.boot.SpringApplication;\\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\\n\\n@SpringBootApplication\\npublic class Application {\\n    public static void main(String[] args) {\\n        SpringApplication.run(Application.class, args);\\n    }\\n}\"\n},\n{\n\"path\": \"src/test/java/com/example/BaseTest.java\",\n\"content\": \"package com.example;\\n\\nimport io.restassured.RestAssured;\\nimport io.restassured.builder.RequestSpecBuilder;\\nimport io.restassured.config.HttpClientConfig;\\nimport io.restassured.config.RestAssuredConfig;\\nimport io.restassured.filter.log.LogDetail;\\nimport io.restassured.filter.log.RequestLoggingFilter;\\nimport io.restassured.filter.log.ResponseLoggingFilter;\\nimport io.restassured.http.ContentType;\\nimport io.restassured.response.Response;\\nimport io.restassured.specification.RequestSpecification;\\nimport org.testng.annotations.AfterClass;\\nimport org.testng.annotations.BeforeClass;\\nimport org.testng.asserts.SoftAssert;\\n\\nimport java.io.IOException;\\nimport java.io.InputStream;\\nimport java.time.Duration;\\nimport java.util.List;\\nimport java.util.Map;\\nimport java.util.Objects;\\nimport java.util.Optional;\\nimport java.util.Properties;\\n\\nimport static io.restassured.RestAssured.given;\\n\\n/**\\n * Base test providing:\\n *  - Property loading from application-test.properties\\n *  - RestAssured global configuration & request specification\\n *  - Common API helpers and soft assertions\\n */\\npublic abstract class BaseTest {\\n\\n    protected Properties properties;\\n    protected RequestSpecification req;\\n    protected SoftAssert softly;\\n\\n    @BeforeClass\\n    public void globalSetUp() {\\n        properties = loadProps();\\n\\n        final String baseUrl = Objects.requireNonNull(properties.getProperty(\\\"base.url\\\"), \\\"base.url property is required\\\");\\n        final int connectTimeoutMs = Integer.parseInt(properties.getProperty(\\\"http.connectTimeoutMs\\\", \\\"10000\\\"));\\n        final int socketTimeoutMs = Integer.parseInt(properties.getProperty(\\\"http.socketTimeoutMs\\\", \\\"20000\\\"));\\n        final boolean enableHttpLogging = Boolean.parseBoolean(properties.getProperty(\\\"http.logging\\\", \\\"true\\\"));\\n\\n        RestAssured.baseURI = baseUrl;\\n        RestAssured.useRelaxedHTTPSValidation();\\n        RestAssured.config = RestAssuredConfig.config().httpClient(HttpClientConfig.httpClientConfig().setParam(\\\"http.connection.timeout\\\", connectTimeoutMs).setParam(\\\"http.socket.timeout\\\", socketTimeoutMs));\\n\\n        req = new RequestSpecBuilder()\\n                .setContentType(ContentType.JSON)\\n                .setAccept(ContentType.JSON)\\n                .build();\\n\\n        if (enableHttpLogging) {\\n            req = req.filter(new RequestLoggingFilter(LogDetail.ALL))\\n                     .filter(new ResponseLoggingFilter(LogDetail.ALL));\\n        }\\n\\n        softly = new SoftAssert();\\n    }\\n\\n    @AfterClass\\n    public void globalTearDown() {\\n        softly.assertAll();\\n    }\\n\\n    private Properties loadProps() {\\n        Properties props = new Properties();\\n        try (InputStream is = getClass().getClassLoader().getResourceAsStream(\\\"application-test.properties\\\")) {\\n            if (is != null) {\\n                props.load(is);\\n            }\\n        } catch (IOException e) {\\n            throw new RuntimeException(\\\"Failed to load test properties\\\", e);\\n        }\\n        return props;\\n    }\\n\\n    protected Response makeRequest(String method, String endpoint, Object body) {\\n        switch (method.toUpperCase()) {\\n            case \\\"GET\\\":\\n                return given(req).when().get(endpoint);\\n            case \\\"POST\\\":\\n                return given(req).body(body).when().post(endpoint);\\n            case \\\"PUT\\\":\\n                return given(req).body(body).when().put(endpoint);\\n            case \\\"DELETE\\\":\\n                return given(req).when().delete(endpoint);\\n            default:\\n                throw new IllegalArgumentException(\\\"Unsupported HTTP method: \\\" + method);\\n        }\\n    }\\n\\n    protected void waitForCondition(java.util.function.Supplier<Boolean> condition, Duration timeout, String description) {\\n        long start = System.currentTimeMillis();\\n        while (!condition.get() && (System.currentTimeMillis() - start) < timeout.toMillis()) {\\n            try {\\n                Thread.sleep(100);\\n            } catch (InterruptedException e) {\\n                Thread.currentThread().interrupt();\\n                throw new RuntimeException(\\\"Interrupted while waiting for: \\\" + description, e);\\n            }\\n        }\\n        if (!condition.get()) {\\n            throw new RuntimeException(\\\"Timeout waiting for: \\\" + description);\\n        }\\n    }\\n}\"\n}]\n}";
+        String actualResponse = "{\n\"files\": [\n{\n\"path\": \"src/main/java/com/example/Application.java\",\n\"content\": \"package com.example;\\n\\nimport org.springframework.boot.SpringApplication;\\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\\n\\n@SpringBootApplication\\npublic class Application {\\n    public static void main(String[] args) {\\n        SpringApplication.run(Application.class, args);\\n    }\\n}\"\n},\n{\n\"path\": \"src/test/java/com/example/BaseTest.java\",\n\"content\": \"package com.example;\\n\\nimport io.restassured.RestAssured;\\nimport io.restassured.builder.RequestSpecBuilder;\\nimport io.restassured.config.HttpClientConfig;\\nimport io.restassured.config.RestAssuredConfig;\\nimport io.restassured.filter.log.LogDetail;\\nimport io.restassured.filter.log.RequestLoggingFilter;\\nimport io.restassured.filter.log.ResponseLoggingFilter;\\nimport io.restassured.http.ContentType;\\nimport io.restassured.response.Response;\\nimport io.restassured.specification.RequestSpecification;\\nimport org.testng.annotations.AfterClass;\\nimport org.testng.annotations.BeforeClass;\\nimport org.testng.asserts.SoftAssert;\\n\\nimport java.io.IOException;\\nimport java.io.InputStream;\\nimport java.time.Duration;\\nimport java.util.List;\\nimport java.util.Map;\\nimport java.util.Objects;\\nimport java.util.Optional;\\nimport java.util.Properties;\\n\\nimport static io.restassured.RestAssured.given;\\n\\n/**\\n * Base test providing:\\n *  - Property loading from application-test.properties\\n *  - RestAssured global configuration & request specification\\n *  - Common API helpers and soft assertions\\n */\\npublic abstract class BaseTest {\\n\\n    protected Properties properties;\\n    protected RequestSpecification req;\\n    protected SoftAssert softly;\\n\\n    @BeforeClass\\n    public void globalSetUp() {\\n        properties = loadProps();\\n\\n        final String baseUrl = Objects.requireNonNull(properties.getProperty(\\\"base.url\\\"));\\n        final int timeout = Integer.parseInt(properties.getProperty(\\\"request.timeout\\\", \\\"30000\\\"));\\n\\n        RestAssured.config = RestAssuredConfig.config()\\n                .httpClient(HttpClientConfig.httpClientConfig()\\n                        .setParam(\\\"http.connection.timeout\\\", timeout)\\n                        .setParam(\\\"http.socket.timeout\\\", timeout));\\n\\n        req = new RequestSpecBuilder()\\n                .setBaseUri(baseUrl)\\n                .setContentType(ContentType.JSON)\\n                .addFilter(new RequestLoggingFilter(LogDetail.ALL))\\n                .addFilter(new ResponseLoggingFilter(LogDetail.ALL))\\n                .build();\\n\\n        softly = new SoftAssert();\\n    }\\n\\n    @AfterClass\\n    public void globalTearDown() {\\n        softly.assertAll();\\n    }\\n\\n    private Properties loadProps() {\\n        Properties props = new Properties();\\n        try (InputStream input = getClass().getClassLoader().getResourceAsStream(\\\"application-test.properties\\\")) {\\n            if (input == null) {\\n                throw new RuntimeException(\\\"Unable to find application-test.properties\\\");\\n            }\\n            props.load(input);\\n        } catch (IOException ex) {\\n            throw new RuntimeException(\\\"Failed to load test properties\\\", ex);\\n        }\\n        return props;\\n    }\\n\\n    protected Response makeGetRequest(String endpoint) {\\n        return given(req).when().get(endpoint);\\n    }\\n\\n    protected Response makePostRequest(String endpoint, Object body) {\\n        return given(req).body(body).when().post(endpoint);\\n    }\\n\\n    protected Response makePutRequest(String endpoint, Object body) {\\n        return given(req).body(body).when().put(endpoint);\\n    }\\n\\n    protected Response makeDeleteRequest(String endpoint) {\\n        return given(req).when().delete(endpoint);\\n    }\\n\\n    protected void validateStatusCode(Response response, int expectedStatusCode) {\\n        softly.assertEquals(response.getStatusCode(), expectedStatusCode,\\n                \\\"Status code mismatch\\\");\\n    }\\n\\n    protected void validateResponseTime(Response response, long maxResponseTime) {\\n        softly.assertTrue(response.getTime() <= maxResponseTime,\\n                \\\"Response time exceeded: \\\" + response.getTime() + \\\"ms > \\\" + maxResponseTime + \\\"ms\\\");\\n    }\\n\\n    protected void validateJsonPath(Response response, String jsonPath, Object expectedValue) {\\n        Object actualValue = response.jsonPath().get(jsonPath);\\n        softly.assertEquals(actualValue, expectedValue,\\n                \\\"JSON path validation failed for: \\\" + jsonPath);\\n    }\\n\\n    protected void validateHeader(Response response, String headerName, String expectedValue) {\\n        String actualValue = response.getHeader(headerName);\\n        softly.assertEquals(actualValue, expectedValue,\\n                \\\"Header validation failed for: \\\" + headerName);\\n    }\\n\\n    protected void validateContainsInResponse(Response response, String expectedText) {\\n        String responseBody = response.getBody().asString();\\n        softly.assertTrue(responseBody.contains(expectedText),\\n                \\\"Response does not contain expected text: \\\" + expectedText);\\n    }\\n\\n    protected Optional<String> getPropertyValue(String key) {\\n        return Optional.ofNullable(properties.getProperty(key));\\n    }\\n\\n    protected String getRequiredProperty(String key) {\\n        return Objects.requireNonNull(properties.getProperty(key),\\n                \\\"Required property not found: \\\" + key);\\n    }\\n}\"\n}]\n}";
         
         System.out.println("[v0] Testing parsing with actual OpenAI response...");
         List<ProjectFile> files = extractFilesWithJsonParsing(actualResponse);
