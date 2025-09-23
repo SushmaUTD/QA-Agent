@@ -114,28 +114,18 @@ public class TestGenerationService {
             // Generate tests using OpenAI - this returns the complete project structure
             String generatedContent = openAIService.generateTests(prompt);
             
-            String jsonContent = extractJsonFromResponse(generatedContent);
-            
-            // Parse the JSON response from OpenAI
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(jsonContent);
-            JsonNode filesNode = rootNode.get("files");
+            List<FileContent> files = extractFilesFromResponse(generatedContent);
             
             // Create zip file in memory
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ZipOutputStream zos = new ZipOutputStream(baos);
             
             // Add each file to the zip
-            if (filesNode != null && filesNode.isArray()) {
-                for (JsonNode fileNode : filesNode) {
-                    String path = fileNode.get("path").asText();
-                    String content = fileNode.get("content").asText();
-                    
-                    ZipEntry entry = new ZipEntry(path);
-                    zos.putNextEntry(entry);
-                    zos.write(content.getBytes());
-                    zos.closeEntry();
-                }
+            for (FileContent file : files) {
+                ZipEntry entry = new ZipEntry(file.getPath());
+                zos.putNextEntry(entry);
+                zos.write(file.getContent().getBytes());
+                zos.closeEntry();
             }
             
             zos.close();
@@ -146,89 +136,93 @@ public class TestGenerationService {
         }
     }
 
-    private String extractJsonFromResponse(String response) {
-        // Remove any leading text before the JSON
-        int jsonStart = response.indexOf("{");
-        if (jsonStart == -1) {
-            throw new RuntimeException("No JSON found in OpenAI response");
-        }
+    private List<FileContent> extractFilesFromResponse(String response) {
+        List<FileContent> files = new ArrayList<>();
         
-        // Find the last closing brace to get complete JSON
-        int jsonEnd = response.lastIndexOf("}");
-        if (jsonEnd == -1 || jsonEnd <= jsonStart) {
-            throw new RuntimeException("Invalid JSON structure in OpenAI response");
-        }
+        // Look for file patterns in the response
+        String[] lines = response.split("\n");
+        String currentPath = null;
+        StringBuilder currentContent = new StringBuilder();
+        boolean inContent = false;
         
-        // Extract just the JSON part
-        String jsonContent = response.substring(jsonStart, jsonEnd + 1);
-        
-        // Remove markdown code blocks
-        jsonContent = jsonContent.replace("\`\`\`json", "").replace("\`\`\`", "");
-        
-        // Fix common JSON escaping issues in content
-        jsonContent = fixJsonEscaping(jsonContent);
-        
-        return jsonContent.trim();
-    }
-    
-    private String fixJsonEscaping(String jsonContent) {
-        try {
-            // First try to parse as-is
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.readTree(jsonContent);
-            return jsonContent; // If it parses successfully, return as-is
-        } catch (Exception e) {
-            // If parsing fails, try to fix common escaping issues
-            // This is a fallback for malformed JSON from OpenAI
-            
-            // Split into lines and rebuild with proper escaping
-            String[] lines = jsonContent.split("\n");
-            StringBuilder fixed = new StringBuilder();
-            boolean inContent = false;
-            
-            for (String line : lines) {
-                if (line.trim().startsWith("\"content\":")) {
-                    inContent = true;
-                    // Find the content value and escape it properly
-                    int colonIndex = line.indexOf(":");
-                    if (colonIndex != -1) {
-                        String prefix = line.substring(0, colonIndex + 1);
-                        String content = line.substring(colonIndex + 1).trim();
-                        
-                        // Remove leading and trailing quotes if present
-                        if (content.startsWith("\"") && content.endsWith("\"")) {
-                            content = content.substring(1, content.length() - 1);
-                        }
-                        
-                        // Escape the content properly
-                        content = content.replace("\\", "\\\\")
-                                        .replace("\"", "\\\"")
-                                        .replace("\n", "\\n")
-                                        .replace("\r", "\\r")
-                                        .replace("\t", "\\t");
-                        
-                        fixed.append(prefix).append(" \"").append(content).append("\"");
-                        if (line.endsWith(",")) {
-                            fixed.append(",");
-                        }
-                        fixed.append("\n");
-                        inContent = false;
-                        continue;
-                    }
+        for (String line : lines) {
+            // Look for path indicators
+            if (line.contains("\"path\":") || line.contains("path:")) {
+                // Save previous file if exists
+                if (currentPath != null && currentContent.length() > 0) {
+                    files.add(new FileContent(currentPath, currentContent.toString().trim()));
                 }
                 
-                if (!inContent) {
-                    fixed.append(line).append("\n");
+                // Extract new path
+                currentPath = extractPath(line);
+                currentContent = new StringBuilder();
+                inContent = false;
+            }
+            // Look for content indicators
+            else if (line.contains("\"content\":") || line.contains("content:")) {
+                inContent = true;
+                String contentStart = extractContentStart(line);
+                if (!contentStart.isEmpty()) {
+                    currentContent.append(contentStart).append("\n");
                 }
             }
-            
-            return fixed.toString();
+            // Collect content lines
+            else if (inContent && currentPath != null) {
+                // Stop if we hit another file or end of JSON
+                if (line.trim().equals("}") || line.contains("\"path\":")) {
+                    inContent = false;
+                    continue;
+                }
+                currentContent.append(line).append("\n");
+            }
         }
+        
+        // Add the last file
+        if (currentPath != null && currentContent.length() > 0) {
+            files.add(new FileContent(currentPath, currentContent.toString().trim()));
+        }
+        
+        return files;
+    }
+    
+    private String extractPath(String line) {
+        // Extract path from various formats
+        int start = line.indexOf("\"") + 1;
+        if (start > 0) {
+            int end = line.indexOf("\"", start);
+            if (end > start) {
+                return line.substring(start, end);
+            }
+        }
+        return "src/test/java/GeneratedTest.java"; // fallback
+    }
+    
+    private String extractContentStart(String line) {
+        // Extract any content that starts on the same line
+        int colonIndex = line.indexOf(":");
+        if (colonIndex != -1) {
+            String content = line.substring(colonIndex + 1).trim();
+            if (content.startsWith("\"")) {
+                content = content.substring(1);
+            }
+            return content;
+        }
+        return "";
+    }
+    
+    private static class FileContent {
+        private final String path;
+        private final String content;
+        
+        public FileContent(String path, String content) {
+            this.path = path;
+            this.content = content;
+        }
+        
+        public String getPath() { return path; }
+        public String getContent() { return content; }
     }
 
-    // - parseGeneratedContent() 
-    // - generatePomXml()
-    // - generateTestProperties()
-    // - generateTestClass()
-    // OpenAI now generates all content directly
+    // private String extractJsonFromResponse(String response) - REMOVED
+    // private String fixJsonEscaping(String jsonContent) - REMOVED
 }
