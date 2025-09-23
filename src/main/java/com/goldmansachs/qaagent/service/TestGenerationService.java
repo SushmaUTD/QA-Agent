@@ -162,9 +162,68 @@ public class TestGenerationService {
         // Extract just the JSON part
         String jsonContent = response.substring(jsonStart, jsonEnd + 1);
         
+        // Remove markdown code blocks
         jsonContent = jsonContent.replace("\`\`\`json", "").replace("\`\`\`", "");
         
+        // Fix common JSON escaping issues in content
+        jsonContent = fixJsonEscaping(jsonContent);
+        
         return jsonContent.trim();
+    }
+    
+    private String fixJsonEscaping(String jsonContent) {
+        try {
+            // First try to parse as-is
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.readTree(jsonContent);
+            return jsonContent; // If it parses successfully, return as-is
+        } catch (Exception e) {
+            // If parsing fails, try to fix common escaping issues
+            // This is a fallback for malformed JSON from OpenAI
+            
+            // Split into lines and rebuild with proper escaping
+            String[] lines = jsonContent.split("\n");
+            StringBuilder fixed = new StringBuilder();
+            boolean inContent = false;
+            
+            for (String line : lines) {
+                if (line.trim().startsWith("\"content\":")) {
+                    inContent = true;
+                    // Find the content value and escape it properly
+                    int colonIndex = line.indexOf(":");
+                    if (colonIndex != -1) {
+                        String prefix = line.substring(0, colonIndex + 1);
+                        String content = line.substring(colonIndex + 1).trim();
+                        
+                        // Remove leading and trailing quotes if present
+                        if (content.startsWith("\"") && content.endsWith("\"")) {
+                            content = content.substring(1, content.length() - 1);
+                        }
+                        
+                        // Escape the content properly
+                        content = content.replace("\\", "\\\\")
+                                        .replace("\"", "\\\"")
+                                        .replace("\n", "\\n")
+                                        .replace("\r", "\\r")
+                                        .replace("\t", "\\t");
+                        
+                        fixed.append(prefix).append(" \"").append(content).append("\"");
+                        if (line.endsWith(",")) {
+                            fixed.append(",");
+                        }
+                        fixed.append("\n");
+                        inContent = false;
+                        continue;
+                    }
+                }
+                
+                if (!inContent) {
+                    fixed.append(line).append("\n");
+                }
+            }
+            
+            return fixed.toString();
+        }
     }
 
     // - parseGeneratedContent() 
