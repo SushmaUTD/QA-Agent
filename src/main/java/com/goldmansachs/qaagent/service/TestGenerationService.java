@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -138,9 +140,10 @@ public class TestGenerationService {
 
     private List<FileContent> extractFilesFromResponse(String response) {
         List<FileContent> files = new ArrayList<>();
+        Set<String> seenPaths = new HashSet<>();
         
         // Look for file patterns in the response
-        String[] lines = response.split("\n");
+        String[] lines = response.split("\\n");
         String currentPath = null;
         StringBuilder currentContent = new StringBuilder();
         boolean inContent = false;
@@ -148,9 +151,10 @@ public class TestGenerationService {
         for (String line : lines) {
             // Look for path indicators
             if (line.contains("\"path\":") || line.contains("path:")) {
-                // Save previous file if exists
-                if (currentPath != null && currentContent.length() > 0) {
+                // Save previous file if exists and path is unique
+                if (currentPath != null && currentContent.length() > 0 && !seenPaths.contains(currentPath)) {
                     files.add(new FileContent(currentPath, currentContent.toString().trim()));
+                    seenPaths.add(currentPath);
                 }
                 
                 // Extract new path
@@ -163,7 +167,7 @@ public class TestGenerationService {
                 inContent = true;
                 String contentStart = extractContentStart(line);
                 if (!contentStart.isEmpty()) {
-                    currentContent.append(contentStart).append("\n");
+                    currentContent.append(contentStart).append("\\n");
                 }
             }
             // Collect content lines
@@ -173,13 +177,14 @@ public class TestGenerationService {
                     inContent = false;
                     continue;
                 }
-                currentContent.append(line).append("\n");
+                currentContent.append(line).append("\\n");
             }
         }
         
-        // Add the last file
-        if (currentPath != null && currentContent.length() > 0) {
+        // Add the last file if path is unique
+        if (currentPath != null && currentContent.length() > 0 && !seenPaths.contains(currentPath)) {
             files.add(new FileContent(currentPath, currentContent.toString().trim()));
+            seenPaths.add(currentPath);
         }
         
         return files;
