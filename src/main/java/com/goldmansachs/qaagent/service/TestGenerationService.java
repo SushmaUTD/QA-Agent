@@ -42,7 +42,6 @@ public class TestGenerationService {
     private String buildEnhancedPrompt(TestGenerationRequest request) {
         StringBuilder prompt = new StringBuilder();
         
-        // Build ticket details in the same format as Next.js
         StringBuilder ticketDetails = new StringBuilder();
         for (int i = 0; i < request.getTickets().size(); i++) {
             JiraTicket ticket = request.getTickets().get(i);
@@ -70,88 +69,39 @@ public class TestGenerationService {
         String environment = request.getAppConfig() != null ? request.getAppConfig().getEnvironment() : "dev";
         String authDetails = request.getAppConfig() != null ? request.getAppConfig().getAuthDetails() : "Basic Auth";
         
-        // Check if single file or full project
-        boolean isSingleFile = "single-file".equals(request.getAiConfig().getDownloadFormat());
-        
-        if (isSingleFile) {
-            prompt.append("Generate a single comprehensive Java test class file for API testing based on these JIRA tickets.\n\n");
-            prompt.append("**APPLICATION CONTEXT:**\n");
-            prompt.append("- Base URL: ").append(baseUrl).append("\n");
-            prompt.append("- Environment: ").append(environment).append("\n");
-            prompt.append("- Auth Details: ").append(authDetails).append("\n\n");
-            prompt.append("**JIRA TICKETS:**\n");
-            prompt.append(ticketDetails.toString()).append("\n\n");
-            prompt.append("**REQUIREMENTS:**\n");
-            prompt.append("1. **Single Java Test Class** - Complete test class with all necessary imports\n");
-            prompt.append("2. **RestAssured Framework** - Use RestAssured for API testing\n");
-            prompt.append("3. **TestNG Annotations** - Use @Test, @BeforeClass, @DataProvider as needed\n");
-            prompt.append("4. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria\n");
-            prompt.append("5. **Ready to Use** - Can be added directly to an existing Spring Boot project\n\n");
-            prompt.append("**IMPORTANT: Respond with ONLY a JSON object in this exact format:**\n");
-            prompt.append("{\n");
-            prompt.append("  \"files\": [\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"ApiTest.java\",\n");
-            prompt.append("      \"content\": \"package com.example;\\n\\nimport io.restassured.RestAssured;\\nimport io.restassured.http.ContentType;\\nimport org.testng.annotations.*;\\nimport static io.restassured.RestAssured.*;\\nimport static org.hamcrest.Matchers.*;\\n\\npublic class ApiTest {\\n\\n    @BeforeClass\\n    public void setup() {\\n        RestAssured.baseURI = \\\"").append(baseUrl).append("\\\";\\n    }\\n\\n    // FULL TEST METHODS HERE...\\n}\"\n");
-            prompt.append("    }\n");
-            prompt.append("  ]\n");
-            prompt.append("}\n\n");
-            prompt.append("Generate a complete, production-ready test class. Do NOT include any markdown formatting, explanations, or text outside the JSON object.");
-        } else {
-            prompt.append("Generate a complete Spring Boot Maven project for API testing based on these JIRA tickets.\n\n");
-            prompt.append("**APPLICATION CONTEXT:**\n");
-            prompt.append("- Base URL: ").append(baseUrl).append("\n");
-            prompt.append("- Environment: ").append(environment).append("\n");
-            prompt.append("- Auth Details: ").append(authDetails).append("\n\n");
-            prompt.append("**JIRA TICKETS:**\n");
-            prompt.append(ticketDetails.toString()).append("\n\n");
-            prompt.append("**REQUIREMENTS:**\n");
-            prompt.append("1. **Complete POM.XML** with Spring Boot 3.2.0, RestAssured 5.3.2, TestNG 7.8.0, JUnit 5.10.0, Maven Surefire Plugin\n");
-            prompt.append("2. **Comprehensive Test Classes** - Separate test classes for each major functionality\n");
-            prompt.append("3. **Test Configuration** - application.properties for test environment\n");
-            prompt.append("4. **Base Test Class** - Common setup and utilities\n");
-            prompt.append("5. **Data Providers** - Test data management\n");
-            prompt.append("6. **Complete Project Structure** - Ready to execute with \"mvn test\"\n");
-            prompt.append("7. **Detailed README** - Setup and execution instructions\n\n");
-            prompt.append("**IMPORTANT: Respond with ONLY a JSON object in this exact format:**\n");
-            prompt.append("{\n");
-            prompt.append("  \"files\": [\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"pom.xml\",\n");
-            prompt.append("      \"content\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<project xmlns=\\\"http://maven.apache.org/POM/4.0.0\\\" xmlns:xsi=\\\"http://www.w3.org/2001/XMLSchema-instance\\\"\\n         xsi:schemaLocation=\\\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\\\">\\n    <modelVersion>4.0.0</modelVersion>\\n    <groupId>com.example</groupId>\\n    <artifactId>api-testing</artifactId>\\n    <version>1.0-SNAPSHOT</version>\\n    <properties>\\n        <maven.compiler.source>17</maven.compiler.source>\\n        <maven.compiler.target>17</maven.compiler.target>\\n        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\\n        <spring.boot.version>3.2.0</spring.boot.version>\\n        <rest.assured.version>5.3.2</rest.assured.version>\\n        <testng.version>7.8.0</testng.version>\\n    </properties>\\n    <dependencies>\\n        <dependency>\\n            <groupId>org.springframework.boot</groupId>\\n            <artifactId>spring-boot-starter-test</artifactId>\\n            <version>${spring.boot.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>io.rest-assured</groupId>\\n            <artifactId>rest-assured</artifactId>\\n            <version>${rest.assured.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>org.testng</groupId>\\n            <artifactId>testng</artifactId>\\n            <version>${testng.version}</version>\\n            <scope>test</scope>\\n        </dependency>\\n        <dependency>\\n            <groupId>com.fasterxml.jackson.core</groupId>\\n            <artifactId>jackson-databind</artifactId>\\n            <version>2.15.2</version>\\n            <scope>test</scope>\\n        </dependency>\\n    </dependencies>\\n    <build>\\n        <plugins>\\n            <plugin>\\n                <groupId>org.apache.maven.plugins</groupId>\\n                <artifactId>maven-surefire-plugin</artifactId>\\n                <version>3.0.0-M9</version>\\n                <configuration>\\n                    <suiteXmlFiles>\\n                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>\\n                    </suiteXmlFiles>\\n                </configuration>\\n            </plugin>\\n        </plugins>\\n    </build>\\n</project>\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/main/java/com/example/Application.java\",\n");
-            prompt.append("      \"content\": \"package com.example;\\n\\nimport org.springframework.boot.SpringApplication;\\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\\n\\n@SpringBootApplication\\npublic class Application {\\n    public static void main(String[] args) {\\n        SpringApplication.run(Application.class, args);\\n    }\\n}\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/test/java/com/example/BaseTest.java\",\n");
-            prompt.append("      \"content\": \"GENERATE COMPREHENSIVE BASE TEST CLASS WITH SETUP AND UTILITIES\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/test/java/com/example/ApiTest.java\",\n");
-            prompt.append("      \"content\": \"GENERATE COMPREHENSIVE API TEST CLASS WITH ALL ACCEPTANCE CRITERIA COVERED\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/test/java/com/example/DataProviders.java\",\n");
-            prompt.append("      \"content\": \"GENERATE TEST DATA PROVIDERS CLASS\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/test/resources/application-test.properties\",\n");
-            prompt.append("      \"content\": \"GENERATE TEST CONFIGURATION PROPERTIES\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"src/test/resources/testng.xml\",\n");
-            prompt.append("      \"content\": \"GENERATE TESTNG SUITE CONFIGURATION\"\n");
-            prompt.append("    },\n");
-            prompt.append("    {\n");
-            prompt.append("      \"path\": \"README.md\",\n");
-            prompt.append("      \"content\": \"GENERATE COMPREHENSIVE README WITH SETUP AND EXECUTION INSTRUCTIONS\"\n");
-            prompt.append("    }\n");
-            prompt.append("  ]\n");
-            prompt.append("}\n\n");
-            prompt.append("Generate ALL files with complete, production-ready content. Each file should be substantial and fully functional. Do NOT include any markdown formatting, explanations, or text outside the JSON object.");
-        }
+        prompt.append("Generate comprehensive Java test classes for API testing based on these JIRA tickets.\n\n");
+        prompt.append("**APPLICATION CONTEXT:**\n");
+        prompt.append("- Base URL: ").append(baseUrl).append("\n");
+        prompt.append("- Environment: ").append(environment).append("\n");
+        prompt.append("- Auth Details: ").append(authDetails).append("\n\n");
+        prompt.append("**JIRA TICKETS:**\n");
+        prompt.append(ticketDetails.toString()).append("\n\n");
+        prompt.append("**REQUIREMENTS:**\n");
+        prompt.append("1. **Comprehensive Test Classes** - Separate test classes for each major functionality\n");
+        prompt.append("2. **RestAssured Framework** - Use RestAssured for API testing\n");
+        prompt.append("3. **TestNG Annotations** - Use @Test, @BeforeClass, @DataProvider as needed\n");
+        prompt.append("4. **Base Test Class** - Common setup and utilities\n");
+        prompt.append("5. **Data Providers** - Test data management\n");
+        prompt.append("6. **Comprehensive Test Cases** - Both positive and negative tests for each acceptance criteria\n");
+        prompt.append("7. **Ready to Use** - Can be added directly to an existing Spring Boot project\n\n");
+        prompt.append("**IMPORTANT: Respond with ONLY a JSON object in this exact format:**\n");
+        prompt.append("{\n");
+        prompt.append("  \"files\": [\n");
+        prompt.append("    {\n");
+        prompt.append("      \"path\": \"src/test/java/com/example/BaseTest.java\",\n");
+        prompt.append("      \"content\": \"GENERATE COMPREHENSIVE BASE TEST CLASS WITH SETUP AND UTILITIES\"\n");
+        prompt.append("    },\n");
+        prompt.append("    {\n");
+        prompt.append("      \"path\": \"src/test/java/com/example/ApiTest.java\",\n");
+        prompt.append("      \"content\": \"GENERATE COMPREHENSIVE API TEST CLASS WITH ALL ACCEPTANCE CRITERIA COVERED\"\n");
+        prompt.append("    },\n");
+        prompt.append("    {\n");
+        prompt.append("      \"path\": \"src/test/java/com/example/DataProviders.java\",\n");
+        prompt.append("      \"content\": \"GENERATE TEST DATA PROVIDERS CLASS\"\n");
+        prompt.append("    }\n");
+        prompt.append("  ]\n");
+        prompt.append("}\n\n");
+        prompt.append("Generate ALL files with complete, production-ready content. Each file should be substantial and fully functional. Do NOT include any markdown formatting, explanations, or text outside the JSON object.");
         
         return prompt.toString();
     }
