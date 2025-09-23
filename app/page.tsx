@@ -230,9 +230,9 @@ export default function JiraTestGenerator() {
         ),
       )
 
-      console.log("[v0] Making request to: http://localhost:8080/api/generate-tests")
+      console.log("[v0] Making request to: /api/generate-tests")
 
-      const response = await fetch("http://localhost:8080/api/generate-tests", {
+      const response = await fetch("/api/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
