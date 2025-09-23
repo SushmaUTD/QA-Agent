@@ -116,118 +116,74 @@ public class TestGenerationService {
             // Generate tests using OpenAI - this returns the complete project structure
             String generatedContent = openAIService.generateTests(prompt);
             
-            List<FileContent> files = extractFilesFromResponse(generatedContent);
+            String jsonContent = extractJsonFromResponse(generatedContent);
+            
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(jsonContent);
+            JsonNode filesNode = rootNode.get("files");
+            
+            if (filesNode == null || !filesNode.isArray()) {
+                throw new IOException("Invalid response format - missing files array");
+            }
             
             // Create zip file in memory
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ZipOutputStream zos = new ZipOutputStream(baos);
             
-            // Add each file to the zip
-            for (FileContent file : files) {
-                ZipEntry entry = new ZipEntry(file.getPath());
+            int filesFound = 0;
+            for (JsonNode fileNode : filesNode) {
+                JsonNode pathNode = fileNode.get("path");
+                JsonNode contentNode = fileNode.get("content");
+                
+                if (pathNode == null || contentNode == null) {
+                    System.out.println("[v0] Skipping invalid file: " + fileNode);
+                    continue;
+                }
+                
+                String path = pathNode.asText();
+                String content = contentNode.asText();
+                
+                System.out.println("[v0] Adding file to zip: " + path + " Content length: " + content.length());
+                System.out.println("[v0] File content preview: " + content.substring(0, Math.min(200, content.length())));
+                
+                ZipEntry entry = new ZipEntry(path);
                 zos.putNextEntry(entry);
-                zos.write(file.getContent().getBytes());
+                zos.write(content.getBytes());
                 zos.closeEntry();
+                filesFound++;
+            }
+            
+            System.out.println("[v0] Total files added to zip: " + filesFound);
+            
+            if (filesFound == 0) {
+                throw new IOException("No files were extracted from OpenAI response");
             }
             
             zos.close();
-            return baos.toByteArray();
+            byte[] zipBytes = baos.toByteArray();
+            System.out.println("[v0] Zip buffer generated, size: " + zipBytes.length + " bytes");
+            
+            return zipBytes;
             
         } catch (Exception e) {
             throw new IOException("Test generation failed: " + e.getMessage(), e);
         }
     }
 
-    private List<FileContent> extractFilesFromResponse(String response) {
-        List<FileContent> files = new ArrayList<>();
-        Set<String> seenPaths = new HashSet<>();
+    private String extractJsonFromResponse(String response) {
+        System.out.println("[v0] OpenAI response length: " + response.length());
+        System.out.println("[v0] OpenAI response preview: " + response.substring(0, Math.min(500, response.length())));
         
-        // Look for file patterns in the response
-        String[] lines = response.split("\\n");
-        String currentPath = null;
-        StringBuilder currentContent = new StringBuilder();
-        boolean inContent = false;
+        int jsonStart = response.indexOf("{");
+        int jsonEnd = response.lastIndexOf("}") + 1;
         
-        for (String line : lines) {
-            // Look for path indicators
-            if (line.contains("\"path\":") || line.contains("path:")) {
-                // Save previous file if exists and path is unique
-                if (currentPath != null && currentContent.length() > 0 && !seenPaths.contains(currentPath)) {
-                    files.add(new FileContent(currentPath, currentContent.toString().trim()));
-                    seenPaths.add(currentPath);
-                }
-                
-                // Extract new path
-                currentPath = extractPath(line);
-                currentContent = new StringBuilder();
-                inContent = false;
-            }
-            // Look for content indicators
-            else if (line.contains("\"content\":") || line.contains("content:")) {
-                inContent = true;
-                String contentStart = extractContentStart(line);
-                if (!contentStart.isEmpty()) {
-                    currentContent.append(contentStart).append("\\n");
-                }
-            }
-            // Collect content lines
-            else if (inContent && currentPath != null) {
-                // Stop if we hit another file or end of JSON
-                if (line.trim().equals("}") || line.contains("\"path\":")) {
-                    inContent = false;
-                    continue;
-                }
-                currentContent.append(line).append("\\n");
-            }
+        if (jsonStart == -1 || jsonEnd <= jsonStart) {
+            throw new RuntimeException("No valid JSON found in OpenAI response");
         }
         
-        // Add the last file if path is unique
-        if (currentPath != null && currentContent.length() > 0 && !seenPaths.contains(currentPath)) {
-            files.add(new FileContent(currentPath, currentContent.toString().trim()));
-            seenPaths.add(currentPath);
-        }
+        String jsonContent = response.substring(jsonStart, jsonEnd);
+        System.out.println("[v0] Extracted JSON content: " + jsonContent.substring(0, Math.min(200, jsonContent.length())));
         
-        return files;
+        return jsonContent;
     }
-    
-    private String extractPath(String line) {
-        // Extract path from various formats
-        int start = line.indexOf("\"") + 1;
-        if (start > 0) {
-            int end = line.indexOf("\"", start);
-            if (end > start) {
-                return line.substring(start, end);
-            }
-        }
-        return "src/test/java/GeneratedTest.java"; // fallback
-    }
-    
-    private String extractContentStart(String line) {
-        // Extract any content that starts on the same line
-        int colonIndex = line.indexOf(":");
-        if (colonIndex != -1) {
-            String content = line.substring(colonIndex + 1).trim();
-            if (content.startsWith("\"")) {
-                content = content.substring(1);
-            }
-            return content;
-        }
-        return "";
-    }
-    
-    private static class FileContent {
-        private final String path;
-        private final String content;
-        
-        public FileContent(String path, String content) {
-            this.path = path;
-            this.content = content;
-        }
-        
-        public String getPath() { return path; }
-        public String getContent() { return content; }
-    }
-
-    // private String extractJsonFromResponse(String response) - REMOVED
-    // private String fixJsonEscaping(String jsonContent) - REMOVED
 }
