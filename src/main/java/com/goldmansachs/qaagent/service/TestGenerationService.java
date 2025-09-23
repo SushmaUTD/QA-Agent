@@ -116,10 +116,28 @@ public class TestGenerationService {
             // Generate tests using OpenAI - this returns the complete project structure
             String generatedContent = openAIService.generateTests(prompt);
             
-            String jsonContent = extractJsonFromResponse(generatedContent);
+            System.out.println("[v0] OpenAI response length: " + generatedContent.length());
+            System.out.println("[v0] OpenAI response preview: " + generatedContent.substring(0, Math.min(500, generatedContent.length())));
+            
+            int jsonStart = generatedContent.indexOf("{");
+            int jsonEnd = generatedContent.lastIndexOf("}") + 1;
+            
+            if (jsonStart == -1 || jsonEnd <= jsonStart) {
+                throw new IOException("No valid JSON found in OpenAI response");
+            }
+            
+            String jsonContent = generatedContent.substring(jsonStart, jsonEnd);
+            System.out.println("[v0] Extracted JSON content: " + jsonContent.substring(0, Math.min(200, jsonContent.length())));
             
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(jsonContent);
+            JsonNode rootNode;
+            try {
+                rootNode = mapper.readTree(jsonContent);
+            } catch (Exception e) {
+                System.out.println("[v0] JSON parsing failed, attempting manual extraction: " + e.getMessage());
+                throw new IOException("Failed to parse OpenAI response as JSON: " + e.getMessage());
+            }
+            
             JsonNode filesNode = rootNode.get("files");
             
             if (filesNode == null || !filesNode.isArray()) {
@@ -168,22 +186,5 @@ public class TestGenerationService {
         } catch (Exception e) {
             throw new IOException("Test generation failed: " + e.getMessage(), e);
         }
-    }
-
-    private String extractJsonFromResponse(String response) {
-        System.out.println("[v0] OpenAI response length: " + response.length());
-        System.out.println("[v0] OpenAI response preview: " + response.substring(0, Math.min(500, response.length())));
-        
-        int jsonStart = response.indexOf("{");
-        int jsonEnd = response.lastIndexOf("}") + 1;
-        
-        if (jsonStart == -1 || jsonEnd <= jsonStart) {
-            throw new RuntimeException("No valid JSON found in OpenAI response");
-        }
-        
-        String jsonContent = response.substring(jsonStart, jsonEnd);
-        System.out.println("[v0] Extracted JSON content: " + jsonContent.substring(0, Math.min(200, jsonContent.length())));
-        
-        return jsonContent;
     }
 }
