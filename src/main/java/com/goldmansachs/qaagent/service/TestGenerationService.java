@@ -119,63 +119,27 @@ public class TestGenerationService {
             System.out.println("[v0] OpenAI response length: " + generatedContent.length());
             System.out.println("[v0] OpenAI response preview: " + generatedContent.substring(0, Math.min(500, generatedContent.length())));
             
-            int jsonStart = generatedContent.indexOf("{");
-            int jsonEnd = generatedContent.lastIndexOf("}") + 1;
+            List<ProjectFile> files = extractFilesDirectly(generatedContent);
             
-            if (jsonStart == -1 || jsonEnd <= jsonStart) {
-                throw new IOException("No valid JSON found in OpenAI response");
-            }
-            
-            String jsonContent = generatedContent.substring(jsonStart, jsonEnd);
-            System.out.println("[v0] Extracted JSON content: " + jsonContent.substring(0, Math.min(200, jsonContent.length())));
-            
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode;
-            try {
-                rootNode = mapper.readTree(jsonContent);
-            } catch (Exception e) {
-                System.out.println("[v0] JSON parsing failed, attempting manual extraction: " + e.getMessage());
-                throw new IOException("Failed to parse OpenAI response as JSON: " + e.getMessage());
-            }
-            
-            JsonNode filesNode = rootNode.get("files");
-            
-            if (filesNode == null || !filesNode.isArray()) {
-                throw new IOException("Invalid response format - missing files array");
+            if (files.isEmpty()) {
+                throw new IOException("No files were extracted from OpenAI response");
             }
             
             // Create zip file in memory
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ZipOutputStream zos = new ZipOutputStream(baos);
             
-            int filesFound = 0;
-            for (JsonNode fileNode : filesNode) {
-                JsonNode pathNode = fileNode.get("path");
-                JsonNode contentNode = fileNode.get("content");
+            for (ProjectFile file : files) {
+                System.out.println("[v0] Adding file to zip: " + file.getPath() + " Content length: " + file.getContent().length());
+                System.out.println("[v0] File content preview: " + file.getContent().substring(0, Math.min(200, file.getContent().length())));
                 
-                if (pathNode == null || contentNode == null) {
-                    System.out.println("[v0] Skipping invalid file: " + fileNode);
-                    continue;
-                }
-                
-                String path = pathNode.asText();
-                String content = contentNode.asText();
-                
-                System.out.println("[v0] Adding file to zip: " + path + " Content length: " + content.length());
-                System.out.println("[v0] File content preview: " + content.substring(0, Math.min(200, content.length())));
-                
-                ZipEntry entry = new ZipEntry(path);
+                ZipEntry entry = new ZipEntry(file.getPath());
                 zos.putNextEntry(entry);
-                zos.write(content.getBytes());
+                zos.write(file.getContent().getBytes());
                 zos.closeEntry();
-                filesFound++;
             }
             
-            System.out.println("[v0] Total files added to zip: " + filesFound);
-            
-            if (filesFound == 0) {
-                throw new IOException("No files were extracted from OpenAI response");
-            }
+            System.out.println("[v0] Total files added to zip: " + files.size());
             
             zos.close();
             byte[] zipBytes = baos.toByteArray();
@@ -186,5 +150,95 @@ public class TestGenerationService {
         } catch (Exception e) {
             throw new IOException("Test generation failed: " + e.getMessage(), e);
         }
+    }
+    
+    private List<ProjectFile> extractFilesDirectly(String response) {
+        List<ProjectFile> files = new ArrayList<>();
+        
+        // Find all file entries using simple string patterns
+        String[] lines = response.split("\n");
+        String currentPath = null;
+        StringBuilder currentContent = new StringBuilder();
+        boolean inContent = false;
+        
+        for (String line : lines) {
+            // Look for path pattern: "path": "some/path"
+            if (line.contains("\"path\":")) {
+                // Save previous file if exists
+                if (currentPath != null && currentContent.length() > 0) {
+                    String content = currentContent.toString().trim();
+                    // Clean up the content by removing quotes and unescaping
+                    if (content.startsWith("\"") && content.endsWith("\"")) {
+                        content = content.substring(1, content.length() - 1);
+                    }
+                    content = content.replace("\\\\n", "\n")
+                                   .replace("\\\\t", "\t")
+                                   .replace("\\\\\"", "\"")
+                                   .replace("\\\\\\\\", "\\");
+                    
+                    files.add(new ProjectFile(currentPath, content));
+                    System.out.println("[v0] Extracted file: " + currentPath + " (length: " + content.length() + ")");
+                }
+                
+                // Extract new path
+                int pathStart = line.indexOf("\"path\":") + 7;
+                int firstQuote = line.indexOf("\"", pathStart);
+                int lastQuote = line.indexOf("\"", firstQuote + 1);
+                if (firstQuote != -1 && lastQuote != -1) {
+                    currentPath = line.substring(firstQuote + 1, lastQuote);
+                    currentContent = new StringBuilder();
+                    inContent = false;
+                }
+            }
+            // Look for content pattern: "content": "..."
+            else if (line.contains("\"content\":") && currentPath != null) {
+                inContent = true;
+                int contentStart = line.indexOf("\"content\":") + 10;
+                String contentPart = line.substring(contentStart).trim();
+                if (contentPart.startsWith("\"")) {
+                    contentPart = contentPart.substring(1);
+                }
+                currentContent.append(contentPart);
+            }
+            // Continue collecting content lines
+            else if (inContent && currentPath != null) {
+                // Stop if we hit the end of this file entry
+                if (line.trim().equals("}") || line.trim().equals("},")) {
+                    inContent = false;
+                } else {
+                    currentContent.append("\n").append(line);
+                }
+            }
+        }
+        
+        // Don't forget the last file
+        if (currentPath != null && currentContent.length() > 0) {
+            String content = currentContent.toString().trim();
+            if (content.startsWith("\"") && content.endsWith("\"")) {
+                content = content.substring(1, content.length() - 1);
+            }
+            content = content.replace("\\\\n", "\n")
+                           .replace("\\\\t", "\t")
+                           .replace("\\\\\"", "\"")
+                           .replace("\\\\\\\\", "\\");
+            
+            files.add(new ProjectFile(currentPath, content));
+            System.out.println("[v0] Extracted final file: " + currentPath + " (length: " + content.length() + ")");
+        }
+        
+        return files;
+    }
+    
+    private static class ProjectFile {
+        private final String path;
+        private final String content;
+        
+        public ProjectFile(String path, String content) {
+            this.path = path;
+            this.content = content;
+        }
+        
+        public String getPath() { return path; }
+        public String getContent() { return content; }
     }
 }
